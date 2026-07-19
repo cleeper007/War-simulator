@@ -19,7 +19,7 @@ const MapView = (() => {
       '148,300 208,262 248,330 300,352 314,386 340,402 380,432 430,472 470,462 496,470 505,505 560,522 560,560 600,690 140,690 120,420' },
     { name: 'QATAR', label: null, pts:
       '505,505 503,468 517,462 524,505' },
-    { name: 'UAE', label: [600, 548], pts:
+    { name: 'UAE', label: [636, 543], pts:
       '540,522 640,506 658,520 640,560 560,560 545,540' },
     { name: 'OMAN', label: [720, 545], pts:
       '658,520 700,472 718,450 738,455 728,472 760,470 772,540 720,602 660,562 640,560' },
@@ -47,6 +47,8 @@ const MapView = (() => {
 
   function targetIcon(t) {
     const g = el('g', { class: `target intact`, id: `tgt-${t.id}`, transform: `translate(${t.x},${t.y})` });
+    // invisible filled circle so the whole icon (not just strokes) is clickable
+    g.appendChild(el('circle', { r: 13, fill: 'transparent' }));
     g.appendChild(el('circle', { class: 'tgt-ring', r: 9 }));
     // core shape varies by type
     let core;
@@ -202,22 +204,24 @@ const MapView = (() => {
     }, { passive: false });
 
     svg.addEventListener('mousedown', (e) => {
-      panning = true;
       panStart = { px: e.clientX, py: e.clientY, vx: view.x, vy: view.y };
-      svg.classList.add('panning');
     });
     window.addEventListener('mousemove', (e) => {
-      if (!panning) return;
+      if (!panStart) return;
+      const dx = e.clientX - panStart.px, dy = e.clientY - panStart.py;
+      // ignore sub-threshold jitter so clicks on targets aren't swallowed by panning
+      if (!panning && Math.hypot(dx, dy) < 4) return;
+      panning = true;
+      svg.classList.add('panning');
       // scale mouse delta from screen px to svg units
       const ctm = svg.getScreenCTM();
-      const sx = (e.clientX - panStart.px) / ctm.a;
-      const sy = (e.clientY - panStart.py) / ctm.d;
-      view.x = panStart.vx + sx;
-      view.y = panStart.vy + sy;
+      view.x = panStart.vx + dx / ctm.a;
+      view.y = panStart.vy + dy / ctm.d;
       applyView();
     });
     window.addEventListener('mouseup', () => {
       panning = false;
+      panStart = null;
       svg.classList.remove('panning');
     });
 

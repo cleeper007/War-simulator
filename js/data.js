@@ -8,7 +8,7 @@
 const TARGETS = [
   {
     id: 'ad-tehran', name: 'Tehran Air Defense Network', short: 'AD TEHRAN',
-    type: 'airdefense', x: 497, y: 218,
+    type: 'airdefense', x: 470, y: 205,
     desc: 'Long-range SAM belt covering the capital region. Degrading it improves survivability of all non-stealth strikes.',
     esc: 1.0, world: -2,
     packages: [
@@ -57,7 +57,7 @@ const TARGETS = [
   },
   {
     id: 'irgc-hq', name: 'IRGC Command Complex — Tehran', short: 'IRGC HQ',
-    type: 'command', x: 514, y: 232,
+    type: 'command', x: 540, y: 225,
     desc: 'Revolutionary Guard national command node. Striking it disrupts coordination of retaliation but is highly provocative.',
     esc: 2.0, world: -3,
     packages: [
@@ -135,7 +135,7 @@ const US_ASSETS = [
     desc: 'Carrier strike group in the Arabian Sea, outside Iranian missile range.' },
   { id: 'udeid', name: 'Al Udeid AB — Qatar', short: 'AL UDEID', x: 511, y: 487, kind: 'airbase',
     desc: 'Forward headquarters, tankers and strike aircraft. Within Iranian ballistic missile range.' },
-  { id: 'dhafra', name: 'Al Dhafra AB — UAE', short: 'AL DHAFRA', x: 592, y: 528, kind: 'airbase',
+  { id: 'dhafra', name: 'Al Dhafra AB — UAE', short: 'AL DHAFRA', x: 578, y: 527, kind: 'airbase',
     desc: 'F-35 squadrons and ISR platforms. Within Iranian ballistic missile range.' },
   { id: 'asad', name: 'Ain al-Asad AB — Iraq', short: 'AIN AL-ASAD', x: 290, y: 262, kind: 'airbase',
     desc: 'US forces in western Iraq. Repeatedly targeted by Iranian missiles and proxy rockets.' },

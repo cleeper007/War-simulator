@@ -27,7 +27,8 @@ Situation Room with strike authority requested and the world watching. Each turn
 
 ### Objectives (victory)
 
-1. **Degrade Iran's nuclear program** — destroy the Natanz and Fordow enrichment sites.
+1. **Degrade Iran's nuclear program** — cripple the Natanz and Fordow enrichment sites
+   (at least 75% program degradation).
 2. **Force Tehran to negotiate** — with the program degraded and escalation under
    control, use the Omani backchannel to close a deal.
 

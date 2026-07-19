@@ -56,7 +56,7 @@ const UI = (() => {
   function renderObjectives(G) {
     const deg = G.nukeDegraded();
     const items = [
-      { text: `Degrade nuclear program (${deg}%)`, done: deg >= 100 },
+      { text: `Degrade nuclear program (${deg}% / 75% needed)`, done: deg >= 75 },
       { text: 'Force Tehran to negotiations', done: G.negotiationsAccepted },
       { text: `Keep escalation below regional war (${G.escalation.toFixed(1)}/10)`, done: null },
       { text: `Keep Strait of Hormuz open`, done: null },
