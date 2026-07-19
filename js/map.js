@@ -7,37 +7,27 @@ const MapView = (() => {
   let view = { x: 0, y: 0, k: 1 };
   let panning = false, panStart = null;
 
-  // ---- stylized regional geography (not to scale) ----
-  const COUNTRIES = [
-    { name: 'IRAN', cls: 'iran', label: [530, 270], pts:
-      '350,150 420,128 500,148 560,138 622,168 700,200 760,250 800,330 788,420 742,452 700,442 662,432 640,420 600,432 560,412 520,402 480,382 440,352 400,332 368,300 340,250 330,198' },
-    { name: 'IRAQ', label: [280, 250], pts:
-      '198,180 280,168 350,150 330,198 340,250 368,300 350,330 300,352 248,330 208,262' },
-    { name: 'KUWAIT', label: null, pts:
-      '300,352 336,344 346,370 314,386' },
-    { name: 'SAUDI ARABIA', label: [330, 520], pts:
-      '148,300 208,262 248,330 300,352 314,386 340,402 380,432 430,472 470,462 496,470 505,505 560,522 560,560 600,690 140,690 120,420' },
-    { name: 'QATAR', label: null, pts:
-      '505,505 503,468 517,462 524,505' },
-    { name: 'UAE', label: [636, 543], pts:
-      '540,522 640,506 658,520 640,560 560,560 545,540' },
-    { name: 'OMAN', label: [720, 545], pts:
-      '658,520 700,472 718,450 738,455 728,472 760,470 772,540 720,602 660,562 640,560' },
-    { name: 'TURKMENISTAN', label: [700, 140], pts:
-      '622,168 700,200 760,250 830,240 900,180 880,110 760,100 660,130' },
-    { name: 'PAKISTAN / AFGHANISTAN', label: [880, 330], pts:
-      '760,250 800,330 788,420 850,432 950,400 985,300 950,190 900,180 830,240' },
+  // Real geography lives in geodata.js (COUNTRY_PATHS, Natural Earth 50m).
+  // Label anchors are hand-placed in the same projected coordinate space.
+  const COUNTRY_LABELS = [
+    { name: 'IRAN', x: 533, y: 272 },
+    { name: 'IRAQ', x: 160, y: 276 },
+    { name: 'SAUDI ARABIA', x: 233, y: 585 },
+    { name: 'TURKMENISTAN', x: 633, y: 49 },
+    { name: 'AFGHANISTAN', x: 917, y: 215 },
+    { name: 'PAKISTAN', x: 933, y: 453 },
+    { name: 'OMAN', x: 627, y: 642 },
+    { name: 'UAE', x: 563, y: 600 },
+    { name: 'TURKEY', x: 67, y: 34 },
+    { name: 'SYRIA', x: 33, y: 170 },
   ];
 
   const SEAS = [
-    { name: 'PERSIAN GULF', x: 455, y: 425 },
-    { name: 'GULF OF OMAN', x: 745, y: 490 },
-    { name: 'ARABIAN SEA', x: 840, y: 610 },
-    { name: 'CASPIAN SEA', x: 520, y: 105 },
+    { name: 'PERSIAN GULF', x: 390, y: 457 },
+    { name: 'GULF OF OMAN', x: 667, y: 551 },
+    { name: 'ARABIAN SEA', x: 833, y: 668 },
+    { name: 'CASPIAN SEA', x: 423, y: 38 },
   ];
-
-  // Caspian is drawn as water on top of land
-  const CASPIAN = '470,60 560,50 610,80 615,150 570,175 500,165 460,120';
 
   function el(tag, attrs = {}) {
     const n = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -99,18 +89,16 @@ const MapView = (() => {
     // water backdrop
     world.appendChild(el('rect', { x: -2000, y: -2000, width: 5000, height: 5000, fill: 'var(--water)' }));
 
-    // countries
-    for (const c of COUNTRIES) {
-      const p = el('polygon', { class: `country ${c.cls || ''}`, points: c.pts });
+    // countries (real borders; the Caspian shows as water between them)
+    for (const c of COUNTRY_PATHS) {
+      const p = el('path', { class: `country ${c.cls || ''}`, d: c.d, 'fill-rule': 'evenodd' });
       world.appendChild(p);
-      if (c.label) {
-        const t = el('text', { class: 'country-label', x: c.label[0], y: c.label[1] });
-        t.textContent = c.name;
-        world.appendChild(t);
-      }
     }
-    // caspian on top
-    world.appendChild(el('polygon', { class: '', points: CASPIAN, fill: 'var(--water)', stroke: 'var(--land-line)', 'stroke-width': 1 }));
+    for (const c of COUNTRY_LABELS) {
+      const t = el('text', { class: 'country-label', x: c.x, y: c.y });
+      t.textContent = c.name;
+      world.appendChild(t);
+    }
 
     for (const s of SEAS) {
       const t = el('text', { class: 'sea-label', x: s.x, y: s.y });
@@ -121,7 +109,7 @@ const MapView = (() => {
     // Hormuz status indicator
     const hz = el('g', { id: 'hormuz-indicator', transform: `translate(${HORMUZ_POS.x},${HORMUZ_POS.y})` });
     hz.appendChild(el('circle', { id: 'hormuz-dot', r: 5, class: 'hz-open' }));
-    const hzLabel = el('text', { y: -10, 'font-size': 9, id: 'hormuz-label', class: 'hz-open' });
+    const hzLabel = el('text', { y: 16, 'font-size': 9, id: 'hormuz-label', class: 'hz-open' });
     hzLabel.textContent = 'HORMUZ: OPEN';
     hz.appendChild(hzLabel);
     world.appendChild(hz);

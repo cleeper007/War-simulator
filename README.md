@@ -71,6 +71,7 @@ commander-in-chief/
 ├── css/
 │   └── style.css     # Dark situation-room theme
 └── js/
+    ├── geodata.js    # Real country outlines (Natural Earth 50m, generated)
     ├── data.js       # Targets, US assets, static data
     ├── map.js        # SVG map, pan/zoom, icons, strike animations
     ├── ai.js         # Iranian AI opponent, advisors, headlines
@@ -78,8 +79,11 @@ commander-in-chief/
     └── game.js       # State, turn loop, strike resolution, endings
 ```
 
-Vanilla HTML/CSS/JavaScript. All state is client-side; the SVG map is drawn in code
-(stylized, not to scale) so there are no API keys or network calls.
+Vanilla HTML/CSS/JavaScript. All state is client-side. The SVG map uses real country
+borders from [Natural Earth](https://www.naturalearthdata.com/) 50m data (public domain),
+pre-projected into the game's coordinate space and baked into `js/geodata.js`, so there
+are still no API keys or network calls. Targets and bases sit at their real-world
+coordinates (equirectangular projection, standard parallel 28°N).
 
 ## Deploying to GitHub Pages
 
