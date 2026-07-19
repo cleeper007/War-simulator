@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Commander in Chief: Persian Gulf Crisis</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ============ TITLE SCREEN ============ -->
+<div id="title-screen" class="overlay">
+  <div class="title-box">
+    <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
+    <h1>COMMANDER IN CHIEF</h1>
+    <h2>PERSIAN GULF CRISIS</h2>
+    <div class="title-brief">
+      <p><strong>0340 ZULU.</strong> Iranian anti-ship ballistic missiles have struck the destroyer
+      USS <em>Milius</em> in the Strait of Hormuz. Seven sailors are dead. Tehran claims the strike
+      was retaliation for a covert action it attributes to the United States.</p>
+      <p>The Joint Chiefs are assembled. CENTCOM is requesting strike authority. The world is
+      watching how you respond.</p>
+      <p>Achieve U.S. objectives — degrade Iran's nuclear program and force Tehran to the
+      table — without letting the crisis spiral into regional war, losing the country, or
+      wrecking the global economy.</p>
+    </div>
+    <button id="btn-start" class="btn-primary">ENTER THE SITUATION ROOM</button>
+    <div class="disclaimer">
+      This is a work of strategic fiction, in the tradition of DEFCON and Twilight Struggle.
+      The scenario, events, and outcomes are invented and abstracted for gameplay.
+      It depicts no real events and endorses no policy.
+    </div>
+  </div>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div id="app" class="hidden">
+  <div id="main-row">
+    <!-- Map -->
+    <div id="map-panel">
+      <div id="map-header">
+        <span class="panel-title">CENTCOM COMMON OPERATING PICTURE</span>
+        <span id="map-clock">DAY 1 — 06:00 LOCAL</span>
+        <div id="map-zoom-controls">
+          <button id="zoom-in" title="Zoom in">+</button>
+          <button id="zoom-out" title="Zoom out">−</button>
+          <button id="zoom-reset" title="Reset view">⌂</button>
+        </div>
+      </div>
+      <div id="map-container">
+        <svg id="map" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet">
+          <g id="world"></g>
+        </svg>
+        <div id="tooltip" class="hidden"></div>
+      </div>
+    </div>
+
+    <!-- Situation Room sidebar -->
+    <div id="sidebar">
+      <div class="panel" id="objectives-panel">
+        <div class="panel-title">MISSION OBJECTIVES</div>
+        <ul id="objectives-list"></ul>
+      </div>
+
+      <div class="panel" id="resources-panel">
+        <div class="panel-title">STRIKE ASSETS AVAILABLE</div>
+        <div id="resources-list"></div>
+      </div>
+
+      <div class="panel" id="advisors-panel">
+        <div class="panel-title">SITUATION ROOM — ADVISORS</div>
+        <div id="advisors-list"></div>
+      </div>
+
+      <div class="panel" id="diplo-panel">
+        <div class="panel-title">DIPLOMATIC ACTIONS <span id="diplo-status"></span></div>
+        <div id="diplo-buttons"></div>
+      </div>
+
+      <button id="btn-end-turn" class="btn-primary">END TURN — AWAIT DEVELOPMENTS</button>
+    </div>
+  </div>
+
+  <!-- Bottom status bar -->
+  <div id="bottom-bar">
+    <div id="status-row">
+      <div class="stat" id="stat-escalation">
+        <div class="stat-label">ESCALATION</div>
+        <div class="defcon-meter" id="escalation-meter"></div>
+        <div class="stat-value" id="escalation-value">4.0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">APPROVAL</div>
+        <div class="stat-value big" id="approval-value">58%</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">BRENT CRUDE</div>
+        <div class="stat-value big" id="oil-value">$84</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">STRAIT OF HORMUZ</div>
+        <div class="stat-value big" id="hormuz-value">OPEN</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">WORLD OPINION</div>
+        <div class="stat-value big" id="world-value">60</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">US CASUALTIES</div>
+        <div class="stat-value big" id="casualty-value">7</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">TURN</div>
+        <div class="stat-value big" id="turn-value">1/20</div>
+      </div>
+    </div>
+    <div id="ticker-row"><div id="ticker"><span id="ticker-text"></span></div></div>
+  </div>
+</div>
+
+<!-- ============ STRIKE PLANNING MODAL ============ -->
+<div id="strike-modal" class="overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="panel-title">STRIKE PLANNING — <span id="strike-target-name"></span></span>
+      <button class="modal-close" data-close="strike-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="strike-target-desc" class="dim"></p>
+      <div id="strike-packages"></div>
+      <div id="strike-estimate" class="estimate-box hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-close="strike-modal">ABORT</button>
+      <button id="btn-confirm-strike" class="btn-danger" disabled>AUTHORIZE STRIKE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TURN REPORT MODAL ============ -->
+<div id="report-modal" class="overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="panel-title" id="report-title">OVERNIGHT DEVELOPMENTS</span>
+    </div>
+    <div class="modal-body" id="report-body"></div>
+    <div class="modal-footer">
+      <button id="btn-report-ok" class="btn-primary">ACKNOWLEDGE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ENDGAME MODAL ============ -->
+<div id="end-modal" class="overlay hidden">
+  <div class="modal wide">
+    <div class="modal-header">
+      <span class="panel-title" id="end-title"></span>
+    </div>
+    <div class="modal-body" id="end-body"></div>
+    <div class="modal-footer">
+      <button id="btn-restart" class="btn-primary">NEW CRISIS</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/map.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
