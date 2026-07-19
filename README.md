@@ -47,10 +47,19 @@ Situation Room with strike authority requested and the world watching. Each turn
   - *Cruise missiles (TLAM)* — no aircrew risk, ineffective against buried sites.
   - *B-2 missions (GBU-57)* — scarce; the **only** weapon that can kill Fordow.
 - **Take one diplomatic action** — backchannel talks, UN pressure, sanctions,
-  coalition building, or an address to the nation.
+  coalition building, an address to the nation, or **ISR prep** for the raid below.
+- **Launch the leadership raid** — a single Tier-1 SOF task force, one attempt for
+  the whole game. Base odds are low; ISR prep and degraded air defenses / IRGC
+  command raise them. Success shatters Tehran's command chain (and may open — or
+  poison — the negotiation window); failure puts dead or captured operators on
+  Iranian state TV.
 - **End the turn** — Iran responds based on the escalation level and what you hit:
   proxy attacks, missile barrages, shipping attacks, cyber, or moves against the
   Strait of Hormuz.
+
+The game autosaves at each turn boundary and after every resolved action —
+use **Continue** on the title screen to pick up a crisis, **Save & Quit** to step
+away, and the mute toggle in the status bar to silence sound effects.
 
 ### Tips
 
@@ -70,13 +79,16 @@ commander-in-chief/
 ├── index.html        # Layout: map, sidebar, status bar, modals
 ├── css/
 │   └── style.css     # Dark situation-room theme
+├── audio/            # Sound effects (synthesized in-house, royalty-free WAVs)
 └── js/
     ├── geodata.js    # Real country outlines (Natural Earth 50m, generated)
     ├── data.js       # Targets, US assets, static data
     ├── map.js        # SVG map, pan/zoom, icons, strike animations
     ├── ai.js         # Iranian AI opponent, advisors, headlines
+    ├── audio.js      # Sound manager: preload, play, mute toggle
     ├── ui.js         # HUD, sidebar, modal rendering
-    └── game.js       # State, turn loop, strike resolution, endings
+    ├── specops.js    # Special forces: ISR prep + leadership raid
+    └── game.js       # State, turn loop, strikes, save/continue, endings
 ```
 
 Vanilla HTML/CSS/JavaScript. All state is client-side. The SVG map uses real country

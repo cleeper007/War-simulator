@@ -329,3 +329,32 @@ button { font-family: var(--mono); }
   0%, 100% { opacity: 1; } 50% { opacity: 0.35; }
 }
 .pulsing { animation: pulse 1.2s infinite; }
+
+/* ============ save / continue ============ */
+#btn-continue { margin-left: 10px; }
+#btn-continue:disabled { opacity: 0.35; cursor: not-allowed; }
+
+#session-buttons { display: flex; gap: 8px; margin-top: 8px; }
+#session-buttons button { flex: 1; padding: 7px; font-size: 10.5px; }
+
+/* ============ audio ============ */
+#btn-mute {
+  background: transparent; border: 1px solid var(--line); cursor: pointer;
+  font-size: 15px; padding: 2px 8px; line-height: 1.4;
+}
+#btn-mute:hover { border-color: var(--blue); }
+
+/* ============ special operations ============ */
+#specops-buttons { display: flex; flex-direction: column; gap: 6px; }
+#specops-buttons button {
+  text-align: left; padding: 7px 10px; font-size: 11.5px;
+  background: var(--bg-panel2); border: 1px solid var(--line);
+  color: var(--text); cursor: pointer;
+}
+#specops-buttons button:hover:not(:disabled) { border-color: var(--blue); }
+#specops-buttons button:disabled { opacity: 0.35; cursor: not-allowed; }
+#specops-buttons button.specops-danger { border-color: #7a2525; color: var(--red); }
+#specops-buttons button.specops-danger:hover:not(:disabled) {
+  border-color: var(--red); background: #2a0d0d;
+}
+#specops-status { color: var(--dim); }

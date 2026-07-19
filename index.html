@@ -25,6 +25,7 @@
       wrecking the global economy.</p>
     </div>
     <button id="btn-start" class="btn-primary">ENTER THE SITUATION ROOM</button>
+    <button id="btn-continue" class="btn-secondary" disabled>CONTINUE SAVED CRISIS</button>
     <div class="disclaimer">
       This is a work of strategic fiction, in the tradition of DEFCON and Twilight Struggle.
       The scenario, events, and outcomes are invented and abstracted for gameplay.
@@ -77,9 +78,18 @@
         <div class="panel-title">DIPLOMATIC ACTIONS <span id="diplo-status"></span></div>
         <div id="diplo-buttons"></div>
       </div>
+
+      <div class="panel" id="specops-panel">
+        <div class="panel-title">SPECIAL OPERATIONS <span id="specops-status"></span></div>
+        <div id="specops-buttons"></div>
+      </div>
       </div>
 
       <button id="btn-end-turn" class="btn-primary">END TURN — AWAIT DEVELOPMENTS</button>
+      <div id="session-buttons">
+        <button id="btn-save-quit" class="btn-secondary">SAVE &amp; QUIT</button>
+        <button id="btn-new-game" class="btn-secondary">NEW GAME</button>
+      </div>
     </div>
   </div>
 
@@ -115,6 +125,10 @@
         <div class="stat-label">TURN</div>
         <div class="stat-value big" id="turn-value">1/20</div>
       </div>
+      <div class="stat">
+        <div class="stat-label">AUDIO</div>
+        <button id="btn-mute" title="Toggle sound">🔊</button>
+      </div>
     </div>
     <div id="ticker-row"><div id="ticker"><span id="ticker-text"></span></div></div>
   </div>
@@ -135,6 +149,29 @@
     <div class="modal-footer">
       <button class="btn-secondary" data-close="strike-modal">ABORT</button>
       <button id="btn-confirm-strike" class="btn-danger" disabled>AUTHORIZE STRIKE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SPECIAL OPERATIONS MODAL ============ -->
+<div id="specops-modal" class="overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="panel-title">SPECIAL OPERATIONS — LEADERSHIP DECAPITATION</span>
+      <button class="modal-close" data-close="specops-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="specops-brief" class="dim">JSOC has a compartmented plan on the shelf: a deniable
+      night insert against the top of the regime's command chain — the Supreme Leader's
+      protective compound and the IRGC general staff residence. One Tier-1 task force. One
+      attempt, ever. Success decapitates Iranian command and could crack the crisis open —
+      or leave it leaderless and lashing out. Failure puts dead or captured Americans on
+      Iranian state television.</p>
+      <div id="specops-estimate" class="estimate-box"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-close="specops-modal">STAND DOWN</button>
+      <button id="btn-confirm-raid" class="btn-danger">AUTHORIZE THE RAID</button>
     </div>
   </div>
 </div>
@@ -169,7 +206,9 @@
 <script src="js/data.js"></script>
 <script src="js/map.js"></script>
 <script src="js/ai.js"></script>
+<script src="js/audio.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/specops.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

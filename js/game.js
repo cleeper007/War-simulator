@@ -14,12 +14,15 @@ const Game = (() => {
     world: 60,             // world opinion 0–100
     hormuz: 'OPEN', hormuzClosedTurns: 0,
     casualties: { us: 7 }, // the destroyer attack that starts the crisis
-    res: { fighters: 4, cruise: 8, stealth: 1 },
-    caps: { fighters: 6, cruise: 12, stealth: 2 },
+    res: { fighters: 4, cruise: 8, stealth: 1, specops: 1 },
+    caps: { fighters: 6, cruise: 12, stealth: 2, specops: 1 },
     strikesThisTurn: 0, struckThisTurn: [],
     sanctions: 0, coalition: false, addressCooldown: 0,
     negotiationsAccepted: false, negotiationMomentum: 0,
     diploUsed: false, over: false,
+    // special operations (see specops.js)
+    raid: 'none', raidThisTurn: false, isrPrep: 0,
+    regimeChaosTurns: 0, regimeErratic: false, hostageCrisis: false,
     stats: { strikes: 0, destroyed: 0, aircraftLost: 0, peakOil: 84, backchannels: 0 },
 
     nukeDegraded() {
@@ -32,9 +35,48 @@ const Game = (() => {
       return d; // 0–100
     },
     negotiationReady() {
-      return this.nukeDegraded() >= 75 && this.escalation <= 6;
+      // a successful decapitation raid (with the pragmatists in charge)
+      // lowers how much of the program must be gone before Tehran talks
+      const degNeeded = this.raid === 'success' && !this.regimeErratic ? 50 : 75;
+      return this.nukeDegraded() >= degNeeded && this.escalation <= 6;
     },
   };
+
+  // ---- save / continue (localStorage) ----
+  const Save = (() => {
+    const KEY = 'cic-save-v1';   // bump the version to invalidate old saves
+    const FIELDS = [
+      'turn', 'maxTurns', 'escalation', 'approval', 'oil', 'world',
+      'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
+      'strikesThisTurn', 'struckThisTurn', 'sanctions', 'coalition',
+      'addressCooldown', 'negotiationsAccepted', 'negotiationMomentum',
+      'diploUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep',
+      'regimeChaosTurns', 'regimeErratic', 'hostageCrisis', 'stats',
+    ];
+
+    function write() {
+      if (G.over) return;
+      try {
+        const data = { version: 1, muted: AudioSys.isMuted(), fields: {}, targets: {} };
+        for (const f of FIELDS) data.fields[f] = G[f];
+        for (const t of TARGETS) data.targets[t.id] = t.status || 'intact';
+        localStorage.setItem(KEY, JSON.stringify(data));
+      } catch (e) { /* storage unavailable — play without saves */ }
+    }
+
+    function read() {
+      try {
+        const data = JSON.parse(localStorage.getItem(KEY));
+        return data && data.version === 1 ? data : null;
+      } catch (e) { return null; }
+    }
+
+    function clear() {
+      try { localStorage.removeItem(KEY); } catch (e) {}
+    }
+
+    return { write, read, clear };
+  })();
 
   // ---- strike math ----
   function airDefenseWeight() {
@@ -70,9 +112,11 @@ const Game = (() => {
     G.stats.strikes++;
     G.escalation = clamp(G.escalation + target.esc, 0, 10);
     G.world = clamp(G.world + target.world, 0, 100);
+    AudioSys.play('launch');
     UI.renderAll(G);
 
     MapView.animateStrike(pkg.asset, target, () => {
+      AudioSys.play('impact');
       const est = computeStrike(target, pkg);
       const roll = Math.random();
       let outcome, text;
@@ -113,17 +157,23 @@ const Game = (() => {
         G.escalation = clamp(G.escalation + 0.4, 0, 10);
         text += ' One strike aircraft was lost to surface-to-air fire. Two aviators are dead; footage is already on Iranian state TV.';
         ev.casualties = 2;
+        AudioSys.play('aircraftLost', 600);
       }
 
       ev.text = text;
       MapView.updateTarget(target);
       G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
       UI.renderAll(G);
-      UI.showReport('STRIKE REPORT', [ev], () => {
-        const result = checkEnd();
-        if (result) finish(result);
-      });
+      UI.showReport('STRIKE REPORT', [ev], afterAction);
     });
+  }
+
+  // ran after any resolved action: persist, then check for an ending
+  function afterAction() {
+    G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
+    Save.write();
+    const result = checkEnd();
+    if (result) finish(result);
   }
 
   // ---- diplomacy ----
@@ -136,7 +186,8 @@ const Game = (() => {
         G.stats.backchannels++;
         if (G.negotiationReady()) {
           const p = clamp(0.25 + G.sanctions * 0.08 + (G.world - 50) * 0.005 +
-            (6 - G.escalation) * 0.06 + G.negotiationMomentum, 0.05, 0.9);
+            (6 - G.escalation) * 0.06 + G.negotiationMomentum +
+            (G.regimeChaosTurns > 0 ? 0.2 : 0) - (G.regimeErratic ? 0.15 : 0), 0.05, 0.9);
           if (Math.random() < p) {
             G.negotiationsAccepted = true;
             G.diploUsed = true;
@@ -218,11 +269,9 @@ const Game = (() => {
 
     G.diploUsed = true;
     G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
+    AudioSys.play('cable');
     UI.renderAll(G);
-    UI.showReport('DIPLOMATIC CABLE', events, () => {
-      const result = checkEnd();
-      if (result) finish(result);
-    });
+    UI.showReport('DIPLOMATIC CABLE', events, afterAction);
   }
 
   // ---- Iranian phase / end turn ----
@@ -239,11 +288,13 @@ const Game = (() => {
   function endTurn() {
     if (G.over) return;
 
-    // restraint pays down the ladder
-    if (G.strikesThisTurn === 0) G.escalation = clamp(G.escalation - 0.6, 0, 10);
+    // restraint pays down the ladder (a raid is not restraint)
+    const restrained = G.strikesThisTurn === 0 && !G.raidThisTurn;
+    if (restrained) G.escalation = clamp(G.escalation - 0.6, 0, 10);
 
     const events = IranAI.respond(G);
     for (const ev of events) applyEvent(ev);
+    if (events.some(ev => ev.casualties || ev.hormuz === 'CLOSED')) AudioSys.play('retaliation');
 
     // economy: oil drifts toward a level set by escalation + Hormuz status
     const oilTarget = 82 + G.escalation * 5 +
@@ -260,7 +311,7 @@ const Game = (() => {
     if (G.turn > 8) G.approval = clamp(G.approval - 0.5, 0, 100);
 
     // world opinion slowly recovers in quiet turns
-    if (G.strikesThisTurn === 0) G.world = clamp(G.world + 1.5, 0, 100);
+    if (restrained) G.world = clamp(G.world + 1.5, 0, 100);
 
     const day = Math.ceil(G.turn / 2);
     UI.setTicker(IranAI.headlines(G, events));
@@ -282,11 +333,14 @@ const Game = (() => {
     if (G.turn % 3 === 0) G.res.stealth = Math.min(G.res.stealth + 1, G.caps.stealth);
 
     if (G.addressCooldown > 0) G.addressCooldown--;
+    if (G.regimeChaosTurns > 0) G.regimeChaosTurns--;
     G.diploUsed = false;
     G.strikesThisTurn = 0;
     G.struckThisTurn = [];
+    G.raidThisTurn = false;
 
     UI.renderAll(G);
+    Save.write();
   }
 
   // ---- endings ----
@@ -328,22 +382,33 @@ const Game = (() => {
       time: 'Ten days of crisis ended in an uneasy, armed standoff. Objectives were not achieved; the problem is handed to the next news cycle, and perhaps the next president.',
     };
     const narratives = {
-      deal: `Backchannel talks in Muscat produced a framework: verified enrichment freeze against phased sanctions relief. It took ${G.turn} turns and ${G.casualties.us} American lives.`,
+      deal: `Backchannel talks in Muscat produced a framework: verified enrichment freeze against phased sanctions relief.` +
+        (G.hostageCrisis ? ' The final sticking point was the captured operators — their release is written into the first annex.' : '') +
+        ` It took ${G.turn} turns and ${G.casualties.us} American lives.`,
       war: 'Historians will argue about which strike was one too many.',
       impeachment: 'The objectives, whatever their merits, could not survive the politics.',
       economy: 'Military dominance meant little once the strait stayed shut.',
       time: `The nuclear program stands at ${deg}% degraded. The fleet remains on station. Nothing is settled.`,
     };
 
+    const grades = [
+      ['MILITARY SUCCESS', milGrade, `Nuclear program ${deg}% degraded · ${G.stats.destroyed} targets destroyed · ${G.stats.aircraftLost} aircraft lost`],
+      ['AMERICAN LIVES', livesGrade, `${G.casualties.us} US service members killed`],
+      ['DIPLOMATIC STANDING', worldGrade, `World opinion ${Math.round(G.world)}/100`],
+      ['ECONOMIC DAMAGE', econGrade, `Peak oil price $${Math.round(G.stats.peakOil)}/bbl`],
+    ];
+    if (G.raid !== 'none') {
+      grades.splice(1, 0, G.raid === 'success'
+        ? ['SPECIAL OPERATIONS', 'A', 'Leadership decapitation raid succeeded — regime command chain shattered']
+        : ['SPECIAL OPERATIONS', 'F', G.hostageCrisis
+          ? 'Leadership raid failed — operators captured and paraded on Iranian state TV'
+          : 'Leadership raid failed — the task force was lost on Iranian soil']);
+    }
+
     G.over = true;
     return {
       kind, title: titles[reason], verdict: verdicts[reason], narrative: narratives[reason],
-      grades: [
-        ['MILITARY SUCCESS', milGrade, `Nuclear program ${deg}% degraded · ${G.stats.destroyed} targets destroyed · ${G.stats.aircraftLost} aircraft lost`],
-        ['AMERICAN LIVES', livesGrade, `${G.casualties.us} US service members killed`],
-        ['DIPLOMATIC STANDING', worldGrade, `World opinion ${Math.round(G.world)}/100`],
-        ['ECONOMIC DAMAGE', econGrade, `Peak oil price $${Math.round(G.stats.peakOil)}/bbl`],
-      ],
+      grades,
       stats: {
         esc: G.escalation, approval: G.approval, oil: G.oil,
         casualties: G.casualties.us, destroyed: G.stats.destroyed, turns: G.turn,
@@ -353,12 +418,14 @@ const Game = (() => {
 
   function finish(result) {
     G.over = true;
+    Save.clear(); // the crisis is over, one way or another
+    AudioSys.play(result.kind === 'victory' ? 'victory' : result.kind === 'defeat' ? 'defeat' : 'cable');
     UI.renderAll(G);
     UI.showEndgame(result);
   }
 
   // ---- boot ----
-  function start() {
+  function start(resume) {
     document.getElementById('title-screen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     MapView.render();
@@ -367,18 +434,51 @@ const Game = (() => {
       if (t.status === 'destroyed') return;
       UI.openStrikeModal(G, t);
     });
-    UI.setTicker(IranAI.headlines(G, [{ title: 'USS MILIUS STRUCK IN STRAIT OF HORMUZ — SEVEN SAILORS DEAD' }]));
+    if (resume) {
+      // rebuild map state from the restored targets/Hormuz status
+      for (const t of TARGETS) MapView.updateTarget(t);
+      MapView.setHormuz(G.hormuz);
+      UI.setTicker(IranAI.headlines(G, [{ title: 'SITUATION ROOM RECONVENES — CRISIS ONGOING' }]));
+    } else {
+      UI.setTicker(IranAI.headlines(G, [{ title: 'USS MILIUS STRUCK IN STRAIT OF HORMUZ — SEVEN SAILORS DEAD' }]));
+    }
     UI.renderAll(G);
+  }
+
+  function restoreAndStart(data) {
+    for (const [f, v] of Object.entries(data.fields)) G[f] = v;
+    for (const t of TARGETS) t.status = data.targets[t.id] || 'intact';
+    AudioSys.setMuted(!!data.muted);
+    start(true);
   }
 
   function init() {
     for (const t of TARGETS) t.status = 'intact';
+    AudioSys.init();
     UI.init();
-    document.getElementById('btn-start').addEventListener('click', start);
+    SpecOps.init();
+
+    document.getElementById('btn-start').addEventListener('click', () => start(false));
     document.getElementById('btn-end-turn').addEventListener('click', endTurn);
+
+    // continue / save & quit / new game
+    const saved = Save.read();
+    const btnContinue = document.getElementById('btn-continue');
+    btnContinue.disabled = !saved;
+    if (saved) btnContinue.addEventListener('click', () => restoreAndStart(saved));
+
+    document.getElementById('btn-save-quit').addEventListener('click', () => {
+      Save.write();
+      window.location.reload();
+    });
+    document.getElementById('btn-new-game').addEventListener('click', () => {
+      if (!confirm('Abandon the current crisis? The save will be erased.')) return;
+      Save.clear();
+      window.location.reload();
+    });
   }
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { computeStrike, executeStrike, doDiplo, endTurn, G };
+  return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, G };
 })();

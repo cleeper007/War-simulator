@@ -103,6 +103,11 @@ const IranAI = (() => {
       text: 'Intelligence reports internal debate in Tehran. No significant Iranian military action in the last 12 hours.',
       dEsc: -0.3,
     }),
+    hostageParade: () => ({
+      title: 'Captured US operators shown on Iranian state TV',
+      text: 'Tehran airs new footage of the captured special operators — coerced statements, flags, cameras. The families are watching. Congress is demanding to know the plan to bring them home.',
+      dApproval: -2, dEsc: 0.2,
+    }),
     backchannelFeeler: () => ({
       title: 'Quiet feeler through Oman',
       text: 'Muscat passes word that elements in Tehran may be looking for an off-ramp — if the pressure and the humiliation both stop rising.',
@@ -113,7 +118,10 @@ const IranAI = (() => {
   // Decide Iran's response this turn based on game state
   function respond(G) {
     const events = [];
-    const esc = G.escalation;
+    // a decapitated regime hits back far lighter; an erratic remnant, harder
+    let esc = G.escalation;
+    if (G.regimeChaosTurns > 0) esc -= 2.5;
+    else if (G.regimeErratic) esc += 0.5;
     const mStr = missileStrength();
     const nStr = navalStrength();
     const struckOil = G.struckThisTurn.some(id => ['kharg', 'abadan'].includes(id));
@@ -144,6 +152,9 @@ const IranAI = (() => {
     } else {
       events.push(chance(0.5) ? EV.quiet() : EV.backchannelFeeler());
     }
+
+    // captured raid personnel are a recurring propaganda drumbeat
+    if (G.hostageCrisis && chance(0.35)) events.push(EV.hostageParade());
 
     // Hormuz can reopen when things cool down and Iran's navy is beaten up
     if (G.hormuz !== 'OPEN' && esc < 5 && (nStr < 1 || chance(0.4))) {
@@ -186,6 +197,10 @@ const IranAI = (() => {
 
     if (G.hormuz === 'CLOSED') {
       nsa.text = 'The Strait is the whole ballgame right now. Every turn it stays closed bleeds the economy — hit their naval bases or cool this down fast.';
+    } else if (G.hostageCrisis) {
+      nsa.text = 'Our people are in an IRGC prison and on their televisions. Every deal now runs through that cell block — no agreement survives politically unless it brings them home.';
+    } else if (G.regimeChaosTurns > 0) {
+      nsa.text = 'Tehran\'s command chain is decapitated and their retaliation is uncoordinated. This window closes fast — whoever consolidates power will need to look strong. Use it or lose it.';
     } else if (G.approval < 35) {
       nsa.text = 'Your political capital is nearly spent. Congress smells blood. We need visible wins or visible peace — drift is fatal.';
     } else if (esc >= 8) {
@@ -215,6 +230,8 @@ const IranAI = (() => {
     else if (G.approval > 60) h.push('RALLY EFFECT: PUBLIC BACKS PRESIDENT\'S CRISIS MANAGEMENT');
     if (G.escalation >= 8) h.push('NETWORKS GO WALL-TO-WALL: "IS THIS WAR?"');
     if (G.hormuz === 'CLOSED') h.push('GAS LINES FORM AS HORMUZ CLOSURE CHOKES GLOBAL SUPPLY');
+    if (G.regimeChaosTurns > 0) h.push('POWER VACUUM IN TEHRAN — INTELLIGENCE AGENCIES ASK: WHO IS IN CHARGE?');
+    if (G.hostageCrisis) h.push('VIGILS HELD FOR CAPTURED US SPECIAL OPERATORS');
     const fillers = [...FILLER_HEADLINES].sort(() => Math.random() - 0.5).slice(0, 3);
     return [...h, ...fillers];
   }

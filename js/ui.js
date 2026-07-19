@@ -50,6 +50,8 @@ const UI = (() => {
 
     $('casualty-value').textContent = G.casualties.us;
     $('casualty-value').className = 'stat-value big ' + (G.casualties.us > 50 ? 'crit' : G.casualties.us > 20 ? 'warn' : '');
+
+    AudioSys.escalationCheck(G.escalation);
   }
 
   // ---- sidebar ----
@@ -70,6 +72,7 @@ const UI = (() => {
       ['Fighter sorties', G.res.fighters, G.caps.fighters],
       ['Cruise missiles (TLAM)', G.res.cruise, G.caps.cruise],
       ['B-2 missions (GBU-57)', G.res.stealth, G.caps.stealth],
+      ['SOF task force (Tier 1)', G.res.specops, G.caps.specops],
     ];
     $('resources-list').innerHTML = rows.map(([n, v, cap]) =>
       `<div class="res-row"><span>${n}</span><span class="res-count">${v} / ${cap}</span></div>`).join('');
@@ -124,6 +127,7 @@ const UI = (() => {
     renderResources(G);
     renderAdvisors(G);
     renderDiplo(G);
+    SpecOps.renderPanel(G);
   }
 
   function renderAll(G) {
