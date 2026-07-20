@@ -110,7 +110,7 @@ const IranAI = (() => {
     }),
     backchannelFeeler: () => ({
       title: 'Quiet feeler through Oman',
-      text: 'Muscat passes word that elements in Tehran may be looking for an off-ramp — if the pressure and the humiliation both stop rising.',
+      text: 'Muscat passes word that the pragmatists in Tehran are counting what remains of the missile force — and quietly asking what an end to the war would cost.',
       dEsc: -0.2,
     }),
   };
@@ -131,7 +131,12 @@ const IranAI = (() => {
     // Revenge logic: hitting oil draws shipping/economic retaliation
     if (struckOil && nStr > 0) events.push(chance(0.6) ? EV.shipping() : EV.mineScare());
 
-    if (esc >= 8.5) {
+    if (mStr + nStr <= 1) {
+      // capacity overrides intent: a broken Iran cannot sustain the war,
+      // no matter how hot it burned on the way down
+      events.push(chance(0.6) ? EV.quiet() : EV.propaganda());
+      if (chance(0.25)) events.push(EV.proxyRockets());
+    } else if (esc >= 8.5) {
       events.push(EV.massBarrage(mStr));
       if (G.hormuz !== 'CLOSED' && nStr > 0 && chance(0.7)) events.push(EV.hormuzClose());
     } else if (esc >= 6.5) {
@@ -150,17 +155,27 @@ const IranAI = (() => {
       events.push(pick(pool)());
       if (struckAny && chance(0.3)) events.push(EV.proxyAttack());
     } else {
-      events.push(chance(0.5) ? EV.quiet() : EV.backchannelFeeler());
+      // no free off-ramps: even at low escalation Iran keeps the pressure on
+      events.push(pick([EV.harass, EV.cyber, EV.proxyRockets, EV.propaganda])());
+      if (struckAny && chance(0.25)) events.push(EV.proxyAttack());
+    }
+
+    // Tehran only sues for peace when its ability to fight is actually shattered
+    if (mStr + nStr <= 1 && G.nukeDegraded() >= 75 && chance(0.35)) {
+      events.push(EV.backchannelFeeler());
     }
 
     // captured raid personnel are a recurring propaganda drumbeat
     if (G.hostageCrisis && chance(0.35)) events.push(EV.hostageParade());
 
-    // Hormuz can reopen when things cool down and Iran's navy is beaten up
-    if (G.hormuz !== 'OPEN' && esc < 5 && (nStr < 1 || chance(0.4))) {
+    // Hormuz reopens the war-sim way: break Iran's navy and the Fifth Fleet
+    // clears the strait by force. Absent that, only a genuine lull reopens it.
+    if (G.hormuz !== 'OPEN' && (nStr < 1 ? chance(0.65) : esc < 5 && chance(0.4))) {
       events.push({
-        title: 'Strait of Hormuz reopening',
-        text: 'With minesweepers working and Iranian naval activity reduced, convoys are moving again under escort.',
+        title: 'Strait of Hormuz reopened by force',
+        text: nStr < 1
+          ? 'With Iranian naval bases in ruins, minesweepers and escorts cleared the channel. Convoys are moving under Fifth Fleet guns.'
+          : 'With minesweepers working and Iranian naval activity reduced, convoys are moving again under escort.',
         hormuz: 'OPEN', dOil: -18,
       });
     }
@@ -179,20 +194,24 @@ const IranAI = (() => {
     const nsa = { name: 'NSA Reyes', cls: '', text: '' };
     const cjcs = { name: 'Gen. Halvorsen, CJCS', cls: 'mil', text: '' };
 
-    if (nukeDeg >= 100) {
-      secdef.text = 'The nuclear program is finished. Keep the pressure on their missile force so they can\'t hit back while State works the endgame.';
+    const warStr = missileStrength() + navalStrength();
+
+    if (nukeDeg >= 100 && warStr <= 1.5) {
+      secdef.text = 'They\'re beaten and they know it. Finish the missile force, the navy, and the IRGC command node — end this on our terms, not theirs.';
+    } else if (nukeDeg >= 100) {
+      secdef.text = 'The nuclear program is finished — half the job. Now break the sword: missile brigades, the swarm-boat navy, IRGC command. Victory is destroying their ability to fight, not their will to.';
     } else if (esc >= 7) {
-      secdef.text = 'We\'re past half-measures, Mr. President. Finish the target list — enrichment sites and missile bases — before they can reconstitute.';
+      secdef.text = 'This is a war now, Mr. President — fight it like one. Sustain the sortie rate, service the full target list, and don\'t give them a night to reconstitute.';
     } else {
-      secdef.text = 'Restraint reads as weakness in Tehran. I recommend we strike the enrichment sites now while we hold escalation dominance.';
+      secdef.text = 'The mission is victory: kill the program and break their war machine. Roll back the air defenses, then take the enrichment sites while we hold escalation dominance.';
     }
 
-    if (esc >= 7) {
-      secstate.text = 'We are one bad night from regional war. I need you to pause strikes and let me open the Omani backchannel before this is out of anyone\'s control.';
-    } else if (G.negotiationReady()) {
-      secstate.text = 'The program is degraded and Tehran is hurting. This is the window — authorize the backchannel and let\'s get them to the table.';
+    if (G.negotiationReady()) {
+      secstate.text = 'Tehran is broken — this is the rare moment a backchannel might actually close. If you want the win signed instead of just shattered, authorize the Omani channel now.';
+    } else if (nukeDeg >= 75 && warStr <= 2) {
+      secstate.text = 'They\'re not ready to fold yet — an overture now would be read as weakness and spun against us. Keep destroying what they fight with; I\'ll be ready when they break.';
     } else {
-      secstate.text = 'Every strike costs us allies. Pair any military action with UN pressure and sanctions so we\'re not isolated when this ends.';
+      secstate.text = 'No one in Tehran will talk while they can still shoot. My job right now is holding the coalition together while you win — pair the strikes with UN pressure and sanctions.';
     }
 
     if (G.hormuz === 'CLOSED') {
@@ -203,10 +222,12 @@ const IranAI = (() => {
       nsa.text = 'Tehran\'s command chain is decapitated and their retaliation is uncoordinated. This window closes fast — whoever consolidates power will need to look strong. Use it or lose it.';
     } else if (G.approval < 35) {
       nsa.text = 'Your political capital is nearly spent. Congress smells blood. We need visible wins or visible peace — drift is fatal.';
+    } else if (G.casualties.us >= 100) {
+      nsa.text = `${G.casualties.us} dead and the country is counting. The home front will not fund this war past 150 — win it before the arithmetic wins it for them.`;
     } else if (esc >= 8) {
-      nsa.text = 'At this escalation level their leadership may believe regime survival is at stake. Cornered adversaries do irrational things.';
+      nsa.text = 'This is total war now and they will throw everything they have left. What matters is the exchange rate: their launchers and hulls have to die faster than our people do.';
     } else {
-      nsa.text = 'Watch the ladder. Each rung up is easy; climbing down costs blood or prestige. Keep an off-ramp visible to Tehran at all times.';
+      nsa.text = 'The clock and the casualty count are the real enemies. Every turn their war machine survives is a turn it spends killing Americans — tempo is mercy.';
     }
 
     if (adLeft >= 2) {
@@ -214,7 +235,7 @@ const IranAI = (() => {
     } else if (nukeDeg < 100) {
       cjcs.text = 'Skies are relatively permissive now. Fordow requires a B-2 with penetrators — nothing else touches it. Natanz we can service with either bombers or a heavy Tomahawk package.';
     } else {
-      cjcs.text = 'Primary target set serviced. Remaining risk is their residual missile force and small-boat navy. We can hold what we\'ve gained if escalation stabilizes.';
+      cjcs.text = 'Nuclear target set serviced. For decisive victory the remaining list is their missile brigades, both naval bases, and the IRGC command complex — kill those and Iran is out of the war.';
     }
 
     return [secdef, secstate, nsa, cjcs];
@@ -226,9 +247,10 @@ const IranAI = (() => {
     for (const ev of events) h.push(ev.title.toUpperCase());
     if (G.oil > 150) h.push(`OIL SHOCK: BRENT AT $${Math.round(G.oil)} — RECESSION FEARS MOUNT`);
     else if (G.oil > 110) h.push(`BRENT CRUDE TOPS $${Math.round(G.oil)} AS CRISIS PREMIUM GROWS`);
-    if (G.approval < 35) h.push('POLL: PRESIDENT\'S HANDLING OF CRISIS UNDERWATER, IMPEACHMENT TALK GROWS');
-    else if (G.approval > 60) h.push('RALLY EFFECT: PUBLIC BACKS PRESIDENT\'S CRISIS MANAGEMENT');
-    if (G.escalation >= 8) h.push('NETWORKS GO WALL-TO-WALL: "IS THIS WAR?"');
+    if (G.approval < 35) h.push('POLL: PRESIDENT\'S CONDUCT OF THE WAR UNDERWATER, IMPEACHMENT TALK GROWS');
+    else if (G.approval > 60) h.push('RALLY EFFECT: PUBLIC BACKS PRESIDENT\'S CONDUCT OF THE WAR');
+    if (G.escalation >= 8) h.push('NETWORKS GO WALL-TO-WALL AS THE WAR GOES TOTAL');
+    if (G.casualties.us >= 100) h.push('CASUALTY COUNT MOUNTS — CONGRESS DEBATES LIMITS ON THE WAR');
     if (G.hormuz === 'CLOSED') h.push('GAS LINES FORM AS HORMUZ CLOSURE CHOKES GLOBAL SUPPLY');
     if (G.regimeChaosTurns > 0) h.push('POWER VACUUM IN TEHRAN — INTELLIGENCE AGENCIES ASK: WHO IS IN CHARGE?');
     if (G.hostageCrisis) h.push('VIGILS HELD FOR CAPTURED US SPECIAL OPERATORS');
@@ -236,5 +258,5 @@ const IranAI = (() => {
     return [...h, ...fillers];
   }
 
-  return { respond, advise, headlines };
+  return { respond, advise, headlines, missileStrength, navalStrength };
 })();

@@ -49,7 +49,7 @@ const UI = (() => {
     w.className = 'stat-value big ' + (G.world < 30 ? 'crit' : G.world < 45 ? 'warn' : '');
 
     $('casualty-value').textContent = G.casualties.us;
-    $('casualty-value').className = 'stat-value big ' + (G.casualties.us > 50 ? 'crit' : G.casualties.us > 20 ? 'warn' : '');
+    $('casualty-value').className = 'stat-value big ' + (G.casualties.us > 110 ? 'crit' : G.casualties.us > 60 ? 'warn' : '');
 
     AudioSys.escalationCheck(G.escalation);
   }
@@ -58,9 +58,9 @@ const UI = (() => {
   function renderObjectives(G) {
     const deg = G.nukeDegraded();
     const items = [
-      { text: `Degrade nuclear program (${deg}% / 75% needed)`, done: deg >= 75 },
-      { text: 'Force Tehran to negotiations', done: G.negotiationsAccepted },
-      { text: `Keep escalation below regional war (${G.escalation.toFixed(1)}/10)`, done: null },
+      { text: `Destroy nuclear program (${deg}% / 100%)`, done: deg >= 100 },
+      { text: 'Break Iran\'s war machine (missiles · navy · IRGC command)', done: G.iranBroken() },
+      { text: `Limit US casualties (${G.casualties.us} / 150 tolerated)`, done: null },
       { text: `Keep Strait of Hormuz open`, done: null },
     ];
     $('objectives-list').innerHTML = items.map(i =>
@@ -92,8 +92,8 @@ const UI = (() => {
       {
         id: 'backchannel', name: 'Omani backchannel',
         desc: negReady
-          ? 'Conditions may support a deal. Attempt to bring Tehran to the table.'
-          : 'Open quiet contact. Reduces escalation; a deal needs their program degraded and escalation under control.',
+          ? 'Tehran is breaking. A deal is possible — but far from certain. Attempt to bring them to the table.'
+          : 'Tehran won\'t talk while it can still fight. An overture now will be rebuffed and read as weakness at home.',
       },
       {
         id: 'un', name: 'UN Security Council push',

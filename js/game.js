@@ -34,11 +34,19 @@ const Game = (() => {
       }
       return d; // 0–100
     },
+    // warfighting capacity shattered: missile force and navy near zero, IRGC command gone
+    iranBroken() {
+      const irgc = TARGETS.find(t => t.id === 'irgc-hq');
+      return IranAI.missileStrength() <= 0.5 && IranAI.navalStrength() <= 0.5 &&
+        irgc.status === 'destroyed';
+    },
     negotiationReady() {
-      // a successful decapitation raid (with the pragmatists in charge)
-      // lowers how much of the program must be gone before Tehran talks
-      const degNeeded = this.raid === 'success' && !this.regimeErratic ? 50 : 75;
-      return this.nukeDegraded() >= degNeeded && this.escalation <= 6;
+      // Tehran only talks when it is already losing the war: the program largely
+      // gone AND its ability to fight visibly draining away. A successful
+      // decapitation raid (with the pragmatists in charge) lowers the bar.
+      const degNeeded = this.raid === 'success' && !this.regimeErratic ? 75 : 100;
+      const warStr = IranAI.missileStrength() + IranAI.navalStrength(); // 0..4
+      return this.nukeDegraded() >= degNeeded && warStr <= 1.5;
     },
   };
 
@@ -185,9 +193,12 @@ const Game = (() => {
       case 'backchannel': {
         G.stats.backchannels++;
         if (G.negotiationReady()) {
-          const p = clamp(0.25 + G.sanctions * 0.08 + (G.world - 50) * 0.005 +
-            (6 - G.escalation) * 0.06 + G.negotiationMomentum +
-            (G.regimeChaosTurns > 0 ? 0.2 : 0) - (G.regimeErratic ? 0.15 : 0), 0.05, 0.9);
+          // odds are driven by how badly Iran is losing, not by how calm things are
+          const warStr = IranAI.missileStrength() + IranAI.navalStrength(); // 0..4
+          const irgcDown = TARGETS.find(t => t.id === 'irgc-hq').status === 'destroyed';
+          const p = clamp(0.08 + (1.5 - warStr) * 0.12 + (irgcDown ? 0.08 : 0) +
+            G.sanctions * 0.03 + G.negotiationMomentum +
+            (G.regimeChaosTurns > 0 ? 0.15 : 0) - (G.regimeErratic ? 0.2 : 0), 0.03, 0.65);
           if (Math.random() < p) {
             G.negotiationsAccepted = true;
             G.diploUsed = true;
@@ -196,26 +207,18 @@ const Game = (() => {
             return;
           }
           G.negotiationMomentum += 0.1;
-          G.escalation = clamp(G.escalation - 0.8, 0, 10);
           events.push({
-            cls: 'world', title: 'Backchannel: Tehran not ready — yet',
-            text: 'The Omanis report serious engagement but no authority to close. Momentum is building; keep conditions stable and try again.',
-            dEsc: -0.8,
+            cls: 'world', title: 'Backchannel: Tehran not broken enough — yet',
+            text: 'The Omanis report the pragmatists are listening but the hardliners still believe they can absorb the damage. Keep destroying what they fight with and the calculus changes.',
           });
         } else {
-          G.escalation = clamp(G.escalation - 1.0, 0, 10);
-          G.world = clamp(G.world + 2, 0, 100);
-          const ev = {
-            cls: 'world', title: 'Backchannel contact established',
-            text: 'Quiet contact through Muscat lowers the temperature. Tehran will not discuss its nuclear program from a position of strength — leverage is required before a deal is possible.',
-            dEsc: -1.0, dWorld: 2,
-          };
-          if (Math.random() < 0.15) {
-            G.approval = clamp(G.approval - 3, 0, 100);
-            ev.text += ' The contact leaked to the press; hardliners at home accuse you of appeasement.';
-            ev.dApproval = -3;
-          }
-          events.push(ev);
+          // Tehran can still fight — the overture reads as American hesitation
+          G.approval = clamp(G.approval - 2, 0, 100);
+          events.push({
+            cls: 'world', title: 'Backchannel rebuffed',
+            text: 'Muscat relays Tehran\'s answer: no talks while the Islamic Republic can still fight. The overture is spun as American weakness on state TV, and hardliners at home ask why you\'re suing for peace mid-war.',
+            dApproval: -2,
+          });
         }
         break;
       }
@@ -259,7 +262,7 @@ const Game = (() => {
         G.approval = clamp(G.approval + 6, 0, 100);
         events.push({
           cls: 'friendly', title: 'Oval Office address',
-          text: 'You lay out the stakes to the American people: the attack, the objectives, and the off-ramp offered to Tehran. The rally effect is real, for now.',
+          text: 'You lay out the stakes to the American people: the attack, the objectives, and what victory requires. The rally effect is real, for now.',
           dApproval: 6,
         });
         break;
@@ -288,10 +291,8 @@ const Game = (() => {
   function endTurn() {
     if (G.over) return;
 
-    // restraint pays down the ladder (a raid is not restraint)
-    const restrained = G.strikesThisTurn === 0 && !G.raidThisTurn;
-    if (restrained) G.escalation = clamp(G.escalation - 0.6, 0, 10);
-
+    // no restraint dividend: the ladder does not pay itself down while you wait,
+    // and Iran does not stop shooting because you did
     const events = IranAI.respond(G);
     for (const ev of events) applyEvent(ev);
     if (events.some(ev => ev.casualties || ev.hormuz === 'CLOSED')) AudioSys.play('retaliation');
@@ -310,9 +311,6 @@ const Game = (() => {
     else if (G.oil >= 115) G.approval = clamp(G.approval - 1, 0, 100);
     if (G.turn > 8) G.approval = clamp(G.approval - 0.5, 0, 100);
 
-    // world opinion slowly recovers in quiet turns
-    if (restrained) G.world = clamp(G.world + 1.5, 0, 100);
-
     const day = Math.ceil(G.turn / 2);
     UI.setTicker(IranAI.headlines(G, events));
     const result = checkEnd();
@@ -325,7 +323,14 @@ const Game = (() => {
 
   function nextTurn() {
     G.turn++;
-    if (G.turn > G.maxTurns) { finish(buildResult('stalemate', 'time')); return; }
+    if (G.turn > G.maxTurns) {
+      // the campaign has culminated: if the objectives are nowhere near met,
+      // the force is spent for nothing — that is a defeat, not a draw
+      finish(G.nukeDegraded() < 50
+        ? buildResult('defeat', 'exhaustion')
+        : buildResult('stalemate', 'time'));
+      return;
+    }
 
     // replenish
     G.res.fighters = Math.min(G.res.fighters + 2, G.caps.fighters);
@@ -346,9 +351,13 @@ const Game = (() => {
   // ---- endings ----
   function checkEnd() {
     if (G.over) return null;
-    if (G.escalation >= 10) return buildResult('defeat', 'war');
+    // primary win: the nuclear program is gone and Iran can no longer fight
+    if (G.nukeDegraded() >= 100 && G.iranBroken()) return buildResult('victory', 'military');
+    // max escalation is not a loss — it just means the war has gone total.
+    // The losses are military and political:
+    if (G.casualties.us >= 150) return buildResult('defeat', 'casualties');
     if (G.approval <= 20) return buildResult('defeat', 'impeachment');
-    if (G.hormuzClosedTurns >= 4 || G.oil >= 220) return buildResult('defeat', 'economy');
+    if (G.hormuzClosedTurns >= 5 || G.oil >= 240) return buildResult('defeat', 'economy');
     return null;
   }
 
@@ -368,26 +377,34 @@ const Game = (() => {
     const econGrade = gradeFor(G.stats.peakOil, [100, 125, 155, 190]);
 
     const titles = {
-      deal: 'CEASEFIRE — TEHRAN COMES TO THE TABLE',
-      war: 'DEFEAT — REGIONAL WAR',
+      military: 'DECISIVE VICTORY — IRAN\'S WAR MACHINE BROKEN',
+      deal: 'ARMISTICE — TEHRAN SUES FOR PEACE',
+      casualties: 'DEFEAT — UNSUSTAINABLE LOSSES',
       impeachment: 'DEFEAT — PRESIDENCY COLLAPSES',
       economy: 'DEFEAT — ECONOMIC COLLAPSE',
-      time: 'CRISIS FROZEN — NO RESOLUTION',
+      exhaustion: 'DEFEAT — CAMPAIGN CULMINATED',
+      time: 'WAR FROZEN — OBJECTIVES INCOMPLETE',
     };
     const verdicts = {
-      deal: 'VICTORY. Iran\'s nuclear program is degraded and Tehran has accepted negotiations under a ceasefire framework.',
-      war: 'The escalation ladder ran out of rungs. A general war has begun across the region — mobilization, a draft debate in Congress, and a conflict whose end no one can see.',
-      impeachment: 'With approval in ruins, your own party abandoned you. The House opened impeachment proceedings over the handling of the crisis; the presidency is effectively over.',
-      economy: 'The prolonged closure of Hormuz broke the global economy. Fuel rationing, a market crash, and allied governments falling — the crisis was lost at the gas pump.',
-      time: 'Ten days of crisis ended in an uneasy, armed standoff. Objectives were not achieved; the problem is handed to the next news cycle, and perhaps the next president.',
+      military: 'VICTORY. The nuclear program is destroyed and Iran\'s ability to wage war — its missile force, its navy, its command structure — has been dismantled. The objectives are achieved by force of arms.',
+      deal: 'VICTORY. With its war machine breaking apart, Tehran took the off-ramp and accepted terms. The objectives are achieved — signed rather than shattered.',
+      casualties: 'The casualty count crossed what the country would bear. Congress moved to cut off funding for the operation, and the campaign ends with its objectives unmet and its dead counted in the hundreds.',
+      impeachment: 'With approval in ruins, your own party abandoned you. The House opened impeachment proceedings over the conduct of the war; the presidency is effectively over.',
+      economy: 'The prolonged closure of Hormuz broke the global economy. Fuel rationing, a market crash, and allied governments falling — the war was lost at the gas pump.',
+      exhaustion: 'The force culminated with the objectives nowhere in sight. Magazines empty, crews exhausted, and Iran\'s program still standing — the campaign simply ran out of ammunition and time.',
+      time: 'Ten days of war ended in an armed standoff. Real damage was done, but Iran\'s capacity to fight survives; the problem is handed to the next news cycle, and perhaps the next president.',
     };
     const narratives = {
-      deal: `Backchannel talks in Muscat produced a framework: verified enrichment freeze against phased sanctions relief.` +
+      military: `CENTCOM's assessment is unambiguous: enrichment halted, missile brigades combat-ineffective, the IRGC command chain severed.` +
+        (G.hostageCrisis ? ' The captured operators were recovered in the final hours as the regime\'s prison apparatus dissolved.' : '') +
+        ` It took ${G.turn} turns and ${G.casualties.us} American lives.`,
+      deal: `Backchannel talks in Muscat produced a framework: verified dismantlement against phased sanctions relief — terms dictated by the battlefield.` +
         (G.hostageCrisis ? ' The final sticking point was the captured operators — their release is written into the first annex.' : '') +
         ` It took ${G.turn} turns and ${G.casualties.us} American lives.`,
-      war: 'Historians will argue about which strike was one too many.',
+      casualties: 'The war was winnable on the map. It was lost in the arrival ceremonies at Dover.',
       impeachment: 'The objectives, whatever their merits, could not survive the politics.',
       economy: 'Military dominance meant little once the strait stayed shut.',
+      exhaustion: 'Historians will note the sorties flown and the little they changed.',
       time: `The nuclear program stands at ${deg}% degraded. The fleet remains on station. Nothing is settled.`,
     };
 
@@ -438,7 +455,7 @@ const Game = (() => {
       // rebuild map state from the restored targets/Hormuz status
       for (const t of TARGETS) MapView.updateTarget(t);
       MapView.setHormuz(G.hormuz);
-      UI.setTicker(IranAI.headlines(G, [{ title: 'SITUATION ROOM RECONVENES — CRISIS ONGOING' }]));
+      UI.setTicker(IranAI.headlines(G, [{ title: 'SITUATION ROOM RECONVENES — THE WAR CONTINUES' }]));
     } else {
       UI.setTicker(IranAI.headlines(G, [{ title: 'USS MILIUS STRUCK IN STRAIT OF HORMUZ — SEVEN SAILORS DEAD' }]));
     }
@@ -472,7 +489,7 @@ const Game = (() => {
       window.location.reload();
     });
     document.getElementById('btn-new-game').addEventListener('click', () => {
-      if (!confirm('Abandon the current crisis? The save will be erased.')) return;
+      if (!confirm('Abandon the current war? The save will be erased.')) return;
       Save.clear();
       window.location.reload();
     });

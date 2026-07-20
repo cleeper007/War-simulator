@@ -1,9 +1,9 @@
-# Commander in Chief: Persian Gulf Crisis
+# Commander in Chief: Persian Gulf War
 
-A browser-based, turn-based geopolitical strategy game. You are the President of the
-United States during an escalating military crisis with Iran — part **DEFCON**, part
-grand-strategy situation room. Manage strikes, diplomacy, domestic politics, and the
-global economy without letting the crisis spiral into regional war.
+A browser-based, turn-based war simulator. You are the President of the United States
+in a shooting war with Iran — part **DEFCON**, part grand-strategy situation room.
+The mission is victory: destroy Iran's nuclear program and break its ability to fight,
+while the casualty count, the home front, and the global economy grind against you.
 
 > **Note:** This is a work of strategic fiction. The scenario, events, and outcomes are
 > invented and abstracted for gameplay, in the tradition of DEFCON, Twilight Struggle,
@@ -21,23 +21,30 @@ Open `index.html` in any modern browser — no build step, no server, no depende
 
 ### The situation
 
-Iranian missiles have struck a US destroyer in the Strait of Hormuz. You're in the
-Situation Room with strike authority requested and the world watching. Each turn is
-12 in-game hours; you have 20 turns (10 days) to resolve the crisis.
+Iranian missiles have struck a US destroyer in the Strait of Hormuz. This is not a
+crisis to be managed — it is a war to be won. Each turn is 12 in-game hours; you have
+20 turns (10 days) before the campaign culminates.
 
-### Objectives (victory)
+### How you win
 
-1. **Degrade Iran's nuclear program** — cripple the Natanz and Fordow enrichment sites
-   (at least 75% program degradation).
-2. **Force Tehran to negotiate** — with the program degraded and escalation under
-   control, use the Omani backchannel to close a deal.
+1. **Decisive military victory** (the primary path) — destroy the nuclear program
+   (Natanz and Fordow, 100% degradation) **and** break Iran's war machine: its missile
+   bases, its naval bases, and the IRGC command complex.
+2. **Armistice** (rare, conditional) — Tehran only comes to the table once the program
+   is destroyed and its forces are collapsing, and even then each overture is a gamble.
+   Diplomacy is a face-saving off-ramp from a war you are already dominating — not a
+   strategy to open with. Attempt it too early and the rebuff costs you at home.
+
+Escalation hitting 10/10 is **not** a loss — it just means the war has gone total and
+Iran fights at maximum intensity. The ladder is the arena, not the failure state.
 
 ### How you lose
 
-- **Regional war** — escalation hits 10/10. The ladder runs out of rungs.
+- **Unsustainable losses** — 150+ US dead. The home front stops funding the war.
 - **Impeachment** — approval collapses below 20%.
-- **Economic collapse** — the Strait of Hormuz stays closed too long, or oil passes $220.
-- **Stalemate** — 20 turns expire with nothing resolved (graded, but no win).
+- **Economic collapse** — the Strait of Hormuz stays closed too long, or oil passes $240.
+- **Campaign culmination** — 20 turns expire with the program still standing (defeat);
+  expire with real damage done and it's a graded stalemate instead.
 
 ### Each turn you can
 
@@ -65,12 +72,19 @@ away, and the mute toggle in the status bar to silence sound effects.
 
 - Intact air defense networks (SEAD targets) degrade every non-stealth strike and can
   shoot down your aircraft. Roll them back first.
-- Escalation decays when you *don't* strike. Restraint is a weapon.
-- Striking oil infrastructure is effective economic pressure but carries brutal
-  diplomatic costs — and Iran retaliates against shipping.
-- Tehran won't negotiate from a position of strength: build leverage (degrade the
-  program, sanctions), then de-escalate to open the window for a deal.
-- Watch the Strait of Hormuz indicator. A closure is an economic doomsday clock.
+- **Tempo is everything.** Escalation does not decay while you wait, and Iran does not
+  stop shooting because you did. Every turn its war machine survives is a turn it
+  spends killing Americans.
+- Iran's retaliation scales with what's left of its missile and naval forces. Killing
+  missile bases thins the barrages; killing naval bases lets the Fifth Fleet force the
+  Strait of Hormuz back open. A dead navy can't keep the strait shut.
+- Striking oil infrastructure is economic pressure with brutal diplomatic costs — and
+  Iran retaliates against shipping.
+- Don't open with the backchannel: Tehran reads early overtures as weakness and your
+  approval pays for it. Break their forces first; the Omanis will tell you when the
+  pragmatists start counting launchers.
+- Watch the Strait of Hormuz indicator and the casualty count — those two clocks, plus
+  approval, are what actually beat you.
 
 ## Project Structure
 
