@@ -508,7 +508,11 @@ const MapView = (() => {
     // REAL BEARING: the angle from the strike origin to the target in world
     // coords, so the scope preserves which way the package actually came from.
     const bearing = Math.atan2(origin.y - target.y, origin.x - target.x);
-    const headingDeg = bearing * 180 / Math.PI + 180; // flying inbound, toward centre
+    // Silhouettes are drawn NOSE-UP (nose at -y). The aircraft flies inbound
+    // along `bearing` — velocity direction is bearing+180°, and the nose sits at
+    // -90° in the shape's local frame, so the rotation to align them is
+    // (bearing+180°) - (-90°) = bearing + 270°.
+    const headingDeg = bearing * 180 / Math.PI + 270;
 
     // inbound track + the aircraft itself
     view.fx.appendChild(el('line', {
