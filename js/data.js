@@ -128,19 +128,49 @@ const TARGETS = [
 ];
 
 // ---- US assets shown on the map ----
+// sortie: can generate fixed-wing strike sorties (flight animations launch
+// from the nearest sortie-capable base); atacms: hosts Army long-range fires
+// (ATACMS/PrSM) — drawn with range rings on the forward-basing layer;
+// forward: lives on the toggleable forward-basing layer (off by default)
 const US_ASSETS = [
-  { id: 'csg-gulf', name: 'CSG-9 — Persian Gulf', short: 'CVN-71 CSG', x: 437, y: 476, kind: 'carrier',
+  { id: 'csg-gulf', name: 'CSG-9 — Persian Gulf', short: 'CVN-71 CSG', x: 437, y: 476, kind: 'carrier', sortie: true,
     desc: 'Carrier strike group operating in the central Gulf. Launches fighter sorties and Tomahawks.' },
-  { id: 'csg-arabian', name: 'CSG-3 — Arabian Sea', short: 'CVN-68 CSG', x: 767, y: 604, kind: 'carrier',
+  { id: 'csg-arabian', name: 'CSG-3 — Arabian Sea', short: 'CVN-68 CSG', x: 767, y: 604, kind: 'carrier', sortie: true,
     desc: 'Carrier strike group in the Arabian Sea, outside Iranian missile range.' },
-  { id: 'udeid', name: 'Al Udeid AB — Qatar', short: 'AL UDEID', x: 427, y: 543, kind: 'airbase',
+  { id: 'udeid', name: 'Al Udeid AB — Qatar', short: 'AL UDEID', x: 427, y: 543, kind: 'airbase', sortie: true,
     desc: 'Forward headquarters, tankers and strike aircraft. Within Iranian ballistic missile range.' },
-  { id: 'dhafra', name: 'Al Dhafra AB — UAE', short: 'AL DHAFRA', x: 535, y: 576, kind: 'airbase',
+  { id: 'dhafra', name: 'Al Dhafra AB — UAE', short: 'AL DHAFRA', x: 535, y: 576, kind: 'airbase', sortie: true,
     desc: 'F-35 squadrons and ISR platforms. Within Iranian ballistic missile range.' },
-  { id: 'asad', name: 'Ain al-Asad AB — Iraq', short: 'AIN AL-ASAD', x: 131, y: 216, kind: 'airbase',
+  { id: 'asad', name: 'Ain al-Asad AB — Iraq', short: 'AIN AL-ASAD', x: 131, y: 216, kind: 'airbase', sortie: true,
     desc: 'US forces in western Iraq. Repeatedly targeted by Iranian missiles and proxy rockets.' },
   { id: 'diego', name: 'Diego Garcia (B-2 staging)', short: 'B-2 // DIEGO GARCIA →', x: 895, y: 655, kind: 'bomber',
     desc: 'Stealth bombers staging 2,900 nm south. The only platform that can kill Fordow.' },
+
+  // -- forward basing layer (projected from real coordinates; toggle in map header) --
+  { id: 'arifjan', name: 'Camp Arifjan — Kuwait', short: 'ARIFJAN', x: 322, y: 401, kind: 'logistics',
+    forward: true, sortie: false, atacms: true,
+    desc: 'Army logistics hub south of Kuwait City. Sustains the theater and hosts long-range fires (ATACMS/PrSM).' },
+  { id: 'nsa-bahrain', name: 'Naval Support Activity Bahrain', short: 'NSA BAHRAIN', x: 404, y: 502, kind: 'naval',
+    forward: true, sortie: false, atacms: false,
+    desc: 'Headquarters of the Fifth Fleet — the command node for everything afloat in the Gulf.' },
+  { id: 'alisalem', name: 'Ali Al Salem AB — Kuwait', short: 'ALI AL SALEM', x: 300, y: 383, kind: 'airbase',
+    forward: true, sortie: true, atacms: false,
+    desc: '"The Rock." Airlift and fighter operations from western Kuwait, minutes from Iranian airspace.' },
+  { id: 'psab', name: 'Prince Sultan AB — Saudi Arabia', short: 'PRINCE SULTAN', x: 302, y: 583, kind: 'airbase',
+    forward: true, sortie: true, atacms: false,
+    desc: 'Fighters, tankers and Patriot batteries in the Saudi interior, buying standoff from the Gulf littoral.' },
+  { id: 'salti', name: 'Muwaffaq Salti AB — Jordan', short: 'MUWAFFAQ SALTI', x: -58, y: 289, kind: 'airbase',
+    forward: true, sortie: true, atacms: false,
+    desc: 'F-16 and F-15E operations from Jordan\'s eastern desert, covering the western axis. (Pan west to see it.)' },
+  { id: 'harir', name: 'Harir AB — Iraq', short: 'HARIR', x: 194, y: 111, kind: 'airbase',
+    forward: true, sortie: true, atacms: false,
+    desc: 'Airstrip in the Kurdish highlands supporting operations across northern Iraq.' },
+  { id: 'erbil', name: 'Erbil AB — Iraq', short: 'ERBIL', x: 182, y: 123, kind: 'airbase',
+    forward: true, sortie: true, atacms: false,
+    desc: 'US air operations hub in Iraqi Kurdistan. Struck by Iranian ballistic missiles before — and in range now.' },
+  { id: 'buehring', name: 'Camp Buehring — Kuwait', short: 'BUEHRING', x: 286, y: 372, kind: 'logistics',
+    forward: true, sortie: false, atacms: true,
+    desc: 'Forward staging camp in the Kuwaiti desert. HIMARS batteries here hold Iranian territory at risk.' },
 ];
 
 // map from asset type to launch origin on the map
@@ -150,6 +180,94 @@ const ASSET_NAMES = {
   fighter: 'Fighter sorties',
   cruise: 'Cruise missiles (TLAM)',
   stealth: 'B-2 bomber missions',
+};
+
+// ---- projection scale ----
+// The map is equirectangular (standard parallel 28°N): ~33.4 px/°lon,
+// ~37.8 px/°lat, which works out to 0.34 projected units per km.
+const KM_TO_MAP = 0.34;
+
+// Range rings drawn around ATACMS-capable positions on the forward layer
+const MISSILE_RANGES = [
+  { name: 'ATACMS 300 KM', km: 300, cls: 'ring-atacms' },
+  { name: 'PrSM 500 KM', km: 500, cls: 'ring-prsm' },
+];
+
+// ---- flight animation config ----
+// Animation length (ms) for each strike asset's map animation
+const FLIGHT_DUR = { fighter: 5500, stealth: 9000, cruise: 1000 };
+
+// Fighter airframes: a random one flies each fighter package. cs is the
+// callsign root; from decides whether it launches off a carrier or a land base.
+const FIGHTER_TYPES = [
+  { type: 'F-35A', cs: 'PANTHER', from: 'land' },
+  { type: 'F/A-18E', cs: 'RHINO', from: 'carrier' },
+  { type: 'F-16C', cs: 'VIPER', from: 'land' },
+  { type: 'F-15E', cs: 'MUDHEN', from: 'land' },
+  { type: 'F-22A', cs: 'RAPTOR', from: 'land' },
+];
+
+// Every in-flight status / problem message lives here — edit freely.
+//   at:    fraction of the flight when the entry fires (values > 1 fire on the
+//          egress leg home, where 1.0 = weapons away and 2.0 = animation end)
+//   kind:  'status' always fires; 'problem' fires with probability `chance`
+//   only:  'stealth' | 'fighter' restricts an entry to that platform
+//   msgs:  one is picked at random; {cs} {base} {tgt} are substituted
+const FLIGHT_EVENTS = [
+  { at: 0.02, kind: 'status', msgs: [
+    '{cs} wheels up — departing {base}',
+    '{cs} airborne out of {base}, climbing on mission profile',
+  ] },
+  { at: 0.18, kind: 'status', only: 'stealth', msgs: [
+    'Aerial refueling over the Indian Ocean — tanker rendezvous complete',
+  ] },
+  { at: 0.22, kind: 'status', only: 'fighter', msgs: [
+    'On the tanker — topping off before the push',
+    'Refueling complete — pushing to the line',
+  ] },
+  { at: 0.42, kind: 'status', msgs: [
+    'Feet dry — entering contested airspace',
+    'Crossing into Iranian airspace — emissions control, sensors cold',
+  ] },
+  { at: 0.55, kind: 'problem', chance: 0.4, msgs: [
+    'SAM search radar spike — defensive maneuvering',
+    'GPS jamming detected — reverting to inertial guidance',
+    'Iranian interceptors scrambling — flight is committing anyway',
+  ] },
+  { at: 0.72, kind: 'problem', chance: 0.35, msgs: [
+    'SA-15 launch detected — countermeasures out',
+    'Heavy AAA over the target area',
+    'Threat ring active — rerouting around the engagement zone',
+  ] },
+  { at: 0.86, kind: 'status', msgs: [
+    'Final attack run — master arm hot',
+    'Target designated — weapons release imminent',
+  ] },
+  { at: 0.99, kind: 'status', msgs: ['ON TARGET — weapons away'] },
+  { at: 1.15, kind: 'status', msgs: [
+    'Off target — egressing the threat envelope at speed',
+  ] },
+  { at: 1.75, kind: 'status', msgs: [
+    '{cs} feet wet — RTB {base}',
+    '{cs} clear of Iranian airspace — returning to {base}',
+  ] },
+];
+
+// ---- Iranian counterattack launch sites (projected coords inside Iran) ----
+// Missile salvos rise from the surviving missile-base targets (tgtId links a
+// site to its TARGETS entry — destroyed bases stop launching); the last entry
+// is the fallback for dispersed IRGC launchers. Drones swarm from the interior.
+const IRAN_LAUNCH_SITES = {
+  missile: [
+    { x: 285, y: 196, tgtId: 'msl-kermanshah' },
+    { x: 469, y: 374, tgtId: 'msl-shiraz' },
+    { x: 434, y: 152 },
+  ],
+  drone: [
+    { x: 330, y: 262 },
+    { x: 402, y: 305 },
+    { x: 528, y: 418 },
+  ],
 };
 
 // ---- Hormuz indicator location ----

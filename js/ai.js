@@ -47,7 +47,7 @@ const IranAI = (() => {
     proxyRockets: () => ({
       title: 'Proxy rocket fire near US positions in Iraq',
       text: 'Militia rockets landed near the Baghdad embassy compound and a base perimeter. No US casualties reported.',
-      dOil: 2, flashAsset: 'asad',
+      dOil: 2, flashAsset: 'asad', attack: { kind: 'drone', base: 'asad', count: 3 },
     }),
     proxyAttack: () => {
       const c = rand(1, 4);
@@ -55,6 +55,7 @@ const IranAI = (() => {
         title: 'Militia attack on US forces in Iraq',
         text: `An Iranian-backed militia struck a US position with drones and rockets. ${c} American service members were killed.`,
         casualties: c, dApproval: -3, dOil: 4, flashAsset: 'asad',
+        attack: { kind: 'drone', base: 'asad', count: 5 },
       };
     },
     shipping: () => ({
@@ -75,6 +76,7 @@ const IranAI = (() => {
         title: `Ballistic missile strike on ${names[base]}`,
         text: `Iranian missiles penetrated air defenses at ${names[base]}. ${c} Americans were killed and aircraft were damaged on the ramp.`,
         casualties: c, dApproval: -4, dOil: 8, flashAsset: base,
+        attack: { kind: 'missile', base, count: 4 },
       };
     },
     hormuzClose: () => ({
@@ -96,6 +98,7 @@ const IranAI = (() => {
         title: 'MASS MISSILE BARRAGE ACROSS THE THEATER',
         text: `Iran launched its largest salvo of the crisis at US bases and fleet units across the region. Defenses were saturated. ${c} Americans are dead. CENTCOM assesses this as the opening of a general war.`,
         casualties: c, dApproval: -6, dOil: 20, flashAsset: 'udeid',
+        attack: { kind: 'mixed', bases: ['udeid', 'asad', 'dhafra'], count: 4 },
       };
     },
     quiet: () => ({

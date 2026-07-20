@@ -221,7 +221,7 @@ const Game = (() => {
         next();
       };
       MapView.animateStrike(m.pkg.asset, target, finishOne);
-      setTimeout(finishOne, 2500);
+      setTimeout(finishOne, (FLIGHT_DUR[m.pkg.asset] || 1000) + 3000);
     };
     next();
   }
@@ -343,33 +343,38 @@ const Game = (() => {
     // whatever the volley left standing
     resolveMissions((bda) => {
       const events = IranAI.respond(G);
-      for (const ev of events) applyEvent(ev);
       if (events.some(ev => ev.casualties || ev.hormuz === 'CLOSED')) AudioSys.play('retaliation');
 
-      // economy: oil carries a war premium set by Iran's remaining ability
-      // to threaten the Gulf, plus the state of the strait
-      const warPremium = IranAI.missileStrength() + IranAI.navalStrength() > 1 ? 14 : 4;
-      const oilTarget = 88 + warPremium +
-        (G.hormuz === 'CONTESTED' ? 20 : G.hormuz === 'CLOSED' ? 75 : 0);
-      G.oil = Math.max(60, G.oil + (oilTarget - G.oil) * 0.25);
-      G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
+      // Iran's salvos fly on the map — missiles, drone swarms, intercepts —
+      // before the battle report lands and covers the screen
+      MapView.animateIranianAttacks(events, () => {
+        for (const ev of events) applyEvent(ev);
 
-      if (G.hormuz === 'CLOSED') G.hormuzClosedTurns++;
-      else G.hormuzClosedTurns = 0;
+        // economy: oil carries a war premium set by Iran's remaining ability
+        // to threaten the Gulf, plus the state of the strait
+        const warPremium = IranAI.missileStrength() + IranAI.navalStrength() > 1 ? 14 : 4;
+        const oilTarget = 88 + warPremium +
+          (G.hormuz === 'CONTESTED' ? 20 : G.hormuz === 'CLOSED' ? 75 : 0);
+        G.oil = Math.max(60, G.oil + (oilTarget - G.oil) * 0.25);
+        G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
 
-      // domestic drift: expensive gas and long wars erode approval
-      if (G.oil >= 150) G.approval = clamp(G.approval - 2, 0, 100);
-      else if (G.oil >= 115) G.approval = clamp(G.approval - 1, 0, 100);
-      if (G.turn > 8) G.approval = clamp(G.approval - 0.5, 0, 100);
+        if (G.hormuz === 'CLOSED') G.hormuzClosedTurns++;
+        else G.hormuzClosedTurns = 0;
 
-      const day = Math.ceil(G.turn / 2);
-      const all = [...bda, ...events];
-      UI.setTicker(IranAI.headlines(G, all));
-      const result = checkEnd();
+        // domestic drift: expensive gas and long wars erode approval
+        if (G.oil >= 150) G.approval = clamp(G.approval - 2, 0, 100);
+        else if (G.oil >= 115) G.approval = clamp(G.approval - 1, 0, 100);
+        if (G.turn > 8) G.approval = clamp(G.approval - 0.5, 0, 100);
 
-      UI.showReport(`BATTLE REPORT — DAY ${day}, TURN ${G.turn}`, all, () => {
-        if (result) { finish(result); return; }
-        nextTurn();
+        const day = Math.ceil(G.turn / 2);
+        const all = [...bda, ...events];
+        UI.setTicker(IranAI.headlines(G, all));
+        const result = checkEnd();
+
+        UI.showReport(`BATTLE REPORT — DAY ${day}, TURN ${G.turn}`, all, () => {
+          if (result) { finish(result); return; }
+          nextTurn();
+        });
       });
     });
   }

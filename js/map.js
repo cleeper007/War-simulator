@@ -6,6 +6,10 @@ const MapView = (() => {
   let svg, world, tooltip;
   let view = { x: 0, y: 0, k: 1 };
   let panning = false, panStart = null;
+  let forwardOn = false; // forward-basing layer starts hidden
+
+  const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
   // Real geography lives in geodata.js (COUNTRY_PATHS, Natural Earth 50m).
   // Label anchors are hand-placed in the same projected coordinate space.
@@ -70,6 +74,10 @@ const MapView = (() => {
       icon = el('path', { class: 'asset-icon', d: 'M-7,-2 L7,-2 L5,3 L-5,3 Z M-2,-6 L2,-6 L2,-2 L-2,-2 Z' });
     } else if (a.kind === 'bomber') {
       icon = el('path', { class: 'asset-icon', d: 'M0,-4 L8,3 L2,2 L0,5 L-2,2 L-8,3 Z' });
+    } else if (a.kind === 'logistics') {
+      icon = el('path', { class: 'asset-icon', d: 'M-4.5,-4.5 L4.5,-4.5 L4.5,4.5 L-4.5,4.5 Z M-4.5,-1 L4.5,-1 L4.5,1 L-4.5,1 Z' });
+    } else if (a.kind === 'naval') {
+      icon = el('path', { class: 'asset-icon', d: 'M0,-5.5 L4.5,0 L0,5.5 L-4.5,0 Z' });
     } else {
       icon = el('path', { class: 'asset-icon', d: 'M-5,4 L0,-5 L5,4 Z M-7,4 L7,4 L7,5.5 L-7,5.5 Z' });
     }
@@ -114,11 +122,36 @@ const MapView = (() => {
     hz.appendChild(hzLabel);
     world.appendChild(hz);
 
+    // forward basing & long-range fires layer (toggled off by default so the
+    // map isn't overcrowded — the BASES button in the map header shows it)
+    const fwd = el('g', { id: 'forward-layer', class: forwardOn ? '' : 'hidden' });
+    const forwardAssets = US_ASSETS.filter(a => a.forward);
+    for (const a of forwardAssets) {
+      if (!a.atacms) continue;
+      // rings first so every base icon draws above them
+      for (const r of MISSILE_RANGES) {
+        const px = r.km * KM_TO_MAP;
+        fwd.appendChild(el('circle', { class: `range-ring ${r.cls}`, cx: a.x, cy: a.y, r: px }));
+        const lbl = el('text', { class: 'ring-label', x: a.x, y: a.y - px + 9 });
+        lbl.textContent = r.name;
+        fwd.appendChild(lbl);
+      }
+    }
+    for (const a of forwardAssets) {
+      const g = assetIcon(a);
+      attachTooltip(g, () => `<span class="tt-name">${a.name}</span><br>${a.desc}` +
+        `<br><em style="color:var(--blue)">${a.sortie ? 'Fixed-wing sorties: YES' : 'Fixed-wing sorties: NO'}` +
+        ` · ${a.atacms ? 'ATACMS/PrSM: YES' : 'ATACMS/PrSM: NO'}</em>`);
+      fwd.appendChild(g);
+    }
+    world.appendChild(fwd);
+
     // strike FX layer sits under icons' labels but above land
     world.appendChild(el('g', { id: 'fx-layer' }));
 
     // US assets
     for (const a of US_ASSETS) {
+      if (a.forward) continue; // rendered on the forward layer above
       const g = assetIcon(a);
       attachTooltip(g, () => `<span class="tt-name">${a.name}</span><br>${a.desc}`);
       world.appendChild(g);
@@ -219,6 +252,11 @@ const MapView = (() => {
       view = { x: 0, y: 0, k: 1 };
       applyView();
     });
+    document.getElementById('toggle-bases').addEventListener('click', () => {
+      forwardOn = !forwardOn;
+      document.getElementById('forward-layer').classList.toggle('hidden', !forwardOn);
+      document.getElementById('toggle-bases').classList.toggle('layer-on', forwardOn);
+    });
   }
 
   // ---- visual state updates ----
@@ -244,8 +282,153 @@ const MapView = (() => {
     setTimeout(() => g.classList.remove('under-attack', 'pulsing'), 4000);
   }
 
-  // ---- strike animation: projectile from origin asset to target, then flash ----
+  // ---- impact / intercept burst ----
+  function burst(x, y, cls, maxR) {
+    const fx = document.getElementById('fx-layer');
+    const c = el('circle', { class: cls, cx: x, cy: y, r: 1.5 });
+    fx.appendChild(c);
+    const t0 = performance.now();
+    function step(now) {
+      const p = Math.min(1, (now - t0) / 450);
+      c.setAttribute('r', 1.5 + p * maxR);
+      c.setAttribute('opacity', 0.9 * (1 - p));
+      if (p < 1) { requestAnimationFrame(step); return; }
+      c.remove();
+    }
+    requestAnimationFrame(step);
+  }
+
+  // ---- in-flight status panel (top-left of the map) ----
+  function fsPanel() { return document.getElementById('flight-status'); }
+
+  function fsOpen(header) {
+    const panel = fsPanel();
+    panel.classList.remove('hidden');
+    const entry = document.createElement('div');
+    entry.className = 'flight-entry';
+    entry.innerHTML = `<div class="fs-head">${header}</div><div class="fs-lines"></div>`;
+    panel.appendChild(entry);
+    return entry;
+  }
+
+  function fsLine(entry, text, problem) {
+    const div = document.createElement('div');
+    div.className = 'fs-line' + (problem ? ' fs-problem' : '');
+    div.textContent = '> ' + text;
+    entry.querySelector('.fs-lines').appendChild(div);
+    const lines = entry.querySelectorAll('.fs-line');
+    if (lines.length > 4) lines[0].remove();
+  }
+
+  function fsClose(entry, delay) {
+    setTimeout(() => {
+      entry.remove();
+      if (!fsPanel().children.length) fsPanel().classList.add('hidden');
+    }, delay || 0);
+  }
+
+  // ---- flight animation: aircraft flies base → target with status updates ----
+  function nearestSortieBase(target, wantCarrier) {
+    let best = null, bd = Infinity;
+    for (const a of US_ASSETS) {
+      if (!a.sortie) continue;
+      if ((a.kind === 'carrier') !== wantCarrier) continue;
+      const d = Math.hypot(a.x - target.x, a.y - target.y);
+      if (d < bd) { bd = d; best = a; }
+    }
+    return best;
+  }
+
+  function animateFlight(assetType, target, done) {
+    const stealth = assetType === 'stealth';
+    const ft = stealth ? { type: 'B-2', cs: 'SPIRIT' } : pick(FIGHTER_TYPES);
+    const origin = stealth ? US_ASSETS.find(a => a.id === 'diego')
+      : nearestSortieBase(target, ft.from === 'carrier');
+    const callsign = `${ft.cs} ${rand(1, 9)}${rand(1, 9)}`;
+    const baseName = origin.id === 'diego' ? 'DIEGO GARCIA' : origin.short;
+
+    const fx = document.getElementById('fx-layer');
+    const x1 = origin.x, y1 = origin.y, x2 = target.x, y2 = target.y;
+    const mx = (x1 + x2) / 2 + (y1 - y2) * 0.15;
+    const my = (y1 + y2) / 2 + (x2 - x1) * 0.15;
+    const path = el('path', { class: 'flight-path', d: `M${x1},${y1} Q${mx},${my} ${x2},${y2}` });
+    fx.appendChild(path);
+    const icon = el('path', {
+      class: 'flight-icon' + (stealth ? ' stealth' : ''),
+      d: stealth ? 'M0,-4 L8,3 L2,2 L0,5 L-2,2 L-8,3 Z' : 'M0,-5 L3,4 L0,2.2 L-3,4 Z',
+    });
+    fx.appendChild(icon);
+
+    const entry = fsOpen(`${callsign} · ${ft.type} — ${baseName} → ${target.short}`);
+    const subs = { '{cs}': callsign, '{base}': baseName, '{tgt}': target.short };
+    const fill = (s) => s.replace(/\{cs\}|\{base\}|\{tgt\}/g, (m) => subs[m]);
+    const evs = FLIGHT_EVENTS
+      .filter(e => !e.only || e.only === (stealth ? 'stealth' : 'fighter'))
+      .sort((a, b) => a.at - b.at);
+    let evIdx = 0;
+    // prog runs 0→1 on ingress, then 1→2 on the egress leg home
+    const fireUpTo = (prog) => {
+      while (evIdx < evs.length && evs[evIdx].at <= prog) {
+        const e = evs[evIdx++];
+        if (e.kind === 'problem' && Math.random() > e.chance) continue;
+        fsLine(entry, fill(pick(e.msgs)), e.kind === 'problem');
+      }
+    };
+
+    const total = path.getTotalLength();
+    const setIcon = (len, rev) => {
+      const pa = path.getPointAtLength(Math.max(0, len - 1.5));
+      const pb = path.getPointAtLength(Math.min(total, len + 1.5));
+      const pt = path.getPointAtLength(len);
+      const ang = Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI + (rev ? 270 : 90);
+      icon.setAttribute('transform', `translate(${pt.x},${pt.y}) rotate(${ang})`);
+    };
+
+    const dur = FLIGHT_DUR[assetType];
+    const t0 = performance.now();
+    function ingress(now) {
+      const p = Math.min(1, (now - t0) / dur);
+      setIcon(total * p, false);
+      fireUpTo(p);
+      if (p < 1) { requestAnimationFrame(ingress); return; }
+      // impact flash; BDA resolves now — the egress leg is purely visual
+      const flash = el('circle', { class: 'impact-flash', cx: x2, cy: y2, r: 2 });
+      fx.appendChild(flash);
+      const f0 = performance.now();
+      function flashStep(now2) {
+        const fp = Math.min(1, (now2 - f0) / 500);
+        flash.setAttribute('r', 2 + fp * 22);
+        flash.setAttribute('opacity', 0.9 * (1 - fp));
+        if (fp < 1) { requestAnimationFrame(flashStep); return; }
+        flash.remove();
+      }
+      requestAnimationFrame(flashStep);
+      if (done) done();
+      egress();
+    }
+    function egress() {
+      const e0 = performance.now();
+      const edur = 1800;
+      function step(now) {
+        const ep = Math.min(1, (now - e0) / edur);
+        fireUpTo(1 + ep);
+        setIcon(total * (1 - ep * 0.45), true);
+        icon.setAttribute('opacity', 1 - ep);
+        path.setAttribute('opacity', 0.5 * (1 - ep));
+        if (ep < 1) { requestAnimationFrame(step); return; }
+        icon.remove();
+        path.remove();
+        fsClose(entry, 2200);
+      }
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(ingress);
+  }
+
+  // ---- strike animation dispatcher: cruise keeps the fast projectile,
+  // fighters and B-2s fly the full route with status updates ----
   function animateStrike(assetType, target, done) {
+    if (assetType !== 'cruise') { animateFlight(assetType, target, done); return; }
     const originAsset = US_ASSETS.find(a => a.id === STRIKE_ORIGINS[assetType]);
     const fx = document.getElementById('fx-layer');
     const x1 = originAsset.x, y1 = originAsset.y, x2 = target.x, y2 = target.y;
@@ -285,5 +468,143 @@ const MapView = (() => {
     requestAnimationFrame(step);
   }
 
-  return { render, updateTarget, setHormuz, flashAsset, animateStrike, setTargetClickHandler };
+  // ---- Iranian counterattacks: ballistic/cruise missiles arc in fast,
+  // Shahed drones swarm slowly; both can be intercepted short of the base ----
+  function iranOrigin(kind, tx, ty) {
+    // destroyed missile-base targets stop launching (tgtId links site → target)
+    const alive = IRAN_LAUNCH_SITES[kind].filter(s => {
+      if (!s.tgtId) return true;
+      const t = TARGETS.find(x => x.id === s.tgtId);
+      return t && t.status !== 'destroyed';
+    });
+    const pool = alive.length ? alive : IRAN_LAUNCH_SITES[kind].slice(-1);
+    let best = pool[0], bd = Infinity;
+    for (const s of pool) {
+      const d = Math.hypot(s.x - tx, s.y - ty);
+      if (d < bd) { bd = d; best = s; }
+    }
+    return best;
+  }
+
+  function launchMissiles(base, count, cb) {
+    const fx = document.getElementById('fx-layer');
+    const o = iranOrigin('missile', base.x, base.y);
+    let left = count;
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => {
+        const jx = base.x + rand(-8, 8), jy = base.y + rand(-6, 6);
+        const mx = (o.x + jx) / 2 + (o.y - jy) * 0.35 + rand(-15, 15);
+        const my = (o.y + jy) / 2 + (jx - o.x) * 0.35 + rand(-15, 15);
+        const path = el('path', { class: 'iran-missile-path', d: `M${o.x},${o.y} Q${mx},${my} ${jx},${jy}` });
+        fx.appendChild(path);
+        const m = el('circle', { class: 'iran-missile', r: 2.2 });
+        fx.appendChild(m);
+        const total = path.getTotalLength();
+        const dur = 900 + rand(0, 300);
+        // terminal-phase intercept by base air defenses (visual only)
+        const interceptAt = Math.random() < 0.35 ? 0.78 + Math.random() * 0.12 : 2;
+        const t0 = performance.now();
+        const end = () => {
+          m.remove();
+          path.remove();
+          if (--left === 0) cb();
+        };
+        function step(now) {
+          const p = Math.min(1, (now - t0) / dur);
+          const pt = path.getPointAtLength(total * p);
+          m.setAttribute('cx', pt.x);
+          m.setAttribute('cy', pt.y);
+          if (p >= interceptAt) { burst(pt.x, pt.y, 'intercept-flash', 10); end(); return; }
+          if (p < 1) { requestAnimationFrame(step); return; }
+          burst(jx, jy, 'impact-flash-iran', 16);
+          end();
+        }
+        requestAnimationFrame(step);
+      }, i * 220);
+    }
+  }
+
+  function launchDrones(base, count, cb) {
+    const fx = document.getElementById('fx-layer');
+    const o = iranOrigin('drone', base.x, base.y);
+    let left = count;
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => {
+        const sx = o.x + rand(-12, 12), sy = o.y + rand(-10, 10);
+        const jx = base.x + rand(-7, 7), jy = base.y + rand(-5, 5);
+        const mx = (sx + jx) / 2 + rand(-30, 30);
+        const my = (sy + jy) / 2 + rand(-30, 30);
+        // invisible guide path (stroke: none) — geometry only, for the swarm route
+        const path = el('path', { class: 'iran-drone-path', d: `M${sx},${sy} Q${mx},${my} ${jx},${jy}` });
+        fx.appendChild(path);
+        const d = el('path', { class: 'iran-drone', d: 'M0,-2.6 L2.2,2 L-2.2,2 Z' });
+        fx.appendChild(d);
+        const total = path.getTotalLength();
+        const dur = 2600 + rand(0, 900);
+        const wob = 2.5 + Math.random() * 2.5, wf = 4 + Math.random() * 4;
+        const interceptAt = Math.random() < 0.3 ? 0.6 + Math.random() * 0.3 : 2;
+        const t0 = performance.now();
+        const end = () => {
+          d.remove();
+          path.remove();
+          if (--left === 0) cb();
+        };
+        function step(now) {
+          const p = Math.min(1, (now - t0) / dur);
+          const pt = path.getPointAtLength(total * p);
+          const pb = path.getPointAtLength(Math.min(total, total * p + 2));
+          const dx = pb.x - pt.x, dy = pb.y - pt.y;
+          const len = Math.hypot(dx, dy) || 1;
+          // weave perpendicular to the heading — the swarm wobble
+          const off = Math.sin(p * wf * Math.PI) * wob;
+          const wx = pt.x + (-dy / len) * off, wy = pt.y + (dx / len) * off;
+          const ang = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+          d.setAttribute('transform', `translate(${wx},${wy}) rotate(${ang})`);
+          if (p >= interceptAt) { burst(wx, wy, 'intercept-flash', 6); end(); return; }
+          if (p < 1) { requestAnimationFrame(step); return; }
+          burst(jx, jy, 'impact-flash-iran', 9);
+          end();
+        }
+        requestAnimationFrame(step);
+      }, i * 280);
+    }
+  }
+
+  // Called from the end-of-turn flow: animates every event carrying an
+  // `attack` spec, then hands control back so the battle report can land.
+  function animateIranianAttacks(events, done) {
+    const specs = [];
+    for (const ev of events) {
+      if (!ev.attack) continue;
+      const bases = ev.attack.bases || [ev.attack.base];
+      for (const b of bases) {
+        const asset = US_ASSETS.find(a => a.id === b);
+        if (!asset) continue;
+        if (ev.attack.kind === 'mixed') {
+          specs.push({ kind: 'missile', asset, count: ev.attack.count || 4 });
+          specs.push({ kind: 'drone', asset, count: 5 });
+        } else {
+          specs.push({ kind: ev.attack.kind, asset, count: ev.attack.count || (ev.attack.kind === 'drone' ? 5 : 3) });
+        }
+      }
+    }
+    if (!specs.length) { if (done) done(); return; }
+
+    let leftSalvos = specs.length, called = false;
+    const finish = () => {
+      if (called) return;
+      called = true;
+      if (done) done();
+    };
+    specs.forEach((s, i) => {
+      setTimeout(() => {
+        (s.kind === 'missile' ? launchMissiles : launchDrones)(s.asset, s.count, () => {
+          if (--leftSalvos === 0) setTimeout(finish, 400);
+        });
+      }, i * 600);
+    });
+    setTimeout(finish, 12000); // watchdog: a throttled tab must never stall the war
+  }
+
+  return { render, updateTarget, setHormuz, flashAsset, animateStrike, animateIranianAttacks, setTargetClickHandler };
 })();
