@@ -556,6 +556,9 @@ const MapView = (() => {
     const entry = scopeCard(headHeader);
     entry.dataset.tgt = target.id;   // lets playStrikeHit() find this live scope
     const view = buildScopeView(entry, target, adw);
+    // TLAM strikes open with a launch clip over the radar; it fades out on its
+    // own, revealing the terminal run before impact.
+    if (cruise) overlayScopeClip(entry.querySelector('.scope-wrap'), 'video/tlam-launch.mp4');
     const C = SC.C;
 
     // REAL BEARING: the angle from the strike origin to the target in world
@@ -808,29 +811,32 @@ const MapView = (() => {
     }
   }
 
-  // Overlay the strike-hit clip on this target's live scope card — called by
-  // game.js only when BDA confirms a successful hit (destroyed/damaged). Plays
-  // in the same window as the radar, then fades out to reveal the BDA state.
-  function playStrikeHit(target) {
-    const entry = [...document.querySelectorAll('.scope-card')]
-      .find(e => e._alive && e.dataset.tgt === target.id);
-    if (!entry) return;
-    const wrap = entry.querySelector('.scope-wrap');
+  // Overlay a muted clip on a scope card's radar window, fading out when it ends.
+  // Muted so autoplay is never blocked. A rejected play() is usually a benign
+  // interruption (e.g. a backgrounded tab pausing muted video) — swallow it
+  // rather than tear down the overlay; worst case the clip sits on frame 0 until
+  // fsClose retires the whole card.
+  function overlayScopeClip(wrap, src) {
     if (!wrap || wrap.querySelector('.scope-hit-video')) return;
     const vid = document.createElement('video');
     vid.className = 'scope-hit-video';
-    vid.src = 'video/strike-hit.mp4';
-    vid.muted = true;            // muted so autoplay is never blocked
+    vid.src = src;
+    vid.muted = true;
     vid.autoplay = true;
     vid.playsInline = true;
     const clear = () => vid.remove();
     vid.addEventListener('ended', clear);
     vid.addEventListener('error', clear); // genuine decode/load failure
     wrap.appendChild(vid);
-    // A rejected play() is usually a benign interruption (e.g. a backgrounded
-    // tab pausing muted video) — swallow it rather than tear down the overlay.
-    // Worst case the clip sits on frame 0 until fsClose retires the whole card.
     vid.play().catch(() => {});
+  }
+
+  // Called by game.js only when BDA confirms a successful hit (destroyed/damaged).
+  // Plays in the same window as the radar, then fades out to reveal the BDA state.
+  function playStrikeHit(target) {
+    const entry = [...document.querySelectorAll('.scope-card')]
+      .find(e => e._alive && e.dataset.tgt === target.id);
+    if (entry) overlayScopeClip(entry.querySelector('.scope-wrap'), 'video/strike-hit.mp4');
   }
 
   // ---- Iranian counterattacks: ballistic/cruise missiles arc in fast,
