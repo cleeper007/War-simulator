@@ -672,5 +672,7 @@ const Game = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, israelStatus, G };
+  // airDefenseWeight is exported read-only for the tactical scope's threat ring —
+  // the scope dramatizes the number, it never feeds back into the strike math.
+  return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, israelStatus, airDefenseWeight, G };
 })();

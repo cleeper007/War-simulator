@@ -87,6 +87,8 @@ const UI = (() => {
       }).join('');
     }
     $('resources-list').innerHTML = html;
+    // B-2s still crossing the Indian Ocean get a transit card in the scope panel
+    MapView.updateTransit(G.missions);
   }
 
   function renderAdvisors(G) {

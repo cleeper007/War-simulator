@@ -330,8 +330,6 @@ button { font-family: var(--mono); }
 #hormuz-indicator .hz-contested { fill: var(--amber); }
 #hormuz-indicator .hz-closed { fill: var(--red); }
 
-.strike-path { stroke: var(--amber); stroke-width: 1.5; fill: none; stroke-dasharray: 4 3; opacity: 0.85; }
-.strike-proj { fill: #fff; }
 .impact-flash { fill: var(--amber); opacity: 0.9; }
 
 /* forward basing layer: ATACMS/PrSM range rings */
@@ -343,27 +341,80 @@ button { font-family: var(--mono); }
   text-anchor: middle; pointer-events: none;
 }
 
-/* flight animations (fighters / B-2) */
-.flight-path { stroke: var(--blue); stroke-width: 1; fill: none; stroke-dasharray: 2 4; opacity: 0.5; }
-.flight-icon { fill: #fff; }
-.flight-icon.stealth { fill: #b9c8e6; }
+/* brief pulse on a struck target — the map's only outbound-strike cue */
+.target.struck .tgt-ring { stroke-width: 3.5; opacity: 0.9; }
 
-/* in-flight status panel */
+/* ============================================================
+   TACTICAL SCOPE — every outbound strike is flown in this panel
+   ============================================================ */
 #flight-status {
   position: absolute; top: 10px; left: 10px; z-index: 15;
   display: flex; flex-direction: column; gap: 8px;
-  max-width: 360px; pointer-events: none;
+  max-width: 260px; pointer-events: none;
 }
+.fs-stack { display: flex; flex-direction: column; gap: 8px; }
 .flight-entry {
   background: rgba(6, 10, 18, 0.92); border: 1px solid var(--line);
   border-left: 2px solid var(--blue); padding: 6px 10px; font-size: 11px;
 }
 .fs-head {
   color: var(--blue); font-weight: bold; font-size: 10.5px;
-  letter-spacing: 1px; margin-bottom: 3px;
+  letter-spacing: 1px; margin-bottom: 4px;
 }
 .fs-line { color: var(--text); line-height: 1.5; }
 .fs-line.fs-problem { color: var(--amber); }
+
+.scope-wrap { margin: 2px 0 5px; }
+.scope-view {
+  display: block; width: 100%; height: auto;
+  background: var(--water); border: 1px solid var(--line);
+}
+.scope-grid circle { fill: none; stroke: var(--line); stroke-width: 0.6; opacity: 0.5; }
+.scope-grid line { stroke: var(--line); stroke-width: 0.8; opacity: 0.7; }
+
+/* threat ring: brightness is set inline from airDefenseWeight() */
+.scope-ring { fill: none; stroke: var(--red); stroke-dasharray: 4 5; }
+.scope-ring.painting { stroke-dasharray: none; opacity: 1 !important; stroke-width: 2.4 !important; }
+
+.scope-sweep { fill: var(--red); opacity: 0.18; }
+.scope-beam { stroke: var(--red); stroke-width: 1.2; opacity: 0.75; }
+
+.scope-tgt text { font-size: 9px; letter-spacing: 1px; }
+.scope-tgt.scope-hit .tgt-core { fill: #fff; }
+
+.scope-track { stroke: var(--blue); stroke-width: 0.7; stroke-dasharray: 2 4; opacity: 0.4; }
+.scope-jet { fill: #fff; }
+.scope-burner { fill: var(--amber); }
+.scope-lock { stroke: var(--red); stroke-width: 1.2; fill: none; animation: lockblink 0.28s steps(2) infinite; }
+@keyframes lockblink { 50% { opacity: 0.25; } }
+
+.sam-head { fill: #fff; }
+.sam-trail { stroke: var(--red); stroke-width: 1.2; }
+.sam-flash { fill: var(--red); }
+
+/* mission progress */
+.progress-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 9px; letter-spacing: 1px; color: var(--dim); margin-bottom: 3px;
+}
+.progress-bar { height: 3px; background: rgba(255, 255, 255, 0.08); }
+.progress-fill {
+  height: 100%; width: 0; background: var(--blue); transition: width 0.2s linear;
+}
+.progress-fill.contested { background: var(--amber); }
+
+/* B-2s still crossing from Diego Garcia — distance as time, no attack view */
+.transit-card { border-left-color: #6b7fa8; opacity: 0.9; }
+.transit-strip {
+  position: relative; height: 3px; margin: 5px 0 6px;
+  background: linear-gradient(to right, var(--line), rgba(111, 168, 221, 0.35));
+}
+.transit-dot {
+  position: absolute; top: -2px; left: 0; width: 5px; height: 5px;
+  background: #b9c8e6; border-radius: 50%;
+  animation: transit 4.5s linear infinite;
+}
+@keyframes transit { from { left: 0; } to { left: calc(100% - 5px); } }
 
 /* Iranian counterattacks: missiles arc fast, drones swarm slow */
 .iran-missile-path { stroke: var(--red); stroke-width: 1; fill: none; stroke-dasharray: 3 3; opacity: 0.6; }

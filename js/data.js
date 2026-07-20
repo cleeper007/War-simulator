@@ -204,7 +204,7 @@ const MISSILE_RANGES = [
 
 // ---- flight animation config ----
 // Animation length (ms) for each strike asset's map animation
-const FLIGHT_DUR = { fighter: 5500, stealth: 9000, cruise: 1000 };
+const FLIGHT_DUR = { fighter: 5500, stealth: 9000, cruise: 3200 };
 
 // Fighter airframes: a random one flies each fighter package. cs is the
 // callsign root; from decides whether it launches off a carrier or a land base.
@@ -260,6 +260,33 @@ const FLIGHT_EVENTS = [
     '{cs} feet wet — RTB {base}',
     '{cs} clear of Iranian airspace — returning to {base}',
   ] },
+];
+
+// TLAMs fly themselves — no crew, no tanker, no egress. Their own short set of
+// lines keeps the scope reading as an unmanned shot rather than a sortie.
+const CRUISE_EVENTS = [
+  { at: 0.02, kind: 'status', msgs: [
+    '{cs} away — vertical launch, {base}',
+    'Birds away from {base} — {cs} in the boost phase',
+  ] },
+  { at: 0.35, kind: 'status', msgs: [
+    'Terrain-following, sea-skimming profile — {cs} in the weeds',
+    'Midcourse waypoints good — {cs} tracking on inertial',
+  ] },
+  { at: 0.7, kind: 'problem', chance: 0.3, msgs: [
+    'Point-defense AAA engaging along the run-in',
+    'One bird lost to terminal defenses — remainder pressing',
+  ] },
+  { at: 0.99, kind: 'status', msgs: ['TERMINAL — {tgt} impact'] },
+];
+
+// Fired into the scope's status lines the moment a SAM actually leaves the ring,
+// so the text and the streak on the mini display are the same event.
+const SAM_LINES = [
+  'SA-15 launch detected — countermeasures out',
+  'SA-20 uplink — missile inbound, breaking hard',
+  'Launch warning — flares and chaff away',
+  'Engagement radar locked — defeating with a beam maneuver',
 ];
 
 // ---- Iranian counterattack launch sites (projected coords inside Iran) ----

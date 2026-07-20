@@ -39,28 +39,31 @@ const MapView = (() => {
     return n;
   }
 
+  // the glyph that identifies a target type — drawn on the map at 1x and blown
+  // up inside the tactical scope, so both views read as the same object
+  function targetCore(type) {
+    switch (type) {
+      case 'nuclear':
+        return el('path', { class: 'tgt-core', d: 'M0,-5 L4.3,2.5 L-4.3,2.5 Z' }); // triangle
+      case 'airdefense':
+        return el('rect', { class: 'tgt-core', x: -3.5, y: -3.5, width: 7, height: 7, transform: 'rotate(45)' });
+      case 'missile':
+        return el('path', { class: 'tgt-core', d: 'M0,-5.5 L2.5,3 L0,1.2 L-2.5,3 Z' });
+      case 'naval':
+        return el('path', { class: 'tgt-core', d: 'M-4,-1 L4,-1 L2,3 L-2,3 Z M-0.8,-5 L0.8,-5 L0.8,-1 L-0.8,-1 Z' });
+      case 'oil':
+        return el('circle', { class: 'tgt-core', r: 3.5 });
+      default:
+        return el('rect', { class: 'tgt-core', x: -3.5, y: -3.5, width: 7, height: 7 });
+    }
+  }
+
   function targetIcon(t) {
     const g = el('g', { class: `target intact`, id: `tgt-${t.id}`, transform: `translate(${t.x},${t.y})` });
     // invisible filled circle so the whole icon (not just strokes) is clickable
     g.appendChild(el('circle', { r: 13, fill: 'transparent' }));
     g.appendChild(el('circle', { class: 'tgt-ring', r: 9 }));
-    // core shape varies by type
-    let core;
-    switch (t.type) {
-      case 'nuclear':
-        core = el('path', { class: 'tgt-core', d: 'M0,-5 L4.3,2.5 L-4.3,2.5 Z' }); break; // triangle
-      case 'airdefense':
-        core = el('rect', { class: 'tgt-core', x: -3.5, y: -3.5, width: 7, height: 7, transform: 'rotate(45)' }); break;
-      case 'missile':
-        core = el('path', { class: 'tgt-core', d: 'M0,-5.5 L2.5,3 L0,1.2 L-2.5,3 Z' }); break;
-      case 'naval':
-        core = el('path', { class: 'tgt-core', d: 'M-4,-1 L4,-1 L2,3 L-2,3 Z M-0.8,-5 L0.8,-5 L0.8,-1 L-0.8,-1 Z' }); break;
-      case 'oil':
-        core = el('circle', { class: 'tgt-core', r: 3.5 }); break;
-      default:
-        core = el('rect', { class: 'tgt-core', x: -3.5, y: -3.5, width: 7, height: 7 });
-    }
-    g.appendChild(core);
+    g.appendChild(targetCore(t.type));
     const label = el('text', { y: 20 });
     label.textContent = t.short;
     g.appendChild(label);
@@ -301,17 +304,39 @@ const MapView = (() => {
     requestAnimationFrame(step);
   }
 
-  // ---- in-flight status panel (top-left of the map) ----
+  // ============================================================
+  // TACTICAL SCOPE (top-left panel)
+  // ------------------------------------------------------------
+  // Every outbound strike is flown here, in a self-contained 200x200 display
+  // with its own coordinate space, instead of across the strategic map. The
+  // scope is pure theatre: it dramatizes airDefenseWeight() and the aircrew
+  // loss risk that computeStrike() already decided, and it never touches an
+  // outcome. game.js still owns every result.
+  // ============================================================
+  const SC = { C: 100, RING: 70, EDGE: 96, LOCK_ARC: 9 };
+
   function fsPanel() { return document.getElementById('flight-status'); }
 
-  function fsOpen(header) {
+  // scope cards (live strikes) stack above transit cards (B-2s still en route)
+  function fsStacks() {
     const panel = fsPanel();
-    panel.classList.remove('hidden');
-    const entry = document.createElement('div');
-    entry.className = 'flight-entry';
-    entry.innerHTML = `<div class="fs-head">${header}</div><div class="fs-lines"></div>`;
-    panel.appendChild(entry);
-    return entry;
+    let scope = document.getElementById('scope-stack');
+    if (!scope) {
+      scope = document.createElement('div');
+      scope.id = 'scope-stack';
+      scope.className = 'fs-stack';
+      panel.appendChild(scope);
+      const transit = document.createElement('div');
+      transit.id = 'transit-stack';
+      transit.className = 'fs-stack';
+      panel.appendChild(transit);
+    }
+    return { scope, transit: document.getElementById('transit-stack') };
+  }
+
+  function fsSync() {
+    const { scope, transit } = fsStacks();
+    fsPanel().classList.toggle('hidden', !scope.children.length && !transit.children.length);
   }
 
   function fsLine(entry, text, problem) {
@@ -320,17 +345,349 @@ const MapView = (() => {
     div.textContent = '> ' + text;
     entry.querySelector('.fs-lines').appendChild(div);
     const lines = entry.querySelectorAll('.fs-line');
-    if (lines.length > 4) lines[0].remove();
+    if (lines.length > 3) lines[0].remove();
   }
 
+  // Killing a card also kills its rAF loops: every loop checks card._alive.
   function fsClose(entry, delay) {
     setTimeout(() => {
+      entry._alive = false;
       entry.remove();
-      if (!fsPanel().children.length) fsPanel().classList.add('hidden');
+      fsSync();
     }, delay || 0);
   }
 
-  // ---- flight animation: aircraft flies base → target with status updates ----
+  // ---- silhouettes: drawn NOSE-UP (nose at -y), rotated +90 onto the heading ----
+  const SIL = {
+    // pointed nose, swept delta wings, twin canted tails
+    fighter: 'M0,-7.5 L1.1,-3.4 L1.5,0.4 L6.8,4.4 L6.8,5.8 L1.6,3.8 L1.4,5.4 ' +
+             'L3.4,7.4 L3.4,8.2 L1,7.2 L0,7.9 L-1,7.2 L-3.4,8.2 L-3.4,7.4 ' +
+             'L-1.4,5.4 L-1.6,3.8 L-6.8,5.8 L-6.8,4.4 L-1.5,0.4 L-1.1,-3.4 Z',
+    // flying wing — no tails, one continuous sawtooth trailing edge
+    stealth: 'M0,-6.5 L9,4.2 L5.2,3.4 L2.8,6.4 L0,4.8 L-2.8,6.4 L-5.2,3.4 L-9,4.2 Z',
+    // TLAM: a body and two stub fins, deliberately not a jet
+    cruise: 'M0,-7 L1.2,-3.5 L1.2,3.2 L2.9,6.2 L1.2,5.6 L1.2,7 L-1.2,7 L-1.2,5.6 ' +
+            'L-2.9,6.2 L-1.2,3.2 L-1.2,-3.5 Z',
+  };
+  const BURNER = 'M-1.5,7 L1.5,7 L0.9,12.5 L-0.9,12.5 Z';
+
+  // ---- scope-local burst (the map's burst() draws in world coords) ----
+  function scopeBurst(root, x, y, cls, maxR) {
+    const c = el('circle', { class: cls, cx: x, cy: y, r: 1 });
+    root.appendChild(c);
+    const t0 = performance.now();
+    (function step(now) {
+      const p = Math.min(1, (now - t0) / 420);
+      c.setAttribute('r', 1 + p * maxR);
+      c.setAttribute('opacity', 0.9 * (1 - p));
+      if (p < 1) { requestAnimationFrame(step); return; }
+      c.remove();
+    })(performance.now());
+  }
+
+  // ---- the scope card: header, mini tactical view, status lines, progress ----
+  function scopeCard(header) {
+    const { scope } = fsStacks();
+    const entry = document.createElement('div');
+    entry._alive = true;
+    entry.className = 'flight-entry scope-card';
+    entry.innerHTML =
+      `<div class="fs-head">${header}</div>` +
+      `<div class="scope-wrap"></div>` +
+      `<div class="fs-lines"></div>` +
+      `<div class="progress-row"><span class="progress-phase">STANDING BY</span>` +
+      `<span class="progress-pct">0%</span></div>` +
+      `<div class="progress-bar"><div class="progress-fill"></div></div>`;
+    scope.appendChild(entry);
+    fsPanel().classList.remove('hidden');
+    return entry;
+  }
+
+  function setProgress(entry, p, phase, contested) {
+    entry.querySelector('.progress-fill').style.width = Math.round(Math.min(1, p) * 100) + '%';
+    entry.querySelector('.progress-fill').classList.toggle('contested', !!contested);
+    entry.querySelector('.progress-phase').textContent = phase;
+    entry.querySelector('.progress-pct').textContent = Math.round(Math.min(1, p) * 100) + '%';
+  }
+
+  const PHASES = [
+    [0.08, 'WHEELS UP'], [0.42, 'INGRESS'], [0.86, 'CONTESTED AIRSPACE'],
+    [0.99, 'TERMINAL'], [1.01, 'WEAPONS AWAY'],
+  ];
+  const PHASES_CRUISE = [
+    [0.08, 'LAUNCH'], [0.42, 'MIDCOURSE'], [0.86, 'TERRAIN FOLLOWING'],
+    [0.99, 'TERMINAL'], [1.01, 'IMPACT'],
+  ];
+  function phaseFor(p, cruise) {
+    const table = cruise ? PHASES_CRUISE : PHASES;
+    for (const [at, name] of table) if (p < at) return name;
+    return 'BDA';
+  }
+
+  // Builds the static furniture of the mini display and returns handles to the
+  // parts that animate. Coordinate space is the scope's own 0..200, never world.
+  function buildScopeView(entry, target, adw) {
+    const svg = el('svg', { class: 'scope-view', viewBox: '0 0 200 200' });
+    const C = SC.C;
+
+    // bearing ticks every 30° plus two faint range rings — situation-room furniture
+    const grid = el('g', { class: 'scope-grid' });
+    for (const r of [26, 48, SC.RING]) grid.appendChild(el('circle', { cx: C, cy: C, r }));
+    for (let a = 0; a < 360; a += 30) {
+      const rad = a * Math.PI / 180;
+      const inner = a % 90 === 0 ? 82 : 88;
+      grid.appendChild(el('line', {
+        x1: C + Math.cos(rad) * inner, y1: C + Math.sin(rad) * inner,
+        x2: C + Math.cos(rad) * 94, y2: C + Math.sin(rad) * 94,
+      }));
+    }
+    svg.appendChild(grid);
+
+    // THREAT RING — brightness and weight track live SAM coverage. Weight 0 means
+    // no ring and no sweep at all: clean skies, the visible payoff for SEAD first.
+    let ring = null, sweep = null;
+    if (adw > 0) {
+      const intensity = Math.min(1, adw / 3);
+      ring = el('circle', {
+        class: 'scope-ring', cx: C, cy: C, r: SC.RING,
+        'stroke-width': (0.8 + intensity * 1.2).toFixed(2),
+        opacity: (0.35 + intensity * 0.55).toFixed(2),
+      });
+      svg.appendChild(ring);
+
+      // rotating wedge: solid leading edge trailing off into a faded tail
+      sweep = el('g', { class: 'scope-sweep-g' });
+      const span = 34 * Math.PI / 180;
+      const x1 = C + Math.cos(-span) * SC.RING, y1 = C + Math.sin(-span) * SC.RING;
+      sweep.appendChild(el('path', {
+        class: 'scope-sweep',
+        d: `M${C},${C} L${x1.toFixed(2)},${y1.toFixed(2)} A${SC.RING},${SC.RING} 0 0 1 ${C + SC.RING},${C} Z`,
+      }));
+      sweep.appendChild(el('line', { class: 'scope-beam', x1: C, y1: C, x2: C + SC.RING, y2: C }));
+      svg.appendChild(sweep);
+    }
+
+    // TARGET at dead centre, same glyph it wears on the map, blown up 2x
+    const tg = el('g', { class: `target ${target.status || 'intact'} scope-tgt`, transform: `translate(${C},${C})` });
+    const inner = el('g', { transform: 'scale(2)' });
+    inner.appendChild(el('circle', { class: 'tgt-ring', r: 9 }));
+    inner.appendChild(targetCore(target.type));
+    tg.appendChild(inner);
+    const lbl = el('text', { y: 34 });
+    lbl.textContent = target.short;
+    tg.appendChild(lbl);
+    svg.appendChild(tg);
+
+    const fx = el('g', { class: 'scope-fx' });
+    svg.appendChild(fx);
+
+    entry.querySelector('.scope-wrap').appendChild(svg);
+    return { svg, fx, ring, sweep, tg };
+  }
+
+  // ---- the terminal attack run, flown inside the scope ----
+  function animateScope(assetType, target, done) {
+    const stealth = assetType === 'stealth';
+    const cruise = assetType === 'cruise';
+    const ft = stealth ? { type: 'B-2', cs: 'SPIRIT' }
+      : cruise ? { type: 'RGM-109 TLAM', cs: 'ARSENAL' }
+      : pick(FIGHTER_TYPES);
+    const origin = stealth ? US_ASSETS.find(a => a.id === 'diego')
+      : cruise ? US_ASSETS.find(a => a.id === STRIKE_ORIGINS.cruise)
+      : nearestSortieBase(target, ft.from === 'carrier');
+    const callsign = `${ft.cs} ${rand(1, 9)}${rand(1, 9)}`;
+    const baseName = origin.id === 'diego' ? 'DIEGO GARCIA' : origin.short;
+
+    // live SAM coverage over this target — the same number computeStrike() used
+    const adw = (typeof Game !== 'undefined' && Game.airDefenseWeight) ? Game.airDefenseWeight() : 0;
+
+    const entry = scopeCard(`${callsign} · ${ft.type} — ${baseName} → ${target.short}`);
+    const view = buildScopeView(entry, target, adw);
+    const C = SC.C;
+
+    // REAL BEARING: the angle from the strike origin to the target in world
+    // coords, so the scope preserves which way the package actually came from.
+    const bearing = Math.atan2(origin.y - target.y, origin.x - target.x);
+    const headingDeg = bearing * 180 / Math.PI + 180; // flying inbound, toward centre
+
+    // inbound track + the aircraft itself
+    view.fx.appendChild(el('line', {
+      class: 'scope-track',
+      x1: C + Math.cos(bearing) * SC.EDGE, y1: C + Math.sin(bearing) * SC.EDGE, x2: C, y2: C,
+    }));
+    const ac = el('g', { class: 'scope-ac' });
+    let burner = null;
+    if (!cruise) {
+      burner = el('path', { class: 'scope-burner', d: BURNER, opacity: 0 });
+      ac.appendChild(burner);
+    }
+    ac.appendChild(el('path', { class: 'scope-jet', d: cruise ? SIL.cruise : stealth ? SIL.stealth : SIL.fighter }));
+    view.fx.appendChild(ac);
+
+    // blinking lock box, shown only while the beam is actually painting
+    const lock = el('rect', { class: 'scope-lock', x: -11, y: -11, width: 22, height: 22, opacity: 0 });
+    view.fx.appendChild(lock);
+
+    // status lines
+    const subs = { '{cs}': callsign, '{base}': baseName, '{tgt}': target.short };
+    const fill = (s) => s.replace(/\{cs\}|\{base\}|\{tgt\}/g, (m) => subs[m]);
+    const evs = (cruise ? CRUISE_EVENTS : FLIGHT_EVENTS)
+      .filter(e => !e.only || e.only === (stealth ? 'stealth' : 'fighter'))
+      .sort((a, b) => a.at - b.at);
+    let evIdx = 0;
+    const fireUpTo = (prog) => {
+      while (evIdx < evs.length && evs[evIdx].at <= prog) {
+        const e = evs[evIdx++];
+        if (e.kind === 'problem' && Math.random() > e.chance) continue;
+        fsLine(entry, fill(pick(e.msgs)), e.kind === 'problem');
+      }
+    };
+
+    // ---- radar sweep + acquisition ----
+    // The aircraft runs in along a fixed bearing, so the beam passes over it once
+    // per revolution: sweeping past the inbound is what triggers a paint.
+    const acPos = { x: C + Math.cos(bearing) * SC.EDGE, y: C + Math.sin(bearing) * SC.EDGE };
+    const bearingDeg = ((bearing * 180 / Math.PI) % 360 + 360) % 360;
+    const revMs = adw >= 2.5 ? 2500 : adw >= 1 ? 3800 : 5000; // degraded radars turn slower
+    let sweepDeg = Math.random() * 360;
+    let painted = false, samLines = 0, samsUp = 0;
+
+    // Stealth is painted late and briefly — that is the whole reason a B-2 walks
+    // into a defended target and a Strike Eagle does not.
+    const paintOdds = stealth ? 0.18 : cruise ? 0.45 : 1;
+    const samChance = Math.min(0.7, 0.22 * adw) * (stealth ? 0.25 : cruise ? 0.5 : 1);
+
+    function launchSAM() {
+      if (samsUp >= 4) return;
+      samsUp++;
+      // rises from the ring, a little off the inbound's bearing, and chases it
+      const off = (Math.random() - 0.5) * 1.1;
+      const sx = C + Math.cos(bearing + off) * SC.RING;
+      const sy = C + Math.sin(bearing + off) * SC.RING;
+      const trail = el('line', { class: 'sam-trail', x1: sx, y1: sy, x2: sx, y2: sy });
+      const head = el('circle', { class: 'sam-head', cx: sx, cy: sy, r: 1.8 });
+      view.fx.appendChild(trail);
+      view.fx.appendChild(head);
+      if (samLines < 2) { fsLine(entry, pick(SAM_LINES), true); samLines++; }
+      const s0 = performance.now();
+      (function step(now) {
+        if (!entry._alive) { trail.remove(); head.remove(); return; }
+        const p = Math.min(1, (now - s0) / 620);
+        // lead the target's live position rather than a frozen intercept point
+        const x = sx + (acPos.x - sx) * p, y = sy + (acPos.y - sy) * p;
+        head.setAttribute('cx', x); head.setAttribute('cy', y);
+        trail.setAttribute('x2', x); trail.setAttribute('y2', y);
+        trail.setAttribute('opacity', 0.85 * (1 - p * 0.6));
+        if (p < 1) { requestAnimationFrame(step); return; }
+        head.remove(); trail.remove();
+        samsUp--;
+        scopeBurst(view.fx, x, y, 'sam-flash', 9);
+      })(performance.now());
+    }
+
+    let lastFrame = performance.now();
+    const t0 = performance.now();
+    const dur = FLIGHT_DUR[assetType];
+
+    // one loop drives the sweep, the aircraft, acquisition and the progress bar
+    function frame(now) {
+      if (!entry._alive) return;
+      const dt = now - lastFrame;
+      lastFrame = now;
+
+      const p = Math.min(1, (now - t0) / dur);
+
+      // aircraft: rides the bearing in from the ring edge to the centre
+      const r = SC.EDGE * (1 - p);
+      acPos.x = C + Math.cos(bearing) * r;
+      acPos.y = C + Math.sin(bearing) * r;
+      ac.setAttribute('transform', `translate(${acPos.x.toFixed(2)},${acPos.y.toFixed(2)}) rotate(${headingDeg.toFixed(1)})`);
+      if (burner) burner.setAttribute('opacity', (Math.min(1, p * 3) * (0.55 + Math.random() * 0.45)).toFixed(2));
+
+      if (view.sweep) {
+        sweepDeg = (sweepDeg + (dt / revMs) * 360) % 360;
+        view.sweep.setAttribute('transform', `rotate(${sweepDeg.toFixed(1)},${C},${C})`);
+        // degraded coverage flickers
+        if (adw < 2 && Math.random() < 0.02) view.sweep.setAttribute('opacity', 0.25 + Math.random() * 0.75);
+
+        // PAINT: is the beam's leading edge on the inbound right now?
+        let diff = Math.abs(((sweepDeg - bearingDeg + 540) % 360) - 180);
+        diff = 180 - diff;
+        const inBeam = diff < SC.LOCK_ARC && r < SC.RING + 4;
+        const allowed = !stealth || p > 0.72; // stealth is only ever seen late
+        if (inBeam && allowed && Math.random() < paintOdds) {
+          lock.setAttribute('transform', `translate(${acPos.x.toFixed(2)},${acPos.y.toFixed(2)})`);
+          lock.setAttribute('opacity', 1);
+          if (view.ring) view.ring.classList.add('painting');
+          if (!painted && Math.random() < samChance) launchSAM();
+          painted = true;
+        } else if (painted) {
+          lock.setAttribute('opacity', 0);
+          if (view.ring) view.ring.classList.remove('painting');
+          painted = false;
+        }
+      }
+
+      fireUpTo(p);
+      setProgress(entry, p, phaseFor(p, cruise), p >= 0.42 && p < 0.86 && adw > 0);
+
+      if (p < 1) { requestAnimationFrame(frame); return; }
+      impact();
+    }
+
+    function impact() {
+      ac.setAttribute('opacity', 0);
+      lock.setAttribute('opacity', 0);
+      if (view.ring) view.ring.classList.remove('painting');
+      view.tg.classList.add('scope-hit');
+      scopeBurst(view.fx, C, C, 'impact-flash', 46);
+      setProgress(entry, 1, 'BDA', false);
+      fireUpTo(1);
+      done();                 // BDA resolves now — everything after is cosmetic
+      targetPulse(target);    // the map's one quiet acknowledgement
+      // a single egress beat, then the card retires
+      if (!cruise) setTimeout(() => { if (entry._alive) fireUpTo(1.2); }, 700);
+      fsClose(entry, 2400);
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---- B-2 transit cards: the Diego Garcia leg, kept visible ----
+  // Stealth packages are ETA 2. While one is still in transit it gets a compact
+  // card — no radar, no attack view — so the distance reads as time.
+  const NM_PER_MAP = 1 / KM_TO_MAP / 1.852;
+
+  // Deterministic per-target so the callsign survives re-renders without being
+  // written into the mission (and therefore into the save).
+  function transitCallsign(id) {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    return `SPIRIT ${11 + (h % 89)}`;
+  }
+
+  function updateTransit(missions) {
+    const { transit } = fsStacks();
+    const inbound = (missions || []).filter(m => m.pkg && m.pkg.asset === 'stealth' && m.eta > 1);
+    transit.innerHTML = '';
+    const diego = US_ASSETS.find(a => a.id === 'diego');
+    for (const m of inbound) {
+      const t = TARGETS.find(x => x.id === m.targetId);
+      if (!t || !diego) continue;
+      const nm = Math.round(Math.hypot(diego.x - t.x, diego.y - t.y) * NM_PER_MAP / 50) * 50;
+      const turns = m.eta - 1;
+      const card = document.createElement('div');
+      card.className = 'flight-entry transit-card';
+      card.innerHTML =
+        `<div class="fs-head">${transitCallsign(t.id)} · B-2 — DIEGO GARCIA → ${t.short}</div>` +
+        `<div class="transit-strip"><span class="transit-dot"></span></div>` +
+        `<div class="fs-lines"><div class="fs-line">> B-2 // SPIRIT — ` +
+        `${nm.toLocaleString()} NM — ${turns} TURN${turns === 1 ? '' : 'S'} TO TOT</div></div>`;
+      transit.appendChild(card);
+    }
+    fsSync();
+  }
+
   function nearestSortieBase(target, wantCarrier) {
     let best = null, bd = Infinity;
     for (const a of US_ASSETS) {
@@ -342,133 +699,30 @@ const MapView = (() => {
     return best;
   }
 
-  function animateFlight(assetType, target, done) {
-    const stealth = assetType === 'stealth';
-    const ft = stealth ? { type: 'B-2', cs: 'SPIRIT' } : pick(FIGHTER_TYPES);
-    const origin = stealth ? US_ASSETS.find(a => a.id === 'diego')
-      : nearestSortieBase(target, ft.from === 'carrier');
-    const callsign = `${ft.cs} ${rand(1, 9)}${rand(1, 9)}`;
-    const baseName = origin.id === 'diego' ? 'DIEGO GARCIA' : origin.short;
-
-    const fx = document.getElementById('fx-layer');
-    const x1 = origin.x, y1 = origin.y, x2 = target.x, y2 = target.y;
-    const mx = (x1 + x2) / 2 + (y1 - y2) * 0.15;
-    const my = (y1 + y2) / 2 + (x2 - x1) * 0.15;
-    const path = el('path', { class: 'flight-path', d: `M${x1},${y1} Q${mx},${my} ${x2},${y2}` });
-    fx.appendChild(path);
-    const icon = el('path', {
-      class: 'flight-icon' + (stealth ? ' stealth' : ''),
-      d: stealth ? 'M0,-4 L8,3 L2,2 L0,5 L-2,2 L-8,3 Z' : 'M0,-5 L3,4 L0,2.2 L-3,4 Z',
-    });
-    fx.appendChild(icon);
-
-    const entry = fsOpen(`${callsign} · ${ft.type} — ${baseName} → ${target.short}`);
-    const subs = { '{cs}': callsign, '{base}': baseName, '{tgt}': target.short };
-    const fill = (s) => s.replace(/\{cs\}|\{base\}|\{tgt\}/g, (m) => subs[m]);
-    const evs = FLIGHT_EVENTS
-      .filter(e => !e.only || e.only === (stealth ? 'stealth' : 'fighter'))
-      .sort((a, b) => a.at - b.at);
-    let evIdx = 0;
-    // prog runs 0→1 on ingress, then 1→2 on the egress leg home
-    const fireUpTo = (prog) => {
-      while (evIdx < evs.length && evs[evIdx].at <= prog) {
-        const e = evs[evIdx++];
-        if (e.kind === 'problem' && Math.random() > e.chance) continue;
-        fsLine(entry, fill(pick(e.msgs)), e.kind === 'problem');
-      }
-    };
-
-    const total = path.getTotalLength();
-    const setIcon = (len, rev) => {
-      const pa = path.getPointAtLength(Math.max(0, len - 1.5));
-      const pb = path.getPointAtLength(Math.min(total, len + 1.5));
-      const pt = path.getPointAtLength(len);
-      const ang = Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI + (rev ? 270 : 90);
-      icon.setAttribute('transform', `translate(${pt.x},${pt.y}) rotate(${ang})`);
-    };
-
-    const dur = FLIGHT_DUR[assetType];
-    const t0 = performance.now();
-    function ingress(now) {
-      const p = Math.min(1, (now - t0) / dur);
-      setIcon(total * p, false);
-      fireUpTo(p);
-      if (p < 1) { requestAnimationFrame(ingress); return; }
-      // impact flash; BDA resolves now — the egress leg is purely visual
-      const flash = el('circle', { class: 'impact-flash', cx: x2, cy: y2, r: 2 });
-      fx.appendChild(flash);
-      const f0 = performance.now();
-      function flashStep(now2) {
-        const fp = Math.min(1, (now2 - f0) / 500);
-        flash.setAttribute('r', 2 + fp * 22);
-        flash.setAttribute('opacity', 0.9 * (1 - fp));
-        if (fp < 1) { requestAnimationFrame(flashStep); return; }
-        flash.remove();
-      }
-      requestAnimationFrame(flashStep);
-      if (done) done();
-      egress();
+  // ---- the map's only outbound-strike cue: a short pulse on the target ----
+  function targetPulse(target) {
+    const g = document.getElementById(`tgt-${target.id}`);
+    if (g) {
+      g.classList.add('struck');
+      setTimeout(() => g.classList.remove('struck'), 500);
     }
-    function egress() {
-      const e0 = performance.now();
-      const edur = 1800;
-      function step(now) {
-        const ep = Math.min(1, (now - e0) / edur);
-        fireUpTo(1 + ep);
-        setIcon(total * (1 - ep * 0.45), true);
-        icon.setAttribute('opacity', 1 - ep);
-        path.setAttribute('opacity', 0.5 * (1 - ep));
-        if (ep < 1) { requestAnimationFrame(step); return; }
-        icon.remove();
-        path.remove();
-        fsClose(entry, 2200);
-      }
-      requestAnimationFrame(step);
-    }
-    requestAnimationFrame(ingress);
+    burst(target.x, target.y, 'impact-flash', 13);
   }
 
-  // ---- strike animation dispatcher: cruise keeps the fast projectile,
-  // fighters and B-2s fly the full route with status updates ----
+  // ---- strike dispatcher ----
+  // Contract with game.js: `done` fires exactly once, at impact. game.js also
+  // runs a watchdog that may call its own finishOne first, so the guard here is
+  // about never double-resolving from this side.
   function animateStrike(assetType, target, done) {
-    if (assetType !== 'cruise') { animateFlight(assetType, target, done); return; }
-    const originAsset = US_ASSETS.find(a => a.id === STRIKE_ORIGINS[assetType]);
-    const fx = document.getElementById('fx-layer');
-    const x1 = originAsset.x, y1 = originAsset.y, x2 = target.x, y2 = target.y;
-    // arc control point
-    const mx = (x1 + x2) / 2 + (y1 - y2) * 0.18;
-    const my = (y1 + y2) / 2 + (x2 - x1) * 0.18;
-    const path = el('path', { class: 'strike-path', d: `M${x1},${y1} Q${mx},${my} ${x2},${y2}` });
-    fx.appendChild(path);
-    const proj = el('circle', { class: 'strike-proj', r: 3 });
-    fx.appendChild(proj);
-
-    const total = path.getTotalLength();
-    const dur = 1000;
-    const t0 = performance.now();
-    function step(now) {
-      const p = Math.min(1, (now - t0) / dur);
-      const pt = path.getPointAtLength(total * p);
-      proj.setAttribute('cx', pt.x);
-      proj.setAttribute('cy', pt.y);
-      if (p < 1) { requestAnimationFrame(step); return; }
-      proj.remove();
-      // impact flash
-      const flash = el('circle', { class: 'impact-flash', cx: x2, cy: y2, r: 2 });
-      fx.appendChild(flash);
-      const f0 = performance.now();
-      function flashStep(now2) {
-        const fp = Math.min(1, (now2 - f0) / 500);
-        flash.setAttribute('r', 2 + fp * 22);
-        flash.setAttribute('opacity', 0.9 * (1 - fp));
-        if (fp < 1) { requestAnimationFrame(flashStep); return; }
-        flash.remove();
-        path.remove();
-        if (done) done();
-      }
-      requestAnimationFrame(flashStep);
+    let called = false;
+    const once = () => { if (called) return; called = true; if (done) done(); };
+    try {
+      animateScope(assetType, target, once);
+    } catch (e) {
+      // a broken animation must never hold up the war
+      console.error('scope animation failed', e);
+      once();
     }
-    requestAnimationFrame(step);
   }
 
   // ---- Iranian counterattacks: ballistic/cruise missiles arc in fast,
@@ -609,5 +863,6 @@ const MapView = (() => {
     setTimeout(finish, 12000); // watchdog: a throttled tab must never stall the war
   }
 
-  return { render, updateTarget, setHormuz, flashAsset, animateStrike, animateIranianAttacks, setTargetClickHandler };
+  return { render, updateTarget, setHormuz, flashAsset, animateStrike, updateTransit,
+    animateIranianAttacks, setTargetClickHandler };
 })();
