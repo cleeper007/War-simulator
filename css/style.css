@@ -321,6 +321,22 @@ button { font-family: var(--mono); }
 }
 .us-asset.under-attack .asset-icon { fill: var(--red); }
 
+/* aircraft carrier — reads as a flat-top at map scale, resolves into a full
+   strike group (carrier + escort screen) once zoomed way in */
+.carrier-hull { fill: var(--blue); }
+.carrier-deck { fill: #0b1a2e; opacity: 0.55; }
+.carrier-line { stroke: #0b1a2e; stroke-width: 0.4; opacity: 0.6; }
+.carrier-island { fill: #cfe2ff; }
+.escort-ship { fill: var(--blue); opacity: 0.9; }
+.strike-group {
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+.map-deep-zoom .strike-group { opacity: 1; }
+.us-asset.under-attack .carrier-hull,
+.us-asset.under-attack .escort-ship { fill: var(--red); }
+
 /* allied bases that are not under US command (Israel) — amber, hollow */
 .us-asset.ally .asset-icon { fill: none; stroke: var(--amber); stroke-width: 1.4; }
 .us-asset.ally text { fill: var(--amber); opacity: 0.85; }

@@ -70,11 +70,55 @@ const MapView = (() => {
     return g;
   }
 
+  // top-down aircraft-carrier silhouette (bow up): hull, angled flight deck,
+  // starboard island and a faint centreline. drawn small so at map scale it
+  // reads as a single flat-top; the escort screen is added separately.
+  function carrierHull(cls) {
+    const c = el('g', { class: cls });
+    c.appendChild(el('path', { class: 'asset-icon carrier-hull',
+      d: 'M0,-8 C1.8,-6.5 2.2,-4.5 2.2,-3 L2.2,6.5 Q2.2,7.8 1,7.8 L-1,7.8 Q-2.2,7.8 -2.2,6.5 L-2.2,-3 C-2.2,-4.5 -1.8,-6.5 0,-8 Z' }));
+    // angled flight deck (offset to port, as on a real carrier)
+    c.appendChild(el('path', { class: 'carrier-deck', d: 'M-0.8,5 L-4.8,-4 L-2.9,-5 L1.1,3.5 Z' }));
+    // deck centreline
+    c.appendChild(el('line', { class: 'carrier-line', x1: 0, y1: -6.5, x2: 0, y2: 6.5 }));
+    // starboard island superstructure
+    c.appendChild(el('rect', { class: 'carrier-island', x: 1.2, y: -2.4, width: 1.4, height: 3.2 }));
+    return c;
+  }
+
+  // small screening warship (destroyer/cruiser), bow up before rotation
+  function escortShip() {
+    return el('path', { class: 'asset-icon escort-ship', d: 'M0,-3.4 L1.3,-0.8 L1.3,3 L-1.3,3 L-1.3,-0.8 Z' });
+  }
+
+  // the strike group: the carrier plus a ring of escorts, hidden until the
+  // map is zoomed way in (toggled via the .map-deep-zoom class on the svg)
+  function carrierGroup() {
+    const grp = el('g', { class: 'carrier-strike-group' });
+    // escort screen — revealed only on deep zoom
+    const screen = el('g', { class: 'strike-group' });
+    const escorts = [
+      { dx: 0, dy: -17, rot: 0 },     // plane-guard / vanguard ahead
+      { dx: -13, dy: -8, rot: -22 },  // port bow
+      { dx: 13, dy: -6, rot: 20 },    // starboard bow
+      { dx: -13, dy: 8, rot: -158 },  // port quarter
+      { dx: 13, dy: 10, rot: 152 },   // starboard quarter (astern screen)
+    ];
+    for (const e of escorts) {
+      const s = escortShip();
+      s.setAttribute('transform', `translate(${e.dx},${e.dy}) rotate(${e.rot})`);
+      screen.appendChild(s);
+    }
+    grp.appendChild(screen);
+    grp.appendChild(carrierHull('carrier-body'));
+    return grp;
+  }
+
   function assetIcon(a) {
     const g = el('g', { class: 'us-asset' + (a.ally ? ' ally' : ''), id: `asset-${a.id}`, transform: `translate(${a.x},${a.y})` });
     let icon;
     if (a.kind === 'carrier') {
-      icon = el('path', { class: 'asset-icon', d: 'M-7,-2 L7,-2 L5,3 L-5,3 Z M-2,-6 L2,-6 L2,-2 L-2,-2 Z' });
+      icon = carrierGroup();
     } else if (a.kind === 'bomber') {
       icon = el('path', { class: 'asset-icon', d: 'M0,-4 L8,3 L2,2 L0,5 L-2,2 L-8,3 Z' });
     } else if (a.kind === 'logistics') {
@@ -205,6 +249,8 @@ const MapView = (() => {
   // ---- pan & zoom ----
   function applyView() {
     world.setAttribute('transform', `translate(${view.x},${view.y}) scale(${view.k})`);
+    // reveal each carrier's escort screen once zoomed way in
+    svg.classList.toggle('map-deep-zoom', view.k >= 2.6);
   }
 
   function zoomAt(cx, cy, factor) {
