@@ -274,8 +274,9 @@ const CRUISE_EVENTS = [
     'Midcourse waypoints good — {cs} tracking on inertial',
   ] },
   { at: 0.7, kind: 'problem', chance: 0.3, msgs: [
-    'Point-defense AAA engaging along the run-in',
-    'One bird lost to terminal defenses — remainder pressing',
+    'Weather over the target — cloud deck degrading the terminal seeker',
+    'One bird lost to a booster fault after launch — remainder pressing',
+    'Targeting package flagged stale — running on last-good coordinates',
   ] },
   { at: 0.99, kind: 'status', msgs: ['TERMINAL — {tgt} impact'] },
 ];

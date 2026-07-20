@@ -556,9 +556,6 @@ const MapView = (() => {
     const entry = scopeCard(headHeader);
     entry.dataset.tgt = target.id;   // lets playStrikeHit() find this live scope
     const view = buildScopeView(entry, target, adw);
-    // TLAM strikes open with a launch clip over the radar; it fades out on its
-    // own, revealing the terminal run before impact.
-    if (cruise) overlayScopeClip(entry.querySelector('.scope-wrap'), 'video/tlam-launch.mp4');
     const C = SC.C;
 
     // REAL BEARING: the angle from the strike origin to the target in world
@@ -630,7 +627,9 @@ const MapView = (() => {
     // Stealth is painted late and briefly — that is the whole reason a B-2 walks
     // into a defended target and a Strike Eagle does not.
     const paintOdds = stealth ? 0.18 : cruise ? 0.45 : 1;
-    const samChance = Math.min(0.7, 0.22 * adw) * (stealth ? 0.25 : cruise ? 0.5 : 1);
+    // TLAMs fly a terrain-following profile under the SAM belt — air defense is
+    // not what defeats a Tomahawk, so nothing rises to engage a cruise run.
+    const samChance = cruise ? 0 : Math.min(0.7, 0.22 * adw) * (stealth ? 0.25 : 1);
 
     function launchSAM() {
       if (samsUp >= 4) return;
@@ -660,8 +659,9 @@ const MapView = (() => {
       })(performance.now());
     }
 
-    let lastFrame = performance.now();
-    const t0 = performance.now();
+    // t0/lastFrame are set when the flight actually starts — for a TLAM that is
+    // after the launch clip finishes, so the clip never eats into radar time.
+    let lastFrame = 0, t0 = 0;
     const dur = FLIGHT_DUR[assetType];
 
     // one loop drives the sweep, the aircraft, acquisition and the progress bar
@@ -715,7 +715,8 @@ const MapView = (() => {
       }
 
       fireUpTo(p);
-      setProgress(entry, p, phaseFor(p, cruise), p >= 0.42 && p < 0.86 && adw > 0);
+      // cruise runs carry no threat styling — nothing is shooting at a TLAM
+      setProgress(entry, p, phaseFor(p, cruise), !cruise && p >= 0.42 && p < 0.86 && adw > 0);
 
       if (p < 1) { requestAnimationFrame(frame); return; }
       impact();
@@ -731,12 +732,25 @@ const MapView = (() => {
       fireUpTo(1);
       done();                 // BDA resolves now — everything after is cosmetic
       targetPulse(target);    // the map's one quiet acknowledgement
-      // a single egress beat, then the card retires
+      // a single egress beat, then the card retires. Held open long enough for
+      // the hit clip (played by game.js on a successful hit) to finish first.
       if (!cruise) setTimeout(() => { if (entry._alive) fireUpTo(1.2); }, 1400);
-      fsClose(entry, 3800);
+      fsClose(entry, 5200);
     }
 
-    requestAnimationFrame(frame);
+    // Start the terminal run. For a TLAM the launch clip plays first and in full
+    // — the flight (and the radar) only begins once the clip is done, so the clip
+    // never cuts into radar time. Every other asset starts its run immediately.
+    function startFlight() {
+      t0 = performance.now();
+      lastFrame = t0;
+      requestAnimationFrame(frame);
+    }
+    if (cruise) {
+      overlayScopeClip(entry.querySelector('.scope-wrap'), 'video/tlam-launch.mp4', startFlight);
+    } else {
+      startFlight();
+    }
   }
 
   // ---- B-2 transit cards: the Diego Garcia leg, kept visible ----
@@ -811,24 +825,51 @@ const MapView = (() => {
     }
   }
 
-  // Overlay a muted clip on a scope card's radar window, fading out when it ends.
-  // Muted so autoplay is never blocked. A rejected play() is usually a benign
-  // interruption (e.g. a backgrounded tab pausing muted video) — swallow it
-  // rather than tear down the overlay; worst case the clip sits on frame 0 until
-  // fsClose retires the whole card.
-  function overlayScopeClip(wrap, src) {
-    if (!wrap || wrap.querySelector('.scope-hit-video')) return;
+  // ---- strike footage: launch + hit clips that play inside the scope window ----
+  // game.js holds the BDA report back until footage is done, so we track how many
+  // clips are still on screen and let it await an idle scope.
+  let activeClips = 0;
+  let clipWaiters = [];
+  function clipEnded() {
+    activeClips = Math.max(0, activeClips - 1);
+    if (activeClips === 0) { const w = clipWaiters; clipWaiters = []; w.forEach(fn => fn()); }
+  }
+  // Run cb once every strike clip has finished (or immediately if none are up).
+  // The timeout is a hard safety net: a stuck clip must never hang the report.
+  function whenFootageDone(cb) {
+    if (activeClips === 0) { cb(); return; }
+    let fired = false;
+    const go = () => { if (fired) return; fired = true; cb(); };
+    clipWaiters.push(go);
+    setTimeout(go, 9000);
+  }
+
+  // Overlay a clip on a scope card's radar window, fading out when it ends.
+  // Plays WITH sound (muted fallback if the browser blocks audible autoplay).
+  // onEnd fires once — on natural end, a load error, or a stall timeout — so a
+  // launch clip can gate the flight run behind itself without ever hanging.
+  function overlayScopeClip(wrap, src, onEnd) {
+    if (!wrap || wrap.querySelector('.scope-hit-video')) { if (onEnd) onEnd(); return; }
     const vid = document.createElement('video');
     vid.className = 'scope-hit-video';
     vid.src = src;
-    vid.muted = true;
-    vid.autoplay = true;
     vid.playsInline = true;
-    const clear = () => vid.remove();
-    vid.addEventListener('ended', clear);
-    vid.addEventListener('error', clear); // genuine decode/load failure
+    activeClips++;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      vid.remove();
+      clipEnded();
+      if (onEnd) onEnd();
+    };
+    vid.addEventListener('ended', finish);
+    vid.addEventListener('error', finish);   // genuine decode/load failure
+    setTimeout(finish, 9000);                // stall safety (e.g. backgrounded tab)
     wrap.appendChild(vid);
-    vid.play().catch(() => {});
+    // Try to play with sound; a rejected audible autoplay falls back to muted so
+    // the footage still runs. Any sound in the clip plays when the browser allows.
+    vid.play().catch(() => { vid.muted = true; vid.play().catch(() => {}); });
   }
 
   // Called by game.js only when BDA confirms a successful hit (destroyed/damaged).
@@ -978,5 +1019,5 @@ const MapView = (() => {
   }
 
   return { render, updateTarget, setHormuz, flashAsset, animateStrike, playStrikeHit,
-    updateTransit, animateIranianAttacks, setTargetClickHandler };
+    whenFootageDone, updateTransit, animateIranianAttacks, setTargetClickHandler };
 })();

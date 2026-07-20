@@ -146,9 +146,19 @@ const Game = (() => {
   const AD_PENALTY = { fighter: 0.09, cruise: 0.05, stealth: 0.02 };
   const resKey = (asset) => asset === 'fighter' ? 'fighters' : asset;
 
+  // Why a TLAM salvo comes up short — weather, bad targeting data, or a launch/
+  // booster fault. Air defense is never the cause.
+  const TLAM_MISS_REASONS = [
+    'Strike failed to achieve desired effects. Assessed cause: heavy weather over the target degraded terminal guidance and the missiles went long.',
+    'Strike failed to achieve desired effects. Assessed cause: the targeting package was bad — the aimpoint coordinates were off and the warheads fell on open ground.',
+    'Strike failed to achieve desired effects. Assessed cause: booster and launch faults — several birds failed to reach the target after leaving the rail.',
+  ];
+
   function computeStrike(target, pkg) {
     const ad = airDefenseWeight();
-    const adPenalty = AD_PENALTY[pkg.asset] * ad;
+    // TLAMs fly under the SAM belt — air defense doesn't degrade a Tomahawk.
+    // Its misses come from weather, targeting, or launch faults, not the threat.
+    const adPenalty = pkg.asset === 'cruise' ? 0 : AD_PENALTY[pkg.asset] * ad;
     const dmgBonus = target.status === 'damaged' ? 0.15 : 0;
     const success = clamp(pkg.base - adPenalty + dmgBonus, 0.05, 0.95);
     const lossRisk = pkg.asset === 'fighter' ? clamp(0.05 * ad, 0, 0.35) : 0;
@@ -222,7 +232,9 @@ const Game = (() => {
     } else {
       G.approval = clamp(G.approval - 2, 0, 100);
       ev.dApproval = -2;
-      text = 'Strike failed to achieve desired effects. Weather, decoys, and hardening are assessed as contributing factors.';
+      text = pkg.asset === 'cruise'
+        ? TLAM_MISS_REASONS[Math.floor(Math.random() * TLAM_MISS_REASONS.length)]
+        : 'Strike failed to achieve desired effects. Weather, decoys, and hardening are assessed as contributing factors.';
     }
 
     // aircrew attrition vs the SAMs still standing at time-on-target
@@ -282,7 +294,10 @@ const Game = (() => {
         next();
       };
       MapView.animateStrike(head.pkg.asset, target, finishBatch, count);
-      setTimeout(finishBatch, (FLIGHT_DUR[head.pkg.asset] || 1000) + 3500);
+      // watchdog window must clear the whole run; a TLAM's launch clip plays
+      // before its flight, so allow extra time before force-resolving.
+      const launchClip = head.pkg.asset === 'cruise' ? 5000 : 0;
+      setTimeout(finishBatch, (FLIGHT_DUR[head.pkg.asset] || 1000) + launchClip + 3500);
     };
     next();
   }
@@ -500,9 +515,12 @@ const Game = (() => {
         UI.setTicker(IranAI.headlines(G, all));
         const result = checkEnd();
 
-        UI.showReport(`BATTLE REPORT — DAY ${day}, TURN ${G.turn}`, all, () => {
-          if (result) { finish(result); return; }
-          nextTurn();
+        // hold the battle report until every strike clip has finished playing
+        MapView.whenFootageDone(() => {
+          UI.showReport(`BATTLE REPORT — DAY ${day}, TURN ${G.turn}`, all, () => {
+            if (result) { finish(result); return; }
+            nextTurn();
+          });
         });
       });
     });
