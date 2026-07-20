@@ -256,21 +256,29 @@ const Game = (() => {
 
     const next = () => {
       if (due.length === 0) { done(events); return; }
-      const m = due.shift();
-      const target = TARGETS.find(t => t.id === m.targetId);
+      // Batch adjacent same-target same-asset missions into one scope run so the
+      // formation flies together with one silhouette per package. BDA still
+      // resolves per-mission — the batching is purely an animation grouping.
+      const head = due.shift();
+      const batch = [head];
+      while (due.length && due[0].targetId === head.targetId && due[0].pkg.asset === head.pkg.asset) {
+        batch.push(due.shift());
+      }
+      const target = TARGETS.find(t => t.id === head.targetId);
+      const count = batch.reduce((n, m) => n + (m.pkg.qty || 1), 0);
       // watchdog: if the animation frame loop is throttled (background tab),
       // resolve anyway — a stalled animation must never hold up the war
       let resolved = false;
-      const finishOne = () => {
+      const finishBatch = () => {
         if (resolved) return;
         resolved = true;
         AudioSys.play('impact');
-        events.push(resolveImpact(target, m.pkg));
+        for (const bm of batch) events.push(resolveImpact(target, bm.pkg));
         UI.renderAll(G);
         next();
       };
-      MapView.animateStrike(m.pkg.asset, target, finishOne);
-      setTimeout(finishOne, (FLIGHT_DUR[m.pkg.asset] || 1000) + 3000);
+      MapView.animateStrike(head.pkg.asset, target, finishBatch, count);
+      setTimeout(finishBatch, (FLIGHT_DUR[head.pkg.asset] || 1000) + 3500);
     };
     next();
   }

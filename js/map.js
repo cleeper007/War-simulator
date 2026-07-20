@@ -486,7 +486,7 @@ const MapView = (() => {
   }
 
   // ---- the terminal attack run, flown inside the scope ----
-  function animateScope(assetType, target, done) {
+  function animateScope(assetType, target, done, count) {
     const stealth = assetType === 'stealth';
     const cruise = assetType === 'cruise';
     const ft = stealth ? { type: 'B-2', cs: 'SPIRIT' }
@@ -497,11 +497,17 @@ const MapView = (() => {
       : nearestSortieBase(target, ft.from === 'carrier');
     const callsign = `${ft.cs} ${rand(1, 9)}${rand(1, 9)}`;
     const baseName = origin.id === 'diego' ? 'DIEGO GARCIA' : origin.short;
+    // one silhouette per aircraft/missile in the run — capped so a fat package
+    // doesn't overflow the tiny scope
+    const N = Math.max(1, Math.min(6, count | 0 || 1));
 
     // live SAM coverage over this target — the same number computeStrike() used
     const adw = (typeof Game !== 'undefined' && Game.airDefenseWeight) ? Game.airDefenseWeight() : 0;
 
-    const entry = scopeCard(`${callsign} · ${ft.type} — ${baseName} → ${target.short}`);
+    const headHeader = N > 1
+      ? `${callsign} FLIGHT (×${N}) · ${ft.type} — ${baseName} → ${target.short}`
+      : `${callsign} · ${ft.type} — ${baseName} → ${target.short}`;
+    const entry = scopeCard(headHeader);
     const view = buildScopeView(entry, target, adw);
     const C = SC.C;
 
@@ -514,21 +520,34 @@ const MapView = (() => {
     // (bearing+180°) - (-90°) = bearing + 270°.
     const headingDeg = bearing * 180 / Math.PI + 270;
 
-    // inbound track + the aircraft itself
+    // inbound track + the formation itself. Each silhouette gets a lateral
+    // offset perpendicular to the bearing so they read as a formation abreast,
+    // and a small along-track stagger so they don't stack in a straight line.
     view.fx.appendChild(el('line', {
       class: 'scope-track',
       x1: C + Math.cos(bearing) * SC.EDGE, y1: C + Math.sin(bearing) * SC.EDGE, x2: C, y2: C,
     }));
-    const ac = el('g', { class: 'scope-ac' });
-    let burner = null;
-    if (!cruise) {
-      burner = el('path', { class: 'scope-burner', d: BURNER, opacity: 0 });
-      ac.appendChild(burner);
+    const perpX = -Math.sin(bearing), perpY = Math.cos(bearing);
+    const alongX = -Math.cos(bearing), alongY = -Math.sin(bearing); // toward centre
+    const spacing = N <= 2 ? 11 : 9;
+    const acs = [];
+    for (let i = 0; i < N; i++) {
+      const offIdx = i - (N - 1) / 2;                       // symmetric around 0
+      const perpOff = offIdx * spacing;
+      const alongOff = Math.abs(offIdx) * (N > 2 ? -3.5 : 0); // slight V trail
+      const g = el('g', { class: 'scope-ac' });
+      let burner = null;
+      if (!cruise) {
+        burner = el('path', { class: 'scope-burner', d: BURNER, opacity: 0 });
+        g.appendChild(burner);
+      }
+      g.appendChild(el('path', { class: 'scope-jet', d: cruise ? SIL.cruise : stealth ? SIL.stealth : SIL.fighter }));
+      view.fx.appendChild(g);
+      acs.push({ g, burner, perpOff, alongOff, pos: { x: 0, y: 0 } });
     }
-    ac.appendChild(el('path', { class: 'scope-jet', d: cruise ? SIL.cruise : stealth ? SIL.stealth : SIL.fighter }));
-    view.fx.appendChild(ac);
 
-    // blinking lock box, shown only while the beam is actually painting
+    // blinking lock box, shown only while the beam is actually painting; sits
+    // on whichever silhouette the beam happens to be over that frame
     const lock = el('rect', { class: 'scope-lock', x: -11, y: -11, width: 22, height: 22, opacity: 0 });
     view.fx.appendChild(lock);
 
@@ -550,6 +569,8 @@ const MapView = (() => {
     // ---- radar sweep + acquisition ----
     // The aircraft runs in along a fixed bearing, so the beam passes over it once
     // per revolution: sweeping past the inbound is what triggers a paint.
+    // acPos tracks the LEAD silhouette (index 0) and is what SAMs chase; a
+    // formation still reads as one contact on hostile radar.
     const acPos = { x: C + Math.cos(bearing) * SC.EDGE, y: C + Math.sin(bearing) * SC.EDGE };
     const bearingDeg = ((bearing * 180 / Math.PI) % 360 + 360) % 360;
     const revMs = adw >= 2.5 ? 2500 : adw >= 1 ? 3800 : 5000; // degraded radars turn slower
@@ -601,12 +622,20 @@ const MapView = (() => {
 
       const p = Math.min(1, (now - t0) / dur);
 
-      // aircraft: rides the bearing in from the ring edge to the centre
+      // formation: each silhouette rides the bearing in, offset perpendicular
+      // (and slightly along-track) from the lead. Lead sits on the bearing line.
       const r = SC.EDGE * (1 - p);
-      acPos.x = C + Math.cos(bearing) * r;
-      acPos.y = C + Math.sin(bearing) * r;
-      ac.setAttribute('transform', `translate(${acPos.x.toFixed(2)},${acPos.y.toFixed(2)}) rotate(${headingDeg.toFixed(1)})`);
-      if (burner) burner.setAttribute('opacity', (Math.min(1, p * 3) * (0.55 + Math.random() * 0.45)).toFixed(2));
+      const leadX = C + Math.cos(bearing) * r;
+      const leadY = C + Math.sin(bearing) * r;
+      acPos.x = leadX; acPos.y = leadY;
+      for (const a of acs) {
+        a.pos.x = leadX + perpX * a.perpOff + alongX * a.alongOff;
+        a.pos.y = leadY + perpY * a.perpOff + alongY * a.alongOff;
+        a.g.setAttribute('transform',
+          `translate(${a.pos.x.toFixed(2)},${a.pos.y.toFixed(2)}) rotate(${headingDeg.toFixed(1)})`);
+        if (a.burner) a.burner.setAttribute('opacity',
+          (Math.min(1, p * 3) * (0.55 + Math.random() * 0.45)).toFixed(2));
+      }
 
       if (view.sweep) {
         sweepDeg = (sweepDeg + (dt / revMs) * 360) % 360;
@@ -620,7 +649,10 @@ const MapView = (() => {
         const inBeam = diff < SC.LOCK_ARC && r < SC.RING + 4;
         const allowed = !stealth || p > 0.72; // stealth is only ever seen late
         if (inBeam && allowed && Math.random() < paintOdds) {
-          lock.setAttribute('transform', `translate(${acPos.x.toFixed(2)},${acPos.y.toFixed(2)})`);
+          // paint whichever silhouette the beam happens to be sweeping across
+          const idx = Math.floor(Math.random() * acs.length);
+          const paintPos = acs[idx].pos;
+          lock.setAttribute('transform', `translate(${paintPos.x.toFixed(2)},${paintPos.y.toFixed(2)})`);
           lock.setAttribute('opacity', 1);
           if (view.ring) view.ring.classList.add('painting');
           if (!painted && Math.random() < samChance) launchSAM();
@@ -640,7 +672,7 @@ const MapView = (() => {
     }
 
     function impact() {
-      ac.setAttribute('opacity', 0);
+      for (const a of acs) a.g.setAttribute('opacity', 0);
       lock.setAttribute('opacity', 0);
       if (view.ring) view.ring.classList.remove('painting');
       view.tg.classList.add('scope-hit');
@@ -650,8 +682,8 @@ const MapView = (() => {
       done();                 // BDA resolves now — everything after is cosmetic
       targetPulse(target);    // the map's one quiet acknowledgement
       // a single egress beat, then the card retires
-      if (!cruise) setTimeout(() => { if (entry._alive) fireUpTo(1.2); }, 700);
-      fsClose(entry, 2400);
+      if (!cruise) setTimeout(() => { if (entry._alive) fireUpTo(1.2); }, 1400);
+      fsClose(entry, 3800);
     }
 
     requestAnimationFrame(frame);
@@ -717,11 +749,11 @@ const MapView = (() => {
   // Contract with game.js: `done` fires exactly once, at impact. game.js also
   // runs a watchdog that may call its own finishOne first, so the guard here is
   // about never double-resolving from this side.
-  function animateStrike(assetType, target, done) {
+  function animateStrike(assetType, target, done, count) {
     let called = false;
     const once = () => { if (called) return; called = true; if (done) done(); };
     try {
-      animateScope(assetType, target, once);
+      animateScope(assetType, target, once, count);
     } catch (e) {
       // a broken animation must never hold up the war
       console.error('scope animation failed', e);

@@ -204,7 +204,7 @@ const MISSILE_RANGES = [
 
 // ---- flight animation config ----
 // Animation length (ms) for each strike asset's map animation
-const FLIGHT_DUR = { fighter: 5500, stealth: 9000, cruise: 3200 };
+const FLIGHT_DUR = { fighter: 10500, stealth: 16000, cruise: 6500 };
 
 // Fighter airframes: a random one flies each fighter package. cs is the
 // callsign root; from decides whether it launches off a carrier or a land base.
