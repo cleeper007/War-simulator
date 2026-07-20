@@ -75,7 +75,7 @@ const SpecOps = (() => {
       },
       {
         id: 'raid', name: 'LEADERSHIP DECAPITATION — launch raid',
-        desc: `One task force, one attempt, ever. Current success estimate: ${Math.round(p * 100)}%. Attempting it will spike escalation regardless of outcome.`,
+        desc: `One task force, one attempt, ever. Current success estimate: ${Math.round(p * 100)}%. Win or lose, the world will know — and Tehran will answer.`,
         disabled: G.res.specops < 1,
         danger: true,
       },
@@ -112,7 +112,7 @@ const SpecOps = (() => {
     let html = parts.map(([label, v]) =>
       `${label}: <span class="est-good">+${Math.round(v * 100)}%</span><br>`).join('');
     html += `EST. PROBABILITY OF SUCCESS: <span class="${sCls}">${pct}%</span><br>` +
-      `<span class="est-bad">Attempting the raid adds +1.5 escalation and costs world opinion — success or failure.</span><br>` +
+      `<span class="est-bad">Attempting the raid costs world opinion — success or failure.</span><br>` +
       `<span class="est-bad">On failure, operators will be killed or captured on Iranian soil.</span>`;
     $('specops-estimate').innerHTML = html;
     $('specops-modal').classList.remove('hidden');
@@ -130,8 +130,7 @@ const SpecOps = (() => {
     G.res.specops = 0;
     G.raidThisTurn = true;
 
-    // the insert itself is escalatory, whatever happens on the objective
-    G.escalation = clamp(G.escalation + 1.5, 0, 10);
+    // the insert is an act the world sees, whatever happens on the objective
     G.world = clamp(G.world - 4, 0, 100);
     AudioSys.play('launch');
     UI.renderAll(G);
@@ -152,12 +151,11 @@ const SpecOps = (() => {
       if (Math.random() < 0.45) {
         const c = rand(4, 10);
         G.casualties.us += c;
-        G.escalation = clamp(G.escalation + 1.0, 0, 10);
         G.oil += 8;
         events.push({
           cls: 'iran', title: 'Leaderless IRGC units lash out',
           text: `Before the paralysis sets in, a rogue missile brigade empties its launchers at US positions on standing orders no one is alive to countermand. ${c} Americans are dead in a retaliation nobody in Tehran ordered.`,
-          casualties: c, dEsc: 1.0, dOil: 8,
+          casualties: c, dOil: 8,
         });
       }
 
@@ -178,7 +176,6 @@ const SpecOps = (() => {
       // ---- FAILURE ----
       G.raid = 'failed';
       G.approval = clamp(G.approval - 12, 0, 100);
-      G.escalation = clamp(G.escalation + 1.0, 0, 10);
       G.world = clamp(G.world - 8, 0, 100);
       const captured = Math.random() < 0.5;
       const c = captured ? rand(2, 4) : rand(5, 8);
@@ -190,13 +187,13 @@ const SpecOps = (() => {
         events.push({
           cls: 'iran', title: 'RAID COMPROMISED — OPERATORS CAPTURED',
           text: `The assault element was ambushed inside the compound perimeter. ${c} operators are dead; the survivors are in IRGC custody. Within hours, Iranian state TV airs footage of captured Americans and wrecked stealth helicopters. It is the worst propaganda disaster since Desert One — and now Tehran holds hostages.`,
-          casualties: c, dApproval: -12, dEsc: 2.5, dWorld: -12,
+          casualties: c, dApproval: -12, dWorld: -12,
         });
       } else {
         events.push({
           cls: 'iran', title: 'RAID FAILED — TASK FORCE LOST',
           text: `The compound was a trap — the pattern-of-life picture was wrong, or leaked. ${c} operators died fighting to the last on Iranian soil. State TV runs the wreckage on a loop. Allies are asking what else Washington hasn't told them.`,
-          casualties: c, dApproval: -12, dEsc: 2.5, dWorld: -12,
+          casualties: c, dApproval: -12, dWorld: -12,
         });
       }
     }

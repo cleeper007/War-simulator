@@ -16,21 +16,23 @@ const UI = (() => {
     $('map-clock').textContent = `DAY ${day} — ${hour} LOCAL`;
     $('turn-value').textContent = `${G.turn}/${G.maxTurns}`;
 
-    // escalation meter
-    const meter = $('escalation-meter');
+    // Iran war capacity meter: the enemy's remaining ability to fight.
+    // Full and red at the start — the mission is draining it to zero.
+    const meter = $('capacity-meter');
     meter.innerHTML = '';
-    const lvl = Math.round(G.escalation);
+    const cap = G.iranCapacity();
+    const lvl = Math.round(cap / 10);
     for (let i = 1; i <= 10; i++) {
       const seg = document.createElement('div');
       let cls = 'seg';
       if (i <= lvl) {
-        cls += i <= 3 ? ' on-low' : i <= 6 ? ' on-mid' : ' on-high';
+        cls += cap >= 60 ? ' on-high' : cap >= 30 ? ' on-mid' : ' on-low';
       }
       seg.className = cls;
       meter.appendChild(seg);
     }
-    $('escalation-value').textContent = G.escalation.toFixed(1);
-    $('escalation-value').style.color = G.escalation >= 7 ? 'var(--red)' : G.escalation >= 4 ? 'var(--amber)' : 'var(--green)';
+    $('capacity-value').textContent = `${cap}%`;
+    $('capacity-value').style.color = cap >= 60 ? 'var(--red)' : cap >= 30 ? 'var(--amber)' : 'var(--green)';
 
     const ap = $('approval-value');
     ap.textContent = `${Math.round(G.approval)}%`;
@@ -51,7 +53,7 @@ const UI = (() => {
     $('casualty-value').textContent = G.casualties.us;
     $('casualty-value').className = 'stat-value big ' + (G.casualties.us > 110 ? 'crit' : G.casualties.us > 60 ? 'warn' : '');
 
-    AudioSys.escalationCheck(G.escalation);
+    AudioSys.alertCheck(G);
   }
 
   // ---- sidebar ----
@@ -74,8 +76,17 @@ const UI = (() => {
       ['B-2 missions (GBU-57)', G.res.stealth, G.caps.stealth],
       ['SOF task force (Tier 1)', G.res.specops, G.caps.specops],
     ];
-    $('resources-list').innerHTML = rows.map(([n, v, cap]) =>
+    let html = rows.map(([n, v, cap]) =>
       `<div class="res-row"><span>${n}</span><span class="res-count">${v} / ${cap}</span></div>`).join('');
+    if (G.missions.length) {
+      html += `<div class="res-row" style="margin-top:6px"><span style="color:var(--amber)">MISSIONS IN FLIGHT</span></div>`;
+      html += G.missions.map(m => {
+        const t = TARGETS.find(x => x.id === m.targetId);
+        return `<div class="res-row"><span class="dim">→ ${t.short}</span>` +
+          `<span class="res-count">${m.eta > 1 ? `TOT ${m.eta} turns` : 'TOT this turn'}</span></div>`;
+      }).join('');
+    }
+    $('resources-list').innerHTML = html;
   }
 
   function renderAdvisors(G) {
@@ -97,7 +108,7 @@ const UI = (() => {
       },
       {
         id: 'un', name: 'UN Security Council push',
-        desc: 'Rally international support. World opinion +, escalation −.',
+        desc: 'Rally international support and diplomatic cover. World opinion +.',
       },
       {
         id: 'sanctions', name: 'Snap-back sanctions package',
@@ -177,10 +188,12 @@ const UI = (() => {
     const est = Game.computeStrike(target, pkg);
     const pct = Math.round(est.success * 100);
     const sCls = pct >= 70 ? 'est-good' : pct >= 45 ? 'est-warn' : 'est-bad';
-    const eCls = target.esc >= 2.5 ? 'est-bad' : target.esc >= 1.5 ? 'est-warn' : 'est-good';
+    const tot = pkg.asset === 'stealth'
+      ? 'TIME ON TARGET: <span class="est-warn">2 turns — transit from Diego Garcia</span>'
+      : 'TIME ON TARGET: <span class="est-good">end of this turn — BDA with the battle report</span>';
     let html =
       `EST. PROBABILITY OF KILL: <span class="${sCls}">${pct}%</span><br>` +
-      `ESCALATION COST: <span class="${eCls}">+${target.esc.toFixed(1)}</span> — ` +
+      `${tot}<br>` +
       `WORLD OPINION: <span class="est-warn">${target.world}</span><br>`;
     if (est.adPenalty > 0.01) {
       html += `<span class="est-warn">Air defenses degrade this package (−${Math.round(est.adPenalty * 100)}%).</span> `;
@@ -206,7 +219,6 @@ const UI = (() => {
     $('report-body').innerHTML = events.map(ev => {
       const effects = [];
       if (ev.casualties) effects.push(`US KIA +${ev.casualties}`);
-      if (ev.dEsc) effects.push(`Escalation ${ev.dEsc > 0 ? '+' : ''}${ev.dEsc.toFixed(1)}`);
       if (ev.dApproval) effects.push(`Approval ${ev.dApproval > 0 ? '+' : ''}${ev.dApproval}`);
       if (ev.dOil) effects.push(`Oil ${ev.dOil > 0 ? '+' : ''}$${ev.dOil}`);
       if (ev.dWorld) effects.push(`World opinion ${ev.dWorld > 0 ? '+' : ''}${ev.dWorld}`);
@@ -236,7 +248,7 @@ const UI = (() => {
         `<td class="grade-${grade}">${grade}</td></tr>`;
     }
     html += '</table>';
-    html += `<p class="dim">Final: escalation ${result.stats.esc.toFixed(1)}/10 · ` +
+    html += `<p class="dim">Final: ` +
       `approval ${Math.round(result.stats.approval)}% · oil $${Math.round(result.stats.oil)} · ` +
       `${result.stats.casualties} US dead · ${result.stats.destroyed} targets destroyed · ` +
       `${result.stats.turns} turns</p>`;

@@ -47,25 +47,25 @@ const IranAI = (() => {
     proxyRockets: () => ({
       title: 'Proxy rocket fire near US positions in Iraq',
       text: 'Militia rockets landed near the Baghdad embassy compound and a base perimeter. No US casualties reported.',
-      dEsc: 0.3, dOil: 2, flashAsset: 'asad',
+      dOil: 2, flashAsset: 'asad',
     }),
     proxyAttack: () => {
       const c = rand(1, 4);
       return {
         title: 'Militia attack on US forces in Iraq',
         text: `An Iranian-backed militia struck a US position with drones and rockets. ${c} American service members were killed.`,
-        casualties: c, dApproval: -3, dEsc: 0.5, dOil: 4, flashAsset: 'asad',
+        casualties: c, dApproval: -3, dOil: 4, flashAsset: 'asad',
       };
     },
     shipping: () => ({
       title: 'Tanker struck by Iranian drone in Gulf of Oman',
       text: 'A commercial tanker was hit by a loitering munition. Crews survived; insurers are pulling coverage for Gulf transits.',
-      dOil: 8, dEsc: 0.3,
+      dOil: 8,
     }),
     mineScare: () => ({
       title: 'Mines reported in the Strait of Hormuz',
       text: 'Two tankers reported near-misses with drifting mines. Fifth Fleet has begun minesweeping operations; transits are slowing.',
-      hormuz: 'CONTESTED', dOil: 12, dEsc: 0.4,
+      hormuz: 'CONTESTED', dOil: 12,
     }),
     missileBase: (str) => {
       const base = pick(['udeid', 'asad', 'dhafra']);
@@ -74,20 +74,20 @@ const IranAI = (() => {
       return {
         title: `Ballistic missile strike on ${names[base]}`,
         text: `Iranian missiles penetrated air defenses at ${names[base]}. ${c} Americans were killed and aircraft were damaged on the ramp.`,
-        casualties: c, dApproval: -4, dEsc: 0.7, dOil: 8, flashAsset: base,
+        casualties: c, dApproval: -4, dOil: 8, flashAsset: base,
       };
     },
     hormuzClose: () => ({
       title: 'IRAN MOVES TO CLOSE THE STRAIT OF HORMUZ',
       text: 'Anti-ship missile batteries are active, minelayers are operating at night, and Tehran has declared the Strait closed to "hostile" shipping. A fifth of the world\'s oil is now blocked.',
-      hormuz: 'CLOSED', dOil: 35, dEsc: 0.8,
+      hormuz: 'CLOSED', dOil: 35,
     }),
     allyStrike: () => {
       const tgt = pick(['Saudi oil facilities at Abqaiq', 'Israeli port infrastructure at Haifa', 'Emirati facilities near Abu Dhabi']);
       return {
         title: `Iranian missiles strike ${tgt.split(' at ')[0]}`,
         text: `A missile and drone salvo hit ${tgt}. Allied capitals are demanding either decisive US action or immediate de-escalation.`,
-        dEsc: 0.8, dOil: 14, dWorld: -3, dApproval: -2,
+        dOil: 14, dWorld: -3, dApproval: -2,
       };
     },
     massBarrage: (str) => {
@@ -95,73 +95,73 @@ const IranAI = (() => {
       return {
         title: 'MASS MISSILE BARRAGE ACROSS THE THEATER',
         text: `Iran launched its largest salvo of the crisis at US bases and fleet units across the region. Defenses were saturated. ${c} Americans are dead. CENTCOM assesses this as the opening of a general war.`,
-        casualties: c, dApproval: -6, dEsc: 1.5, dOil: 20, flashAsset: 'udeid',
+        casualties: c, dApproval: -6, dOil: 20, flashAsset: 'udeid',
       };
     },
     quiet: () => ({
       title: 'Tehran pauses',
       text: 'Intelligence reports internal debate in Tehran. No significant Iranian military action in the last 12 hours.',
-      dEsc: -0.3,
     }),
     hostageParade: () => ({
       title: 'Captured US operators shown on Iranian state TV',
       text: 'Tehran airs new footage of the captured special operators — coerced statements, flags, cameras. The families are watching. Congress is demanding to know the plan to bring them home.',
-      dApproval: -2, dEsc: 0.2,
+      dApproval: -2,
     }),
     backchannelFeeler: () => ({
       title: 'Quiet feeler through Oman',
       text: 'Muscat passes word that the pragmatists in Tehran are counting what remains of the missile force — and quietly asking what an end to the war would cost.',
-      dEsc: -0.2,
     }),
   };
 
-  // Decide Iran's response this turn based on game state
+  // Decide Iran's response this turn. There is no abstract escalation ladder:
+  // what Iran does is a function of what it has left (capacity), how far the
+  // war machine has spun up (spool), and whether anyone is coordinating it.
   function respond(G) {
     const events = [];
-    // a decapitated regime hits back far lighter; an erratic remnant, harder
-    let esc = G.escalation;
-    if (G.regimeChaosTurns > 0) esc -= 2.5;
-    else if (G.regimeErratic) esc += 0.5;
     const mStr = missileStrength();
     const nStr = navalStrength();
+    const cap = mStr + nStr; // 0..4
     const struckOil = G.struckThisTurn.some(id => ['kharg', 'abadan'].includes(id));
     const struckNuclear = G.struckThisTurn.some(id => ['natanz', 'fordow'].includes(id));
     const struckAny = G.struckThisTurn.length > 0;
 
+    // coordination: killing command degrades the response machine
+    const irgc = TARGETS.find(t => t.id === 'irgc-hq');
+    let coord = irgc.status === 'destroyed' ? 0.6 : irgc.status === 'damaged' ? 0.8 : 1;
+    if (G.regimeChaosTurns > 0) coord *= 0.4;                       // decapitated: paralysis
+    else if (G.regimeErratic) coord = Math.min(1.15, coord + 0.25); // erratic remnant: lashing out
+    // the war machine spins up over the first days, faster when provoked
+    const spool = Math.min(1, 0.5 + 0.25 * (G.turn - 1) + (struckAny ? 0.25 : 0));
+    const w = coord * spool;
+
     // Revenge logic: hitting oil draws shipping/economic retaliation
     if (struckOil && nStr > 0) events.push(chance(0.6) ? EV.shipping() : EV.mineScare());
 
-    if (mStr + nStr <= 1) {
-      // capacity overrides intent: a broken Iran cannot sustain the war,
-      // no matter how hot it burned on the way down
+    if (cap <= 1) {
+      // capacity overrides intent: a broken Iran cannot sustain the war
       events.push(chance(0.6) ? EV.quiet() : EV.propaganda());
       if (chance(0.25)) events.push(EV.proxyRockets());
-    } else if (esc >= 8.5) {
-      events.push(EV.massBarrage(mStr));
-      if (G.hormuz !== 'CLOSED' && nStr > 0 && chance(0.7)) events.push(EV.hormuzClose());
-    } else if (esc >= 6.5) {
-      if (mStr > 0 && chance(0.75)) events.push(EV.missileBase(mStr));
-      else events.push(EV.proxyAttack());
-      if (G.hormuz === 'OPEN' && nStr > 0 && chance(0.35)) events.push(EV.mineScare());
-      else if (G.hormuz === 'CONTESTED' && nStr > 0 && chance(0.3)) events.push(EV.hormuzClose());
-      if (chance(0.35)) events.push(EV.allyStrike());
-    } else if (esc >= 4.5) {
-      const pool = [EV.proxyAttack, EV.shipping, EV.proxyRockets, EV.cyber];
-      events.push(pick(pool)());
-      if (struckNuclear && mStr > 0 && chance(0.55)) events.push(EV.missileBase(mStr));
-      if (G.hormuz === 'OPEN' && nStr > 0 && chance(0.15)) events.push(EV.mineScare());
-    } else if (esc >= 2.5) {
-      const pool = [EV.proxyRockets, EV.harass, EV.cyber, EV.propaganda];
-      events.push(pick(pool)());
-      if (struckAny && chance(0.3)) events.push(EV.proxyAttack());
     } else {
-      // no free off-ramps: even at low escalation Iran keeps the pressure on
-      events.push(pick([EV.harass, EV.cyber, EV.proxyRockets, EV.propaganda])());
-      if (struckAny && chance(0.25)) events.push(EV.proxyAttack());
+      // the missile arm throws what it has — while it exists, it is lethal
+      if (mStr > 0 && chance(0.95 * w)) {
+        events.push(mStr >= 1.5 && chance(0.6 * w) ? EV.massBarrage(mStr) : EV.missileBase(mStr));
+      } else {
+        events.push(pick([EV.proxyAttack, EV.proxyRockets, EV.cyber, EV.harass])());
+      }
+      if (chance(0.35 * w)) events.push(EV.proxyAttack());
+      // hitting the nuclear program draws a dedicated reprisal salvo
+      if (struckNuclear && mStr > 0 && chance(0.5)) events.push(EV.missileBase(mStr));
+      // the naval arm contests the strait
+      if (nStr > 0) {
+        if (G.hormuz === 'OPEN' && nStr >= 1.5 && chance(0.2 * w)) events.push(EV.hormuzClose());
+        else if (G.hormuz === 'OPEN' && chance(0.3 * w)) events.push(EV.mineScare());
+        else if (G.hormuz === 'CONTESTED' && chance(0.35 * w)) events.push(EV.hormuzClose());
+      }
+      if (chance(0.3 * w)) events.push(EV.allyStrike());
     }
 
     // Tehran only sues for peace when its ability to fight is actually shattered
-    if (mStr + nStr <= 1 && G.nukeDegraded() >= 75 && chance(0.35)) {
+    if (cap <= 1 && G.nukeDegraded() >= 75 && chance(0.35)) {
       events.push(EV.backchannelFeeler());
     }
 
@@ -169,8 +169,8 @@ const IranAI = (() => {
     if (G.hostageCrisis && chance(0.35)) events.push(EV.hostageParade());
 
     // Hormuz reopens the war-sim way: break Iran's navy and the Fifth Fleet
-    // clears the strait by force. Absent that, only a genuine lull reopens it.
-    if (G.hormuz !== 'OPEN' && (nStr < 1 ? chance(0.65) : esc < 5 && chance(0.4))) {
+    // clears the strait by force. While the navy fights, it mostly stays shut.
+    if (G.hormuz !== 'OPEN' && chance(nStr < 1 ? 0.65 : 0.12)) {
       events.push({
         title: 'Strait of Hormuz reopened by force',
         text: nStr < 1
@@ -185,7 +185,6 @@ const IranAI = (() => {
 
   // ---- Advisors ----
   function advise(G) {
-    const esc = G.escalation;
     const nukeDeg = G.nukeDegraded();
     const adLeft = TARGETS.filter(t => t.type === 'airdefense' && t.status !== 'destroyed').length;
 
@@ -200,10 +199,10 @@ const IranAI = (() => {
       secdef.text = 'They\'re beaten and they know it. Finish the missile force, the navy, and the IRGC command node — end this on our terms, not theirs.';
     } else if (nukeDeg >= 100) {
       secdef.text = 'The nuclear program is finished — half the job. Now break the sword: missile brigades, the swarm-boat navy, IRGC command. Victory is destroying their ability to fight, not their will to.';
-    } else if (esc >= 7) {
+    } else if (G.turn >= 4) {
       secdef.text = 'This is a war now, Mr. President — fight it like one. Sustain the sortie rate, service the full target list, and don\'t give them a night to reconstitute.';
     } else {
-      secdef.text = 'The mission is victory: kill the program and break their war machine. Roll back the air defenses, then take the enrichment sites while we hold escalation dominance.';
+      secdef.text = 'The mission is victory: kill the program and break their war machine. Roll back the air defenses first, then take the enrichment sites while the skies are ours.';
     }
 
     if (G.negotiationReady()) {
@@ -224,8 +223,8 @@ const IranAI = (() => {
       nsa.text = 'Your political capital is nearly spent. Congress smells blood. We need visible wins or visible peace — drift is fatal.';
     } else if (G.casualties.us >= 100) {
       nsa.text = `${G.casualties.us} dead and the country is counting. The home front will not fund this war past 150 — win it before the arithmetic wins it for them.`;
-    } else if (esc >= 8) {
-      nsa.text = 'This is total war now and they will throw everything they have left. What matters is the exchange rate: their launchers and hulls have to die faster than our people do.';
+    } else if (warStr >= 3) {
+      nsa.text = 'Their war machine is still near full strength and they will throw everything they have. What matters is the exchange rate: their launchers and hulls have to die faster than our people do.';
     } else {
       nsa.text = 'The clock and the casualty count are the real enemies. Every turn their war machine survives is a turn it spends killing Americans — tempo is mercy.';
     }
@@ -249,7 +248,7 @@ const IranAI = (() => {
     else if (G.oil > 110) h.push(`BRENT CRUDE TOPS $${Math.round(G.oil)} AS CRISIS PREMIUM GROWS`);
     if (G.approval < 35) h.push('POLL: PRESIDENT\'S CONDUCT OF THE WAR UNDERWATER, IMPEACHMENT TALK GROWS');
     else if (G.approval > 60) h.push('RALLY EFFECT: PUBLIC BACKS PRESIDENT\'S CONDUCT OF THE WAR');
-    if (G.escalation >= 8) h.push('NETWORKS GO WALL-TO-WALL AS THE WAR GOES TOTAL');
+    if (missileStrength() + navalStrength() <= 1) h.push('ANALYSTS: IRAN\'S MILITARY SHATTERED — HOW MUCH LONGER CAN TEHRAN FIGHT?');
     if (G.casualties.us >= 100) h.push('CASUALTY COUNT MOUNTS — CONGRESS DEBATES LIMITS ON THE WAR');
     if (G.hormuz === 'CLOSED') h.push('GAS LINES FORM AS HORMUZ CLOSURE CHOKES GLOBAL SUPPLY');
     if (G.regimeChaosTurns > 0) h.push('POWER VACUUM IN TEHRAN — INTELLIGENCE AGENCIES ASK: WHO IS IN CHARGE?');

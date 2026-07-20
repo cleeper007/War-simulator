@@ -218,7 +218,7 @@ button { font-family: var(--mono); }
 .stat-value.crit { color: var(--red); }
 .stat-value.good { color: var(--green); }
 
-/* escalation meter */
+/* Iran war capacity meter */
 .defcon-meter { display: flex; gap: 2px; }
 .defcon-meter .seg {
   width: 14px; height: 14px; background: #16233b; border: 1px solid var(--line);
@@ -226,7 +226,7 @@ button { font-family: var(--mono); }
 .defcon-meter .seg.on-low { background: #2f6b3f; }
 .defcon-meter .seg.on-mid { background: #a87b1f; }
 .defcon-meter .seg.on-high { background: #b32424; box-shadow: 0 0 6px rgba(255,60,60,0.6); }
-#escalation-value { color: var(--amber); font-size: 15px; }
+#capacity-value { color: var(--red); font-size: 15px; }
 
 /* news ticker */
 #ticker-row {

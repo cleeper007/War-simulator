@@ -35,8 +35,11 @@ crisis to be managed — it is a war to be won. Each turn is 12 in-game hours; y
    Diplomacy is a face-saving off-ramp from a war you are already dominating — not a
    strategy to open with. Attempt it too early and the rebuff costs you at home.
 
-Escalation hitting 10/10 is **not** a loss — it just means the war has gone total and
-Iran fights at maximum intensity. The ladder is the arena, not the failure state.
+There is no abstract escalation meter. Iran's behavior is driven by what it actually
+has left: while its missile force, navy, and IRGC command function, it fights at full
+fury; as you destroy them, its capacity to hurt you physically drains away. The
+**IRAN WAR CAPACITY** meter in the status bar tracks the enemy's remaining ability to
+fight — the mission is driving it to zero.
 
 ### How you lose
 
@@ -48,11 +51,17 @@ Iran fights at maximum intensity. The ladder is the arena, not the failure state
 
 ### Each turn you can
 
-- **Strike targets** — click any Iranian target on the map, pick a strike package,
-  review estimated success / escalation cost / risks, and authorize.
-  - *Fighter sorties* — flexible, but at risk from intact air defenses.
+- **Lay on strikes** — click any Iranian target on the map, pick a strike package,
+  review estimated success / time on target / risks, and authorize. **Strikes take
+  time**: authorizing commits the assets and puts the mission *in flight* — fighter
+  and TLAM packages arrive at the end of the turn, with battle damage assessment in
+  the battle report; B-2s transiting from Diego Garcia take two turns. Missions
+  resolve in the order they were laid on, so a SEAD sweep queued first clears the air
+  for the packages behind it.
+  - *Fighter sorties* — flexible, but at risk from whatever SAMs are alive at TOT.
   - *Cruise missiles (TLAM)* — no aircrew risk, ineffective against buried sites.
-  - *B-2 missions (GBU-57)* — scarce; the **only** weapon that can kill Fordow.
+  - *B-2 missions (GBU-57)* — scarce, slow to arrive; the **only** weapon that can
+    kill Fordow.
 - **Take one diplomatic action** — backchannel talks, UN pressure, sanctions,
   coalition building, an address to the nation, or **ISR prep** for the raid below.
 - **Launch the leadership raid** — a single Tier-1 SOF task force, one attempt for
@@ -60,21 +69,24 @@ Iran fights at maximum intensity. The ladder is the arena, not the failure state
   command raise them. Success shatters Tehran's command chain (and may open — or
   poison — the negotiation window); failure puts dead or captured operators on
   Iranian state TV.
-- **End the turn** — Iran responds based on the escalation level and what you hit:
-  proxy attacks, missile barrages, shipping attacks, cyber, or moves against the
-  Strait of Hormuz.
+- **End the turn** — your packages arrive and BDA comes back, then Iran answers with
+  whatever the volley left standing: missile barrages, proxy attacks, shipping
+  attacks, cyber, or moves against the Strait of Hormuz.
 
 The game autosaves at each turn boundary and after every resolved action —
-use **Continue** on the title screen to pick up a crisis, **Save & Quit** to step
-away, and the mute toggle in the status bar to silence sound effects.
+use **Continue** on the title screen to pick up a war in progress, **Save & Quit** to
+step away, and the mute toggle in the status bar to silence sound effects.
 
 ### Tips
 
 - Intact air defense networks (SEAD targets) degrade every non-stealth strike and can
   shoot down your aircraft. Roll them back first.
-- **Tempo is everything.** Escalation does not decay while you wait, and Iran does not
-  stop shooting because you did. Every turn its war machine survives is a turn it
-  spends killing Americans.
+- **Tempo is everything.** Iran does not stop shooting because you did, and its war
+  machine spins up over the first days. Every turn it survives is a turn it spends
+  killing Americans.
+- **Plan your volleys.** Strikes land at the end of the turn, in the order you queued
+  them — SEAD first, then the packages that need clear skies. Don't double-tap a
+  target that already has a mission inbound; watch the MISSIONS IN FLIGHT list.
 - Iran's retaliation scales with what's left of its missile and naval forces. Killing
   missile bases thins the barrages; killing naval bases lets the Fifth Fleet force the
   Strait of Hormuz back open. A dead navy can't keep the strait shut.

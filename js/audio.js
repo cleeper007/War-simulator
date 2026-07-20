@@ -11,7 +11,7 @@ const AudioSys = (() => {
     impact: 'impact.wav',           // strike impact / BDA
     aircraftLost: 'aircraft-lost.wav',
     retaliation: 'retaliation.wav', // Iranian retaliation alert
-    klaxon: 'klaxon.wav',           // escalation crosses 7
+    klaxon: 'klaxon.wav',           // Hormuz closes / casualties cross 100
     cable: 'cable.wav',             // diplomatic cable
     victory: 'victory.wav',
     defeat: 'defeat.wav',
@@ -21,7 +21,6 @@ const AudioSys = (() => {
   const clips = {};
   let muted = false;
   let unlocked = false;   // browsers require a user gesture before audio
-  let lastEsc = null;
 
   function preload() {
     for (const [name, file] of Object.entries(FILES)) {
@@ -48,11 +47,15 @@ const AudioSys = (() => {
     delayMs > 0 ? setTimeout(go, delayMs) : go();
   }
 
-  // Klaxon when the ladder crosses 7 from below. Called from the HUD
-  // render so every escalation change passes through it.
-  function escalationCheck(esc) {
-    if (lastEsc !== null && lastEsc < 7 && esc >= 7) play('klaxon');
-    lastEsc = esc;
+  // Klaxon on the moments that change the war: the strait slams shut, or
+  // the casualty count crosses what the home front will bear watching.
+  // Called from the HUD render so every state change passes through it.
+  let lastHormuz = null, lastCas = null;
+  function alertCheck(G) {
+    if (lastHormuz !== null && lastHormuz !== 'CLOSED' && G.hormuz === 'CLOSED') play('klaxon');
+    if (lastCas !== null && lastCas < 100 && G.casualties.us >= 100) play('klaxon');
+    lastHormuz = G.hormuz;
+    lastCas = G.casualties.us;
   }
 
   function isMuted() { return muted; }
@@ -81,5 +84,5 @@ const AudioSys = (() => {
     setMuted(muted);
   }
 
-  return { init, play, escalationCheck, isMuted, setMuted };
+  return { init, play, alertCheck, isMuted, setMuted };
 })();

@@ -8,7 +8,6 @@ const Game = (() => {
   // ---- game state ----
   const G = {
     turn: 1, maxTurns: 20,
-    escalation: 4.0,       // 0–10 ladder
     approval: 58,          // %
     oil: 84,               // $/bbl Brent
     world: 60,             // world opinion 0–100
@@ -17,6 +16,7 @@ const Game = (() => {
     res: { fighters: 4, cruise: 8, stealth: 1, specops: 1 },
     caps: { fighters: 6, cruise: 12, stealth: 2, specops: 1 },
     strikesThisTurn: 0, struckThisTurn: [],
+    missions: [],          // strike packages in flight: {targetId, pkg, eta}
     sanctions: 0, coalition: false, addressCooldown: 0,
     negotiationsAccepted: false, negotiationMomentum: 0,
     diploUsed: false, over: false,
@@ -33,6 +33,13 @@ const Game = (() => {
         else if (t.status === 'damaged') d += 25;
       }
       return d; // 0–100
+    },
+    // Iran's remaining ability to fight, 0–100, for the HUD meter:
+    // missile force + navy + IRGC command, the set you must break to win
+    iranCapacity() {
+      const irgc = TARGETS.find(t => t.id === 'irgc-hq');
+      const irgcVal = irgc.status === 'destroyed' ? 0 : irgc.status === 'damaged' ? 0.5 : 1;
+      return Math.round(100 * (IranAI.missileStrength() + IranAI.navalStrength() + irgcVal) / 5);
     },
     // warfighting capacity shattered: missile force and navy near zero, IRGC command gone
     iranBroken() {
@@ -52,11 +59,11 @@ const Game = (() => {
 
   // ---- save / continue (localStorage) ----
   const Save = (() => {
-    const KEY = 'cic-save-v1';   // bump the version to invalidate old saves
+    const KEY = 'cic-save-v2';   // bump the version to invalidate old saves
     const FIELDS = [
-      'turn', 'maxTurns', 'escalation', 'approval', 'oil', 'world',
+      'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
-      'strikesThisTurn', 'struckThisTurn', 'sanctions', 'coalition',
+      'strikesThisTurn', 'struckThisTurn', 'missions', 'sanctions', 'coalition',
       'addressCooldown', 'negotiationsAccepted', 'negotiationMomentum',
       'diploUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep',
       'regimeChaosTurns', 'regimeErratic', 'hostageCrisis', 'stats',
@@ -65,7 +72,7 @@ const Game = (() => {
     function write() {
       if (G.over) return;
       try {
-        const data = { version: 1, muted: AudioSys.isMuted(), fields: {}, targets: {} };
+        const data = { version: 2, muted: AudioSys.isMuted(), fields: {}, targets: {} };
         for (const f of FIELDS) data.fields[f] = G[f];
         for (const t of TARGETS) data.targets[t.id] = t.status || 'intact';
         localStorage.setItem(KEY, JSON.stringify(data));
@@ -75,7 +82,7 @@ const Game = (() => {
     function read() {
       try {
         const data = JSON.parse(localStorage.getItem(KEY));
-        return data && data.version === 1 ? data : null;
+        return data && data.version === 2 ? data : null;
       } catch (e) { return null; }
     }
 
@@ -109,6 +116,12 @@ const Game = (() => {
     return { success, adPenalty, lossRisk };
   }
 
+  // Strikes take time. Authorizing a package commits the assets and puts the
+  // mission IN FLIGHT: fighter and TLAM packages arrive at the end of this
+  // turn; B-2s transiting from Diego Garcia take two turns. BDA comes back
+  // with the battle report — you commit, then you wait.
+  const MISSION_ETA = { fighter: 1, cruise: 1, stealth: 2 };
+
   function executeStrike(target, pkg) {
     if (G.over) return;
     const key = resKey(pkg.asset);
@@ -116,64 +129,101 @@ const Game = (() => {
     G.res[key] -= pkg.qty;
 
     G.strikesThisTurn++;
-    G.struckThisTurn.push(target.id);
     G.stats.strikes++;
-    G.escalation = clamp(G.escalation + target.esc, 0, 10);
-    G.world = clamp(G.world + target.world, 0, 100);
+    G.missions.push({ targetId: target.id, pkg: { ...pkg }, eta: MISSION_ETA[pkg.asset] });
     AudioSys.play('launch');
     UI.renderAll(G);
+    Save.write();
+  }
 
-    MapView.animateStrike(pkg.asset, target, () => {
-      AudioSys.play('impact');
-      const est = computeStrike(target, pkg);
-      const roll = Math.random();
-      let outcome, text;
+  // resolve one mission at time-on-target; returns the BDA event
+  function resolveImpact(target, pkg) {
+    if (target.status === 'destroyed') {
+      // an earlier package in the same volley (or turn) already finished it
+      return {
+        cls: 'friendly', title: `BDA: ${target.name}`,
+        text: 'The package arrived over a target already destroyed. Aircraft and missiles expended against rubble — coordination cost, nothing gained.',
+      };
+    }
 
-      if (roll < est.success * 0.6) {
-        outcome = 'destroyed';
-      } else if (roll < est.success) {
-        outcome = target.status === 'damaged' ? 'destroyed' : 'damaged';
-      } else {
-        outcome = 'miss';
-      }
+    G.struckThisTurn.push(target.id);
+    G.world = clamp(G.world + target.world, 0, 100);
+    const est = computeStrike(target, pkg);
+    const roll = Math.random();
+    let outcome, text;
 
-      const ev = { cls: 'friendly', title: `BDA: ${target.name}` };
+    if (roll < est.success * 0.6) {
+      outcome = 'destroyed';
+    } else if (roll < est.success) {
+      outcome = target.status === 'damaged' ? 'destroyed' : 'damaged';
+    } else {
+      outcome = 'miss';
+    }
 
-      if (outcome === 'destroyed') {
-        target.status = 'destroyed';
-        G.stats.destroyed++;
-        G.approval = clamp(G.approval + 3, 0, 100);
-        ev.dApproval = 3;
-        text = 'Battle damage assessment confirms the target is destroyed. Functional capability eliminated.';
-        if (target.type === 'oil') { G.oil += 10; ev.dOil = 10; }
-      } else if (outcome === 'damaged') {
-        target.status = 'damaged';
-        G.approval = clamp(G.approval + 1, 0, 100);
-        ev.dApproval = 1;
-        text = 'Partial effects on target. Significant damage, but the site retains residual capability. A follow-up strike would likely finish it.';
-      } else {
-        G.approval = clamp(G.approval - 2, 0, 100);
-        ev.dApproval = -2;
-        text = 'Strike failed to achieve desired effects. Weather, decoys, and hardening are assessed as contributing factors.';
-      }
+    const ev = { cls: 'friendly', title: `BDA: ${target.name}`, dWorld: target.world };
 
-      // aircrew attrition vs remaining SAMs
-      if (est.lossRisk > 0 && Math.random() < est.lossRisk) {
-        G.stats.aircraftLost++;
-        G.casualties.us += 2;
-        G.approval = clamp(G.approval - 4, 0, 100);
-        G.escalation = clamp(G.escalation + 0.4, 0, 10);
-        text += ' One strike aircraft was lost to surface-to-air fire. Two aviators are dead; footage is already on Iranian state TV.';
-        ev.casualties = 2;
-        AudioSys.play('aircraftLost', 600);
-      }
+    if (outcome === 'destroyed') {
+      target.status = 'destroyed';
+      G.stats.destroyed++;
+      G.approval = clamp(G.approval + 3, 0, 100);
+      ev.dApproval = 3;
+      text = 'Battle damage assessment confirms the target is destroyed. Functional capability eliminated.';
+      if (target.type === 'oil') { G.oil += 10; ev.dOil = 10; }
+    } else if (outcome === 'damaged') {
+      target.status = 'damaged';
+      G.approval = clamp(G.approval + 1, 0, 100);
+      ev.dApproval = 1;
+      text = 'Partial effects on target. Significant damage, but the site retains residual capability. A follow-up strike would likely finish it.';
+    } else {
+      G.approval = clamp(G.approval - 2, 0, 100);
+      ev.dApproval = -2;
+      text = 'Strike failed to achieve desired effects. Weather, decoys, and hardening are assessed as contributing factors.';
+    }
 
-      ev.text = text;
-      MapView.updateTarget(target);
-      G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
-      UI.renderAll(G);
-      UI.showReport('STRIKE REPORT', [ev], afterAction);
-    });
+    // aircrew attrition vs the SAMs still standing at time-on-target
+    if (est.lossRisk > 0 && Math.random() < est.lossRisk) {
+      G.stats.aircraftLost++;
+      G.casualties.us += 2;
+      G.approval = clamp(G.approval - 4, 0, 100);
+      text += ' One strike aircraft was lost to surface-to-air fire. Two aviators are dead; footage is already on Iranian state TV.';
+      ev.casualties = 2;
+      AudioSys.play('aircraftLost', 600);
+    }
+
+    ev.text = text;
+    MapView.updateTarget(target);
+    G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
+    return ev;
+  }
+
+  // advance the mission clock and resolve everything reaching time-on-target,
+  // animating each impact in sequence. Missions resolve in the order they were
+  // laid on — a SEAD sweep queued first clears the air for packages behind it.
+  function resolveMissions(done) {
+    const due = [];
+    for (const m of G.missions) { m.eta--; if (m.eta <= 0) due.push(m); }
+    G.missions = G.missions.filter(m => m.eta > 0);
+    const events = [];
+
+    const next = () => {
+      if (due.length === 0) { done(events); return; }
+      const m = due.shift();
+      const target = TARGETS.find(t => t.id === m.targetId);
+      // watchdog: if the animation frame loop is throttled (background tab),
+      // resolve anyway — a stalled animation must never hold up the war
+      let resolved = false;
+      const finishOne = () => {
+        if (resolved) return;
+        resolved = true;
+        AudioSys.play('impact');
+        events.push(resolveImpact(target, m.pkg));
+        UI.renderAll(G);
+        next();
+      };
+      MapView.animateStrike(m.pkg.asset, target, finishOne);
+      setTimeout(finishOne, 2500);
+    };
+    next();
   }
 
   // ran after any resolved action: persist, then check for an ending
@@ -224,11 +274,10 @@ const Game = (() => {
       }
       case 'un': {
         G.world = clamp(G.world + 8, 0, 100);
-        G.escalation = clamp(G.escalation - 0.5, 0, 10);
         events.push({
           cls: 'world', title: 'UN Security Council session',
           text: 'US diplomats rally broad condemnation of the attack on USS Milius. Russia and China block binding action but the diplomatic cover is valuable.',
-          dWorld: 8, dEsc: -0.5,
+          dWorld: 8,
         });
         break;
       }
@@ -281,7 +330,6 @@ const Game = (() => {
   function applyEvent(ev) {
     if (ev.casualties) G.casualties.us += ev.casualties;
     if (ev.dApproval) G.approval = clamp(G.approval + ev.dApproval, 0, 100);
-    if (ev.dEsc) G.escalation = clamp(G.escalation + ev.dEsc, 0, 10);
     if (ev.dOil) G.oil = Math.max(60, G.oil + ev.dOil);
     if (ev.dWorld) G.world = clamp(G.world + ev.dWorld, 0, 100);
     if (ev.hormuz) { G.hormuz = ev.hormuz; MapView.setHormuz(G.hormuz); }
@@ -291,33 +339,38 @@ const Game = (() => {
   function endTurn() {
     if (G.over) return;
 
-    // no restraint dividend: the ladder does not pay itself down while you wait,
-    // and Iran does not stop shooting because you did
-    const events = IranAI.respond(G);
-    for (const ev of events) applyEvent(ev);
-    if (events.some(ev => ev.casualties || ev.hormuz === 'CLOSED')) AudioSys.play('retaliation');
+    // strike packages arrive first — BDA lands, then Iran answers with
+    // whatever the volley left standing
+    resolveMissions((bda) => {
+      const events = IranAI.respond(G);
+      for (const ev of events) applyEvent(ev);
+      if (events.some(ev => ev.casualties || ev.hormuz === 'CLOSED')) AudioSys.play('retaliation');
 
-    // economy: oil drifts toward a level set by escalation + Hormuz status
-    const oilTarget = 82 + G.escalation * 5 +
-      (G.hormuz === 'CONTESTED' ? 20 : G.hormuz === 'CLOSED' ? 75 : 0);
-    G.oil = Math.max(60, G.oil + (oilTarget - G.oil) * 0.25);
-    G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
+      // economy: oil carries a war premium set by Iran's remaining ability
+      // to threaten the Gulf, plus the state of the strait
+      const warPremium = IranAI.missileStrength() + IranAI.navalStrength() > 1 ? 14 : 4;
+      const oilTarget = 88 + warPremium +
+        (G.hormuz === 'CONTESTED' ? 20 : G.hormuz === 'CLOSED' ? 75 : 0);
+      G.oil = Math.max(60, G.oil + (oilTarget - G.oil) * 0.25);
+      G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
 
-    if (G.hormuz === 'CLOSED') G.hormuzClosedTurns++;
-    else G.hormuzClosedTurns = 0;
+      if (G.hormuz === 'CLOSED') G.hormuzClosedTurns++;
+      else G.hormuzClosedTurns = 0;
 
-    // domestic drift: expensive gas and long crises erode approval
-    if (G.oil >= 150) G.approval = clamp(G.approval - 2, 0, 100);
-    else if (G.oil >= 115) G.approval = clamp(G.approval - 1, 0, 100);
-    if (G.turn > 8) G.approval = clamp(G.approval - 0.5, 0, 100);
+      // domestic drift: expensive gas and long wars erode approval
+      if (G.oil >= 150) G.approval = clamp(G.approval - 2, 0, 100);
+      else if (G.oil >= 115) G.approval = clamp(G.approval - 1, 0, 100);
+      if (G.turn > 8) G.approval = clamp(G.approval - 0.5, 0, 100);
 
-    const day = Math.ceil(G.turn / 2);
-    UI.setTicker(IranAI.headlines(G, events));
-    const result = checkEnd();
+      const day = Math.ceil(G.turn / 2);
+      const all = [...bda, ...events];
+      UI.setTicker(IranAI.headlines(G, all));
+      const result = checkEnd();
 
-    UI.showReport(`DEVELOPMENTS — DAY ${day}, TURN ${G.turn}`, events, () => {
-      if (result) { finish(result); return; }
-      nextTurn();
+      UI.showReport(`BATTLE REPORT — DAY ${day}, TURN ${G.turn}`, all, () => {
+        if (result) { finish(result); return; }
+        nextTurn();
+      });
     });
   }
 
@@ -353,8 +406,7 @@ const Game = (() => {
     if (G.over) return null;
     // primary win: the nuclear program is gone and Iran can no longer fight
     if (G.nukeDegraded() >= 100 && G.iranBroken()) return buildResult('victory', 'military');
-    // max escalation is not a loss — it just means the war has gone total.
-    // The losses are military and political:
+    // the losses are military and political:
     if (G.casualties.us >= 150) return buildResult('defeat', 'casualties');
     if (G.approval <= 20) return buildResult('defeat', 'impeachment');
     if (G.hormuzClosedTurns >= 5 || G.oil >= 240) return buildResult('defeat', 'economy');
@@ -427,7 +479,7 @@ const Game = (() => {
       kind, title: titles[reason], verdict: verdicts[reason], narrative: narratives[reason],
       grades,
       stats: {
-        esc: G.escalation, approval: G.approval, oil: G.oil,
+        approval: G.approval, oil: G.oil,
         casualties: G.casualties.us, destroyed: G.stats.destroyed, turns: G.turn,
       },
     };
