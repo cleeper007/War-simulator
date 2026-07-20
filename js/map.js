@@ -746,8 +746,14 @@ const MapView = (() => {
       lastFrame = t0;
       requestAnimationFrame(frame);
     }
-    if (cruise) {
-      overlayScopeClip(entry.querySelector('.scope-wrap'), 'video/tlam-launch.mp4', startFlight);
+    // Front-loaded launch clip (plays in full before the run, gating the flight
+    // so it never eats into radar time): TLAMs get the vertical-launch clip;
+    // fighters coming off a carrier deck get the catapult-launch clip.
+    const launchClip = cruise ? 'video/tlam-launch.mp4'
+      : origin.kind === 'carrier' ? 'video/carrier-launch.mp4'
+      : null;
+    if (launchClip) {
+      overlayScopeClip(entry.querySelector('.scope-wrap'), launchClip, startFlight);
     } else {
       startFlight();
     }

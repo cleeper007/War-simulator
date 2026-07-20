@@ -294,9 +294,11 @@ const Game = (() => {
         next();
       };
       MapView.animateStrike(head.pkg.asset, target, finishBatch, count);
-      // watchdog window must clear the whole run; a TLAM's launch clip plays
-      // before its flight, so allow extra time before force-resolving.
-      const launchClip = head.pkg.asset === 'cruise' ? 5000 : 0;
+      // watchdog window must clear the whole run; a launch clip plays before the
+      // flight (TLAMs always, carrier fighter sorties sometimes), so allow extra
+      // time before force-resolving. Fighters can't be told apart here, so the
+      // allowance is applied to all of them — it only delays the stall fallback.
+      const launchClip = head.pkg.asset === 'cruise' || head.pkg.asset === 'fighter' ? 5000 : 0;
       setTimeout(finishBatch, (FLIGHT_DUR[head.pkg.asset] || 1000) + launchClip + 3500);
     };
     next();
