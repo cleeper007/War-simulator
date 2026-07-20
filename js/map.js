@@ -878,12 +878,16 @@ const MapView = (() => {
     vid.play().catch(() => { vid.muted = true; vid.play().catch(() => {}); });
   }
 
+  // Some targets have their own hit clip; everything else uses the generic one.
+  const HIT_CLIPS = { 'msl-shiraz': 'video/shiraz-hit.mp4' };
+
   // Called by game.js only when BDA confirms a successful hit (destroyed/damaged).
   // Plays in the same window as the radar, then fades out to reveal the BDA state.
   function playStrikeHit(target) {
     const entry = [...document.querySelectorAll('.scope-card')]
       .find(e => e._alive && e.dataset.tgt === target.id);
-    if (entry) overlayScopeClip(entry.querySelector('.scope-wrap'), 'video/strike-hit.mp4');
+    if (entry) overlayScopeClip(entry.querySelector('.scope-wrap'),
+      HIT_CLIPS[target.id] || 'video/strike-hit.mp4');
   }
 
   // ---- Iranian counterattacks: ballistic/cruise missiles arc in fast,
