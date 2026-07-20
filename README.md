@@ -49,6 +49,44 @@ fight — the mission is driving it to zero.
 - **Campaign culmination** — 20 turns expire with the program still standing (defeat);
   expire with real damage done and it's a graded stalemate instead.
 
+### Israel
+
+Israel is not an American asset. It is a **semi-autonomous actor with its own clock**,
+and it starts *sidelined* — watching, waiting, and losing patience while Iran's
+enrichment halls stand.
+
+You have two ways this goes, and only one of them is your choice:
+
+- **Coordinate with them** (diplomatic action). IAF squadrons join openly: +2 fighter
+  capacity, and **one** combined US–Israeli deep-strike package unlocks against Natanz
+  *or* Fordow — the only path to the buried halls that isn't a B-2. It is genuinely
+  strong and genuinely not free. It costs 8 points of world opinion up front, the
+  strike itself carries a diplomatic surcharge on top of the target's normal cost
+  (−13 at Fordow vs −5 for an American strike), it takes two turns to plan and fly,
+  it risks aircrew, and it is **one-shot** — spend it at Natanz and Fordow still needs
+  a bomber. Most of all, it makes Israel a live target: Iranian salvos start going
+  west, and your war acquires a second front you don't command.
+- **Ignore them.** Each turn they sit out while the program is still largely intact
+  (under 50% degraded), their patience drops. At zero they **fly the mission
+  themselves**, on their timetable, without telling you. They have no penetrators, so
+  the results are partial — real damage at Natanz, very little at Fordow — but the
+  escalation is total: a heavy world-opinion hit, an oil spike, an approval hit, and
+  every capital in the region convinced Washington authorized it. You inherit the
+  consequences of a strike you did not plan and could not aim.
+
+Your SecState and NSA will warn you as the clock runs down — the patience count is in
+the advisor panel and on the diplomacy button. Coordinating openly widens the war;
+letting it happen by default widens it *and* wastes the shot.
+
+Once Israel is in play, Iranian retaliation weights up, its ally-strikes bias toward
+Haifa, and a new **missile exchange** event fires: Iran barrages Israel, the IAF
+answers, and the counter-strike can destroy Iranian missile bases CENTCOM never
+scheduled. It cuts both ways. Like everything else in the sim it is capacity-gated —
+a broken Iran cannot sustain a two-front fight.
+
+Israeli bases (Nevatim and Hatzerim) appear on the forward-basing layer in amber
+rather than US blue: allied, but not under your command.
+
 ### Each turn you can
 
 - **Lay on strikes** — click any Iranian target on the map, pick a strike package,
@@ -63,7 +101,9 @@ fight — the mission is driving it to zero.
   - *B-2 missions (GBU-57)* — scarce, slow to arrive; the **only** weapon that can
     kill Fordow.
 - **Take one diplomatic action** — backchannel talks, UN pressure, sanctions,
-  coalition building, an address to the nation, or **ISR prep** for the raid below.
+  coalition building, **coordinating with Israel**, an address to the nation, or
+  **ISR prep** for the raid below.
+- **Decide what to do about Israel** — see below. Doing nothing is also a decision.
 - **Launch the leadership raid** — a single Tier-1 SOF task force, one attempt for
   the whole game. Base odds are low; ISR prep and degraded air defenses / IRGC
   command raise them. Success shatters Tehran's command chain (and may open — or
@@ -92,6 +132,11 @@ step away, and the mute toggle in the status bar to silence sound effects.
   Strait of Hormuz back open. A dead navy can't keep the strait shut.
 - Striking oil infrastructure is economic pressure with brutal diplomatic costs — and
   Iran retaliates against shipping.
+- **Decide about Israel early, on purpose.** The worst outcome is drifting into their
+  unilateral strike: you pay the escalation, Fordow survives, and you never got the
+  joint package. If you're going to bring them in, do it while there's still a buried
+  site worth spending the shot on — and roll back the SAMs first, because the joint
+  package is manned aircraft and air defenses gut its odds.
 - Don't open with the backchannel: Tehran reads early overtures as weakness and your
   approval pays for it. Break their forces first; the Omanis will tell you when the
   pragmatists start counting launchers.

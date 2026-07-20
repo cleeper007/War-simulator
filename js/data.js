@@ -171,6 +171,15 @@ const US_ASSETS = [
   { id: 'buehring', name: 'Camp Buehring — Kuwait', short: 'BUEHRING', x: 286, y: 372, kind: 'logistics',
     forward: true, sortie: false, atacms: true,
     desc: 'Forward staging camp in the Kuwaiti desert. HIMARS batteries here hold Iranian territory at risk.' },
+
+  // -- Israeli air force bases: allied, not American (ally: true draws them in
+  //    amber rather than US blue). Far west of the Gulf — pan west to see them.
+  { id: 'nevatim', name: 'Nevatim AB — Israel', short: 'NEVATIM', x: -117, y: 313, kind: 'airbase',
+    forward: true, ally: true, sortie: false, atacms: false,
+    desc: 'IAF F-35I "Adir" and heavy transport base in the Negev. The long-range strike force flies from here. (Pan west to see it.)' },
+  { id: 'hatzerim', name: 'Hatzerim AB — Israel', short: 'HATZERIM', x: -129, y: 312, kind: 'airbase',
+    forward: true, ally: true, sortie: false, atacms: false, labelAbove: true,
+    desc: 'IAF F-15I and F-16I squadrons west of Beersheba — the aircraft that would fly a deep-strike package into Iran.' },
 ];
 
 // map from asset type to launch origin on the map

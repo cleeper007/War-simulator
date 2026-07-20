@@ -84,8 +84,12 @@ const IranAI = (() => {
       text: 'Anti-ship missile batteries are active, minelayers are operating at night, and Tehran has declared the Strait closed to "hostile" shipping. A fifth of the world\'s oil is now blocked.',
       hormuz: 'CLOSED', dOil: 35,
     }),
-    allyStrike: () => {
-      const tgt = pick(['Saudi oil facilities at Abqaiq', 'Israeli port infrastructure at Haifa', 'Emirati facilities near Abu Dhabi']);
+    allyStrike: (israelInPlay) => {
+      // once Israel is in the war, Tehran's salvos go there by preference
+      const pool = israelInPlay
+        ? ['Israeli port infrastructure at Haifa', 'Israeli port infrastructure at Haifa', 'Saudi oil facilities at Abqaiq']
+        : ['Saudi oil facilities at Abqaiq', 'Israeli port infrastructure at Haifa', 'Emirati facilities near Abu Dhabi'];
+      const tgt = pick(pool);
       return {
         title: `Iranian missiles strike ${tgt.split(' at ')[0]}`,
         text: `A missile and drone salvo hit ${tgt}. Allied capitals are demanding either decisive US action or immediate de-escalation.`,
@@ -100,6 +104,26 @@ const IranAI = (() => {
         casualties: c, dApproval: -6, dOil: 20, flashAsset: 'udeid',
         attack: { kind: 'mixed', bases: ['udeid', 'asad', 'dhafra'], count: 4 },
       };
+    },
+    // A two-front exchange. Iran throws a barrage at Israel and takes the
+    // counter-strike: this is the one Iranian action that can cost Iran
+    // capacity, because Israel is shooting back at launchers the US never
+    // reached. Cuts both ways — and only a functioning Iran can sustain it.
+    israelExchange: () => {
+      const live = TARGETS.filter(t => t.type === 'missile' && t.status !== 'destroyed');
+      const hitBack = live.length > 0 && chance(0.4) ? pick(live) : null;
+      const ev = {
+        title: 'MISSILE EXCHANGE BETWEEN IRAN AND ISRAEL',
+        text: 'Iran fired a large ballistic and drone salvo at Israeli cities and airbases overnight; Arrow and David\'s Sling intercepted most of it. The IAF answered before dawn against launch sites in western Iran.',
+        dOil: 10, dWorld: -4, dApproval: -1,
+      };
+      if (hitBack) {
+        ev.degradeTarget = hitBack.id;
+        ev.text += ` Israeli aircraft caught ${hitBack.name} in the open — the counter-strike did work CENTCOM had not scheduled.`;
+      } else {
+        ev.text += ' The counter-strike hit dispersal sites already abandoned. Both sides are now spending missiles to no decisive effect, and the war has a second front.';
+      }
+      return ev;
     },
     quiet: () => ({
       title: 'Tehran pauses',
@@ -135,7 +159,10 @@ const IranAI = (() => {
     else if (G.regimeErratic) coord = Math.min(1.15, coord + 0.25); // erratic remnant: lashing out
     // the war machine spins up over the first days, faster when provoked
     const spool = Math.min(1, 0.5 + 0.25 * (G.turn - 1) + (struckAny ? 0.25 : 0));
-    const w = coord * spool;
+    // Israel in the war is a mobilizing argument in Tehran: whatever the
+    // regime has left, more of it gets thrown, and some of it goes west
+    const israelInPlay = G.israelPosture !== 'sidelined';
+    const w = Math.min(1.3, coord * spool * (israelInPlay ? 1.2 : 1));
 
     // Revenge logic: hitting oil draws shipping/economic retaliation
     if (struckOil && nStr > 0) events.push(chance(0.6) ? EV.shipping() : EV.mineScare());
@@ -160,7 +187,9 @@ const IranAI = (() => {
         else if (G.hormuz === 'OPEN' && chance(0.3 * w)) events.push(EV.mineScare());
         else if (G.hormuz === 'CONTESTED' && chance(0.35 * w)) events.push(EV.hormuzClose());
       }
-      if (chance(0.3 * w)) events.push(EV.allyStrike());
+      if (chance((israelInPlay ? 0.5 : 0.3) * w)) events.push(EV.allyStrike(israelInPlay));
+      // a sustained two-front fight needs a missile force that still exists
+      if (israelInPlay && mStr > 0 && chance(0.4 * w)) events.push(EV.israelExchange());
     }
 
     // Tehran only sues for peace when its ability to fight is actually shattered
@@ -208,7 +237,17 @@ const IranAI = (() => {
       secdef.text = 'The mission is victory: kill the program and break their war machine. Roll back the air defenses first, then take the enrichment sites while the skies are ours.';
     }
 
-    if (G.negotiationReady()) {
+    // Israel outranks the usual talking points: it changes what State can do
+    const israelUrgent = G.israelPosture === 'sidelined' && !G.israelStrikesUsed &&
+      G.israelPatience <= 2 && nukeDeg < 50;
+
+    if (G.israelPosture === 'unilateral') {
+      secstate.text = 'The Israelis went without us and the world has decided we blessed it. I am losing basing rights and coalition partners by the hour. Nothing I say in New York lands until this war has an end state — get me one.';
+    } else if (G.israelPosture === 'coordinated') {
+      secstate.text = 'We own Israel\'s war now as well as our own. That joint package is real capability and I would rather we spend it than watch it expire — but understand that every hour it sits unused, Tehran is still shooting at Haifa on our account.';
+    } else if (israelUrgent) {
+      secstate.text = `Jerusalem has stopped asking. My read is ${G.israelPatience} turn${G.israelPatience === 1 ? '' : 's'} before they fly it themselves — and a unilateral Israeli strike is the worst version of this: the escalation without the results. Bring them in on our terms or finish the program before they lose patience.`;
+    } else if (G.negotiationReady()) {
       secstate.text = 'Tehran is broken — this is the rare moment a backchannel might actually close. If you want the win signed instead of just shattered, authorize the Omani channel now.';
     } else if (nukeDeg >= 75 && warStr <= 2) {
       secstate.text = 'They\'re not ready to fold yet — an overture now would be read as weakness and spun against us. Keep destroying what they fight with; I\'ll be ready when they break.';
@@ -216,7 +255,13 @@ const IranAI = (() => {
       secstate.text = 'No one in Tehran will talk while they can still shoot. My job right now is holding the coalition together while you win — pair the strikes with UN pressure and sanctions.';
     }
 
-    if (G.hormuz === 'CLOSED') {
+    if (israelUrgent) {
+      nsa.text = `Israeli readiness indicators are unambiguous — tanker movements, reserve call-ups, the whole signature. They are going, with or without you, in roughly ${G.israelPatience} turn${G.israelPatience === 1 ? '' : 's'}. If it happens on their timetable you get the blame and none of the targeting.`;
+    } else if (G.israelPosture === 'unilateral') {
+      nsa.text = 'Israel struck on its own and Fordow is still under the mountain. We inherited the escalation without the result — expect Iranian salvos to go west as well as at us, and expect the Gulf states to start putting distance between themselves and our aircraft.';
+    } else if (G.israelPosture === 'coordinated' && missileStrength() > 0) {
+      nsa.text = 'With the Israelis in openly, Tehran is fighting two enemies with one missile force. That splits their fires — some of those launchers are now dying to the IAF instead of to us. It also means this war ends when both of our wars end, not just ours.';
+    } else if (G.hormuz === 'CLOSED') {
       nsa.text = 'The Strait is the whole ballgame right now. Every turn it stays closed bleeds the economy — hit their naval bases or cool this down fast.';
     } else if (G.hostageCrisis) {
       nsa.text = 'Our people are in an IRGC prison and on their televisions. Every deal now runs through that cell block — no agreement survives politically unless it brings them home.';
@@ -256,6 +301,8 @@ const IranAI = (() => {
     if (G.hormuz === 'CLOSED') h.push('GAS LINES FORM AS HORMUZ CLOSURE CHOKES GLOBAL SUPPLY');
     if (G.regimeChaosTurns > 0) h.push('POWER VACUUM IN TEHRAN — INTELLIGENCE AGENCIES ASK: WHO IS IN CHARGE?');
     if (G.hostageCrisis) h.push('VIGILS HELD FOR CAPTURED US SPECIAL OPERATORS');
+    if (G.israelPosture === 'unilateral') h.push('ARAB CAPITALS DEMAND ANSWERS: DID WASHINGTON GREEN-LIGHT THE ISRAELI STRIKE?');
+    else if (G.israelPosture === 'coordinated') h.push('IAF SQUADRONS FLYING WITH CENTCOM AS ISRAEL JOINS THE CAMPAIGN OPENLY');
     const fillers = [...FILLER_HEADLINES].sort(() => Math.random() - 0.5).slice(0, 3);
     return [...h, ...fillers];
   }

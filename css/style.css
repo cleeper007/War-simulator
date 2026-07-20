@@ -321,6 +321,10 @@ button { font-family: var(--mono); }
 }
 .us-asset.under-attack .asset-icon { fill: var(--red); }
 
+/* allied bases that are not under US command (Israel) — amber, hollow */
+.us-asset.ally .asset-icon { fill: none; stroke: var(--amber); stroke-width: 1.4; }
+.us-asset.ally text { fill: var(--amber); opacity: 0.85; }
+
 #hormuz-indicator text { font-family: var(--mono); text-anchor: middle; }
 #hormuz-indicator .hz-open { fill: var(--green); }
 #hormuz-indicator .hz-contested { fill: var(--amber); }

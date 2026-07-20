@@ -120,6 +120,15 @@ const UI = (() => {
         disabled: G.coalition,
       },
       {
+        id: 'israel', name: 'Coordinate with Israel',
+        desc: G.israelPosture === 'coordinated'
+          ? 'Israel is in the operation. Joint deep-strike package available at Natanz/Fordow.'
+          : G.israelPosture === 'unilateral'
+            ? 'Too late — Israel acted on its own.'
+            : `Bring the IAF in openly. Adds fighter capacity and ONE joint deep-strike package against Natanz or Fordow. Widens the war: world opinion −8, and Iran starts shooting at Israel. They go alone in ${G.israelPatience} turn(s) regardless.`,
+        disabled: G.israelPosture !== 'sidelined',
+      },
+      {
         id: 'address', name: 'Address the nation',
         desc: G.addressCooldown > 0 ? `Available in ${G.addressCooldown} turn(s).` : 'Rally the public. Approval +.',
         disabled: G.addressCooldown > 0,
@@ -188,13 +197,16 @@ const UI = (() => {
     const est = Game.computeStrike(target, pkg);
     const pct = Math.round(est.success * 100);
     const sCls = pct >= 70 ? 'est-good' : pct >= 45 ? 'est-warn' : 'est-bad';
-    const tot = pkg.asset === 'stealth'
-      ? 'TIME ON TARGET: <span class="est-warn">2 turns — transit from Diego Garcia</span>'
+    const eta = pkg.eta || (pkg.asset === 'stealth' ? 2 : 1);
+    const tot = eta > 1
+      ? `TIME ON TARGET: <span class="est-warn">${eta} turns — ${pkg.joint ? 'joint mission planning and transit' : 'transit from Diego Garcia'}</span>`
       : 'TIME ON TARGET: <span class="est-good">end of this turn — BDA with the battle report</span>';
+    const worldCost = target.world + (pkg.extraWorld || 0);
     let html =
       `EST. PROBABILITY OF KILL: <span class="${sCls}">${pct}%</span><br>` +
       `${tot}<br>` +
-      `WORLD OPINION: <span class="est-warn">${target.world}</span><br>`;
+      `WORLD OPINION: <span class="est-warn">${worldCost}</span>` +
+      (pkg.extraWorld ? ` <span class="dim">(${target.world} target, ${pkg.extraWorld} for flying it with Israel)</span>` : '') + `<br>`;
     if (est.adPenalty > 0.01) {
       html += `<span class="est-warn">Air defenses degrade this package (−${Math.round(est.adPenalty * 100)}%).</span> `;
     }

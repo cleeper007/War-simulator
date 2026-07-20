@@ -68,7 +68,7 @@ const MapView = (() => {
   }
 
   function assetIcon(a) {
-    const g = el('g', { class: 'us-asset', id: `asset-${a.id}`, transform: `translate(${a.x},${a.y})` });
+    const g = el('g', { class: 'us-asset' + (a.ally ? ' ally' : ''), id: `asset-${a.id}`, transform: `translate(${a.x},${a.y})` });
     let icon;
     if (a.kind === 'carrier') {
       icon = el('path', { class: 'asset-icon', d: 'M-7,-2 L7,-2 L5,3 L-5,3 Z M-2,-6 L2,-6 L2,-2 L-2,-2 Z' });
@@ -82,7 +82,8 @@ const MapView = (() => {
       icon = el('path', { class: 'asset-icon', d: 'M-5,4 L0,-5 L5,4 Z M-7,4 L7,4 L7,5.5 L-7,5.5 Z' });
     }
     g.appendChild(icon);
-    const label = el('text', { y: 17 });
+    // labelAbove keeps neighbouring bases (Nevatim/Hatzerim) from colliding
+    const label = el('text', { y: a.labelAbove ? -11 : 17 });
     label.textContent = a.short;
     g.appendChild(label);
     return g;
@@ -140,8 +141,10 @@ const MapView = (() => {
     for (const a of forwardAssets) {
       const g = assetIcon(a);
       attachTooltip(g, () => `<span class="tt-name">${a.name}</span><br>${a.desc}` +
-        `<br><em style="color:var(--blue)">${a.sortie ? 'Fixed-wing sorties: YES' : 'Fixed-wing sorties: NO'}` +
-        ` · ${a.atacms ? 'ATACMS/PrSM: YES' : 'ATACMS/PrSM: NO'}</em>`);
+        (a.ally
+          ? `<br><em style="color:var(--amber)">ALLIED — NOT UNDER US COMMAND · ${Game.israelStatus()}</em>`
+          : `<br><em style="color:var(--blue)">${a.sortie ? 'Fixed-wing sorties: YES' : 'Fixed-wing sorties: NO'}` +
+            ` · ${a.atacms ? 'ATACMS/PrSM: YES' : 'ATACMS/PrSM: NO'}</em>`));
       fwd.appendChild(g);
     }
     world.appendChild(fwd);

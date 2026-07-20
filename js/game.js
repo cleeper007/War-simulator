@@ -20,6 +20,11 @@ const Game = (() => {
     sanctions: 0, coalition: false, addressCooldown: 0,
     negotiationsAccepted: false, negotiationMomentum: 0,
     diploUsed: false, over: false,
+    // Israel: a semi-autonomous actor, not an American asset. Sidelined by
+    // default; coordinate with them and the war widens, ignore them and they
+    // eventually go alone on a timetable you do not control.
+    israelPosture: 'sidelined', israelPatience: 4,
+    israelStrikesUsed: false, israelJointAvailable: false,
     // special operations (see specops.js)
     raid: 'none', raidThisTurn: false, isrPrep: 0,
     regimeChaosTurns: 0, regimeErratic: false, hostageCrisis: false,
@@ -66,6 +71,7 @@ const Game = (() => {
       'strikesThisTurn', 'struckThisTurn', 'missions', 'sanctions', 'coalition',
       'addressCooldown', 'negotiationsAccepted', 'negotiationMomentum',
       'diploUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep',
+      'israelPosture', 'israelPatience', 'israelStrikesUsed', 'israelJointAvailable',
       'regimeChaosTurns', 'regimeErratic', 'hostageCrisis', 'stats',
     ];
 
@@ -104,6 +110,39 @@ const Game = (() => {
     return w; // 0..3
   }
 
+  // ---- Israel: the joint deep-strike option ----
+  // Coordinating with Israel buys exactly one combined package against a buried
+  // site — IAF F-35I escort and SEAD opening the corridor for US penetrators.
+  // It is the only path to Fordow that isn't a B-2, and it costs more abroad
+  // than an American strike does: everyone reads it as the war widening.
+  const JOINT_PKGS = {
+    natanz: {
+      asset: 'fighter', qty: 2, base: 0.78, eta: 2, joint: true, extraWorld: -6,
+      label: 'JOINT US–ISRAELI PACKAGE — F-35I escort + penetrators',
+    },
+    fordow: {
+      asset: 'fighter', qty: 2, base: 0.62, eta: 2, joint: true, extraWorld: -8,
+      label: 'JOINT US–ISRAELI PACKAGE — the only alternative to a B-2',
+    },
+  };
+
+  // TARGETS is static data rebuilt on load, so the joint option is derived from
+  // saved state rather than stored — call this whenever that state changes.
+  function syncJointPackages() {
+    for (const [id, pkg] of Object.entries(JOINT_PKGS)) {
+      const t = TARGETS.find(x => x.id === id);
+      t.packages = t.packages.filter(p => !p.joint);
+      if (G.israelJointAvailable) t.packages.push(pkg);
+    }
+  }
+
+  // one-line posture summary used by map tooltips and the diplomacy panel
+  function israelStatus() {
+    if (G.israelPosture === 'coordinated') return 'COORDINATED WITH CENTCOM';
+    if (G.israelPosture === 'unilateral') return 'ACTING UNILATERALLY';
+    return `SIDELINED — patience ${G.israelPatience}`;
+  }
+
   const AD_PENALTY = { fighter: 0.09, cruise: 0.05, stealth: 0.02 };
   const resKey = (asset) => asset === 'fighter' ? 'fighters' : asset;
 
@@ -128,9 +167,12 @@ const Game = (() => {
     if (G.res[key] < pkg.qty) return;
     G.res[key] -= pkg.qty;
 
+    // the joint option is one-shot: committing it against either site spends it
+    if (pkg.joint) { G.israelJointAvailable = false; syncJointPackages(); }
+
     G.strikesThisTurn++;
     G.stats.strikes++;
-    G.missions.push({ targetId: target.id, pkg: { ...pkg }, eta: MISSION_ETA[pkg.asset] });
+    G.missions.push({ targetId: target.id, pkg: { ...pkg }, eta: pkg.eta || MISSION_ETA[pkg.asset] });
     AudioSys.play('launch');
     UI.renderAll(G);
     Save.write();
@@ -147,7 +189,9 @@ const Game = (() => {
     }
 
     G.struckThisTurn.push(target.id);
-    G.world = clamp(G.world + target.world, 0, 100);
+    // a joint strike carries its own diplomatic surcharge on top of the target's
+    const worldCost = target.world + (pkg.extraWorld || 0);
+    G.world = clamp(G.world + worldCost, 0, 100);
     const est = computeStrike(target, pkg);
     const roll = Math.random();
     let outcome, text;
@@ -160,7 +204,7 @@ const Game = (() => {
       outcome = 'miss';
     }
 
-    const ev = { cls: 'friendly', title: `BDA: ${target.name}`, dWorld: target.world };
+    const ev = { cls: 'friendly', title: `BDA: ${target.name}`, dWorld: worldCost };
 
     if (outcome === 'destroyed') {
       target.status = 'destroyed';
@@ -188,6 +232,11 @@ const Game = (() => {
       text += ' One strike aircraft was lost to surface-to-air fire. Two aviators are dead; footage is already on Iranian state TV.';
       ev.casualties = 2;
       AudioSys.play('aircraftLost', 600);
+    }
+
+    if (pkg.joint) {
+      ev.title = `BDA: ${target.name} — JOINT US–ISRAELI STRIKE`;
+      text += ' Israeli aircraft flew the escort and SEAD package. Tehran is telling the region this was a Zionist–American operation, and the region is inclined to believe it.';
     }
 
     ev.text = text;
@@ -305,6 +354,23 @@ const Game = (() => {
         });
         break;
       }
+      case 'israel': {
+        if (G.israelPosture !== 'sidelined') return;
+        G.israelPosture = 'coordinated';
+        G.israelPatience = 0;      // they are in the war now; nothing left to wait for
+        G.israelJointAvailable = true;
+        syncJointPackages();
+        G.world = clamp(G.world - 8, 0, 100);
+        G.oil += 5;
+        G.caps.fighters += 2;
+        G.res.fighters = Math.min(G.res.fighters + 2, G.caps.fighters);
+        events.push({
+          cls: 'world', title: 'Israel brought into the operation',
+          text: 'Jerusalem folds its strike planning into CENTCOM\'s. IAF squadrons add sortie capacity, and one combined deep-strike package is now available against Natanz or Fordow — the first path to the buried halls that does not require a B-2. The price is paid abroad: Arab partners who were quietly helping now have to be publicly seen not to, and Tehran has been handed the war it wants to fight — Israel is now a legitimate target in every Iranian broadcast.',
+          dWorld: -8, dOil: 5,
+        });
+        break;
+      }
       case 'address': {
         if (G.addressCooldown > 0) return;
         G.addressCooldown = 3;
@@ -326,8 +392,55 @@ const Game = (() => {
     UI.showReport('DIPLOMATIC CABLE', events, afterAction);
   }
 
+  // ---- Israel's own clock ----
+  // Israel is not waiting on American permission indefinitely. While they are
+  // sidelined and the program is still substantially intact, their patience
+  // runs down; at zero they fly the mission themselves. It is a worse strike
+  // than one you would have run — no penetrators, partial results — and you
+  // own the escalation without having chosen it.
+  function israelTurn() {
+    if (G.israelStrikesUsed || G.israelPosture !== 'sidelined') return null;
+    if (G.nukeDegraded() >= 50) return null; // program already gutted: they stand down
+    if (--G.israelPatience > 0) return null;
+
+    G.israelPosture = 'unilateral';
+    G.israelStrikesUsed = true;
+
+    // what they actually achieve: real damage at Natanz, little at Fordow,
+    // which is buried under rock only a GBU-57 reaches
+    const hits = [];
+    for (const [id, killP, dmgP] of [['natanz', 0.30, 0.75], ['fordow', 0, 0.40]]) {
+      const t = TARGETS.find(x => x.id === id);
+      if (t.status === 'destroyed') continue;
+      const roll = Math.random();
+      if (roll < killP) { t.status = 'destroyed'; hits.push(`${t.name} destroyed`); }
+      else if (roll < dmgP) {
+        t.status = t.status === 'damaged' ? 'destroyed' : 'damaged';
+        hits.push(`${t.name} ${t.status}`);
+      }
+      MapView.updateTarget(t);
+    }
+
+    const bda = hits.length
+      ? `Assessed effects: ${hits.join('; ')}.`
+      : 'Assessed effects: negligible. They spent the surprise and bought nothing.';
+
+    return {
+      cls: 'world', title: 'ISRAEL STRIKES IRAN UNILATERALLY',
+      text: `Without notifying Washington, the Israeli Air Force flew a long-range package against the enrichment sites overnight. The first CENTCOM knew of it was the radar picture. ${bda} Jerusalem's statement thanks the United States for its support. Every capital in the region now believes you authorized this, and Tehran has said so on every frequency it owns. You no longer control the escalation — you only answer for it.`,
+      dWorld: -14, dOil: 16, dApproval: -3,
+    };
+  }
+
   // ---- Iranian phase / end turn ----
   function applyEvent(ev) {
+    if (ev.degradeTarget) {
+      const t = TARGETS.find(x => x.id === ev.degradeTarget);
+      if (t && t.status !== 'destroyed') {
+        t.status = t.status === 'damaged' ? 'destroyed' : 'damaged';
+        MapView.updateTarget(t);
+      }
+    }
     if (ev.casualties) G.casualties.us += ev.casualties;
     if (ev.dApproval) G.approval = clamp(G.approval + ev.dApproval, 0, 100);
     if (ev.dOil) G.oil = Math.max(60, G.oil + ev.dOil);
@@ -342,7 +455,11 @@ const Game = (() => {
     // strike packages arrive first — BDA lands, then Iran answers with
     // whatever the volley left standing
     resolveMissions((bda) => {
+      // Israel moves between the BDA and Iran's answer — if they went tonight,
+      // Tehran is responding to their strike as much as to yours
+      const israeli = israelTurn();
       const events = IranAI.respond(G);
+      if (israeli) events.unshift(israeli);
       if (events.some(ev => ev.casualties || ev.hormuz === 'CLOSED')) AudioSys.play('retaliation');
 
       // Iran's salvos fly on the map — missiles, drone swarms, intercepts —
@@ -522,6 +639,7 @@ const Game = (() => {
   function restoreAndStart(data) {
     for (const [f, v] of Object.entries(data.fields)) G[f] = v;
     for (const t of TARGETS) t.status = data.targets[t.id] || 'intact';
+    syncJointPackages(); // packages live on static TARGETS — rebuild from saved state
     AudioSys.setMuted(!!data.muted);
     start(true);
   }
@@ -554,5 +672,5 @@ const Game = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, G };
+  return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, israelStatus, G };
 })();
