@@ -380,11 +380,19 @@ button { font-family: var(--mono); }
 .fs-line { color: var(--text); line-height: 1.5; }
 .fs-line.fs-problem { color: var(--amber); }
 
-.scope-wrap { margin: 2px 0 5px; }
+.scope-wrap { margin: 2px 0 5px; position: relative; }
 .scope-view {
   display: block; width: 100%; height: auto;
   background: var(--water); border: 1px solid var(--line);
 }
+/* strike-hit clip: plays over the radar the instant a package lands a hit */
+.scope-hit-video {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; border: 1px solid var(--red);
+  opacity: 0; animation: scopeHitIn 0.18s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes scopeHitIn { to { opacity: 1; } }
 .scope-grid circle { fill: none; stroke: var(--line); stroke-width: 0.6; opacity: 0.5; }
 .scope-grid line { stroke: var(--line); stroke-width: 0.8; opacity: 0.7; }
 

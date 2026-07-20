@@ -205,6 +205,7 @@ const Game = (() => {
     }
 
     const ev = { cls: 'friendly', title: `BDA: ${target.name}`, dWorld: worldCost };
+    ev.hit = outcome === 'destroyed' || outcome === 'damaged';
 
     if (outcome === 'destroyed') {
       target.status = 'destroyed';
@@ -273,7 +274,10 @@ const Game = (() => {
         if (resolved) return;
         resolved = true;
         AudioSys.play('impact');
-        for (const bm of batch) events.push(resolveImpact(target, bm.pkg));
+        const batchEvents = batch.map(bm => resolveImpact(target, bm.pkg));
+        for (const ev of batchEvents) events.push(ev);
+        // a successful hit plays the strike clip in the target's radar window
+        if (batchEvents.some(ev => ev.hit)) MapView.playStrikeHit(target);
         UI.renderAll(G);
         next();
       };
