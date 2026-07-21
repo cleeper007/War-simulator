@@ -192,6 +192,37 @@ button { font-family: var(--mono); }
 .advisor.dove { border-left-color: var(--green); }
 .advisor.mil  { border-left-color: var(--amber); }
 
+/* ---- carrier strike groups ---- */
+.cv-row { padding: 5px 0; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.cv-row:last-child { border-bottom: none; margin-bottom: 8px; }
+.cv-name { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; }
+.cv-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.cv-hull { font-size: 12.5px; color: var(--text); font-weight: bold; }
+.cv-state { font-size: 10.5px; letter-spacing: 1px; }
+.cv-state.cv-forward { color: var(--red); }
+.cv-state.cv-back    { color: var(--green); }
+.cv-state.cv-moving  { color: var(--amber); }
+.cv-state.cv-away    { color: var(--dim); }
+.cv-state.cv-lost    { color: var(--red); text-decoration: line-through; }
+.cv-note { font-size: 10.5px; line-height: 1.4; margin-top: 2px; }
+
+#fleet-buttons { display: flex; flex-direction: column; gap: 6px; }
+#fleet-buttons button {
+  text-align: left; padding: 7px 10px; font-size: 11.5px;
+  background: var(--bg-panel2); border: 1px solid var(--line);
+  color: var(--text); cursor: pointer;
+}
+#fleet-buttons button:hover:not(:disabled) { border-color: var(--blue); }
+#fleet-buttons button:disabled { opacity: 0.35; cursor: not-allowed; }
+#fleet-buttons .diplo-desc { color: var(--dim); display: block; font-size: 10.5px; }
+#fleet-status { font-size: 10px; letter-spacing: 1px; }
+
+/* a deck under way, and one that has taken a hit */
+.us-asset.cv-moving .carrier-hull { fill: var(--amber); }
+.us-asset.cv-moving text { fill: var(--amber); }
+.us-asset.cv-damaged .carrier-hull { fill: var(--red); opacity: 0.8; }
+.us-asset.cv-damaged text { fill: var(--red); }
+
 #diplo-buttons { display: flex; flex-direction: column; gap: 6px; }
 #diplo-buttons button {
   text-align: left; padding: 7px 10px; font-size: 11.5px;

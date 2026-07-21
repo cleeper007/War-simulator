@@ -115,7 +115,11 @@ const MapView = (() => {
   }
 
   function assetIcon(a) {
-    const g = el('g', { class: 'us-asset' + (a.ally ? ' ally' : ''), id: `asset-${a.id}`, transform: `translate(${a.x},${a.y})` });
+    // active === false is a unit not yet in theater (the second CSG, mid-ocean)
+    const g = el('g', {
+      class: 'us-asset' + (a.ally ? ' ally' : '') + (a.active === false ? ' hidden' : ''),
+      id: `asset-${a.id}`, transform: `translate(${a.x},${a.y})`,
+    });
     let icon;
     if (a.kind === 'carrier') {
       icon = carrierGroup();
@@ -325,6 +329,68 @@ const MapView = (() => {
     dot.setAttribute('class', cls + (status !== 'OPEN' ? ' pulsing' : ''));
     label.setAttribute('class', cls);
     label.textContent = `HORMUZ: ${status}`;
+  }
+
+  // ---- carrier movement ----
+  // Carriers are the only US assets on this plot that move. The icon animates
+  // between stations and the US_ASSETS entry moves with it, so sortie origins,
+  // flight paths and incoming salvos all track the hull rather than a fixed
+  // point on the chart.
+  function moveAsset(id, x, y, animate = true) {
+    const a = US_ASSETS.find(u => u.id === id);
+    const g = document.getElementById(`asset-${id}`);
+    const fromX = a ? a.x : x, fromY = a ? a.y : y;
+    if (a) { a.x = x; a.y = y; }
+    if (!g) return;
+    if (!animate || (fromX === x && fromY === y)) {
+      g.setAttribute('transform', `translate(${x},${y})`);
+      return;
+    }
+    const t0 = performance.now(), dur = 900;
+    (function step(now) {
+      const p = Math.min(1, (now - t0) / dur);
+      const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; // easeInOut
+      g.setAttribute('transform', `translate(${fromX + (x - fromX) * e},${fromY + (y - fromY) * e})`);
+      if (p < 1) requestAnimationFrame(step);
+    })(performance.now());
+  }
+
+  function setAssetActive(id, active) {
+    const a = US_ASSETS.find(u => u.id === id);
+    if (a) a.active = active;
+    const g = document.getElementById(`asset-${id}`);
+    if (g) g.classList.toggle('hidden', !active);
+  }
+
+  // Put a deck where its state says it is. A carrier under orders to reposition
+  // is drawn halfway between its stations — the picture always answers "where
+  // is she, and can she be shot at" without opening a panel.
+  function setCarrierPosture(cv) {
+    const st = CARRIER_STATIONS[cv.id];
+    if (!st) return;
+    setAssetActive(cv.id, cv.arrived && !cv.lost);
+    const to = st[cv.posture] || st.back;
+    const from = cv.moving ? st[cv.moving] : null;
+    const p = from ? { x: (to.x + from.x) / 2, y: (to.y + from.y) / 2 } : to;
+    moveAsset(cv.id, p.x, p.y, true);
+    const g = document.getElementById(`asset-${cv.id}`);
+    if (g) {
+      g.classList.toggle('cv-moving', !!cv.moving);
+      g.classList.toggle('cv-damaged', !!cv.damaged);
+    }
+  }
+
+  // The second carrier's run-in: progress 0 is over the horizon, 1 is on
+  // station. She stays off the plot until she is actually inside the frame —
+  // a hull the COP can't see is a hull that isn't there yet.
+  function setCarrierIngress(id, progress) {
+    const st = CARRIER_STATIONS[id];
+    if (!st) return;
+    if (progress < 0) { setAssetActive(id, false); return; }   // not yet ordered
+    const x = FORD_INGRESS.x + (st.back.x - FORD_INGRESS.x) * progress;
+    const y = FORD_INGRESS.y + (st.back.y - FORD_INGRESS.y) * progress;
+    moveAsset(id, x, y, true);
+    setAssetActive(id, x < 985 && y < 690);
   }
 
   function flashAsset(assetId) {
@@ -542,12 +608,14 @@ const MapView = (() => {
     const cruise = assetType === 'cruise';
     // Half of all fighter sorties are flown off the carrier strike groups:
     // pick the carrier/land group at 50/50, then a random airframe within it.
-    const fromGroup = Math.random() < 0.5 ? 'carrier' : 'land';
+    const fromGroup = (Math.random() < 0.5 && carriersOnStation()) ? 'carrier' : 'land';
     const ft = stealth ? { type: 'B-2', cs: 'SPIRIT' }
       : cruise ? { type: 'RGM-109 TLAM', cs: 'ARSENAL' }
       : pick(FIGHTER_TYPES.filter(f => f.from === fromGroup));
+    // TLAMs come off whichever strike group is actually in the water
     const origin = stealth ? US_ASSETS.find(a => a.id === 'diego')
-      : cruise ? US_ASSETS.find(a => a.id === STRIKE_ORIGINS.cruise)
+      : cruise ? (US_ASSETS.find(a => a.id === STRIKE_ORIGINS.cruise && a.active !== false)
+          || nearestSortieBase(target, true))
       : nearestSortieBase(target, ft.from === 'carrier');
     const callsign = `${ft.cs} ${rand(1, 9)}${rand(1, 9)}`;
     const baseName = origin.id === 'diego' ? 'DIEGO GARCIA' : origin.short;
@@ -805,13 +873,17 @@ const MapView = (() => {
   function nearestSortieBase(target, wantCarrier) {
     let best = null, bd = Infinity;
     for (const a of US_ASSETS) {
-      if (!a.sortie) continue;
+      if (!a.sortie || a.active === false) continue;
       if ((a.kind === 'carrier') !== wantCarrier) continue;
       const d = Math.hypot(a.x - target.x, a.y - target.y);
       if (d < bd) { bd = d; best = a; }
     }
-    return best;
+    // every deck sunk or still crossing: the sortie flies from land instead
+    return best || (wantCarrier ? nearestSortieBase(target, false) : null);
   }
+
+  const carriersOnStation = () =>
+    US_ASSETS.some(a => a.kind === 'carrier' && a.sortie && a.active !== false);
 
   // ---- the map's only outbound-strike cue: a short pulse on the target ----
   function targetPulse(target) {
@@ -1331,5 +1403,5 @@ const MapView = (() => {
 
   return { render, updateTarget, setHormuz, flashAsset, animateStrike, playStrikeHit,
     whenFootageDone, updateTransit, animateIranianAttacks, setTargetClickHandler,
-    raidOpen };
+    setCarrierPosture, setCarrierIngress, raidOpen };
 })();

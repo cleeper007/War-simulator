@@ -4,6 +4,7 @@
 
 const Game = (() => {
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
   // ---- game state ----
   const G = {
@@ -13,8 +14,20 @@ const Game = (() => {
     world: 60,             // world opinion 0–100
     hormuz: 'OPEN', hormuzClosedTurns: 0,
     casualties: { us: 7 }, // the destroyer attack that starts the crisis
-    res: { fighters: 4, cruise: 8, stealth: 1, specops: 1 },
-    caps: { fighters: 6, cruise: 12, stealth: 2, specops: 1 },
+    // Fighter and TLAM capacity is DERIVED from where the carriers are (see
+    // fleetCapacity) — these are the opening values with the Lincoln alone,
+    // forward. B-2s and the SOF task force are not carrier-based.
+    res: { fighters: 3, cruise: 6, stealth: 1, specops: 1 },
+    caps: { fighters: 4, cruise: 8, stealth: 2, specops: 1 },
+    // The fleet. One deck to start; the second has to be sent for.
+    carriers: [
+      { id: 'csg-lincoln', name: 'USS Abraham Lincoln', hull: 'CVN-72',
+        arrived: true, posture: 'forward', moving: null, damaged: false, lost: false },
+      { id: 'csg-ford', name: 'USS Gerald R. Ford', hull: 'CVN-78',
+        arrived: false, posture: 'back', moving: null, damaged: false, lost: false },
+    ],
+    secondCarrierOrdered: false, secondCarrierEta: 0,
+    alliedFighters: 0,     // coalition and IAF squadrons folded into the fighter cap
     strikesThisTurn: 0, struckThisTurn: [],
     missions: [],          // strike packages in flight: {targetId, pkg, eta}
     sanctions: 0, coalition: false, addressCooldown: 0,
@@ -28,8 +41,15 @@ const Game = (() => {
     // special operations (see specops.js)
     raid: 'none', raidThisTurn: false, isrPrep: 0,
     regimeChaosTurns: 0, regimeErratic: false, hostageCrisis: false,
-    stats: { strikes: 0, destroyed: 0, aircraftLost: 0, peakOil: 84, backchannels: 0 },
+    stats: { strikes: 0, destroyed: 0, aircraftLost: 0, peakOil: 84, backchannels: 0, carriersLost: 0 },
 
+    // Is the flagship out of the anti-ship envelope? Derived rather than stored:
+    // with two independently-stationed decks there is no single fleet posture,
+    // and a stored copy of this would be one more thing to keep in sync.
+    get csgPulledBack() {
+      const cv = this.carriers[0];
+      return !cv.lost && !cv.moving && cv.posture === 'back';
+    },
     nukeDegraded() {
       let d = 0;
       for (const id of ['natanz', 'fordow']) {
@@ -68,7 +88,9 @@ const Game = (() => {
 
   // ---- save / continue (localStorage) ----
   const Save = (() => {
-    const KEY = 'cic-save-v2';   // bump the version to invalidate old saves
+    // v3: the fleet became state. A v2 save has caps that no longer correspond
+    // to any carrier disposition, so those saves are retired rather than migrated.
+    const KEY = 'cic-save-v3';   // bump the version to invalidate old saves
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -77,12 +99,13 @@ const Game = (() => {
       'diploUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep',
       'israelPosture', 'israelPatience', 'israelStrikesUsed', 'israelJointAvailable',
       'regimeChaosTurns', 'regimeErratic', 'hostageCrisis', 'stats',
+      'carriers', 'secondCarrierOrdered', 'secondCarrierEta', 'alliedFighters',
     ];
 
     function write() {
       if (G.over) return;
       try {
-        const data = { version: 2, muted: AudioSys.isMuted(), fields: {}, targets: {} };
+        const data = { version: 3, muted: AudioSys.isMuted(), fields: {}, targets: {} };
         for (const f of FIELDS) data.fields[f] = G[f];
         for (const t of TARGETS) data.targets[t.id] = t.status || 'intact';
         localStorage.setItem(KEY, JSON.stringify(data));
@@ -92,7 +115,7 @@ const Game = (() => {
     function read() {
       try {
         const data = JSON.parse(localStorage.getItem(KEY));
-        return data && data.version === 2 ? data : null;
+        return data && data.version === 3 ? data : null;
       } catch (e) { return null; }
     }
 
@@ -112,6 +135,222 @@ const Game = (() => {
       w += t.status === 'damaged' ? 0.5 : 1;
     }
     return w; // 0..3
+  }
+
+  // ============================================================
+  // CARRIER STRIKE GROUPS
+  // ------------------------------------------------------------
+  // Every fighter sortie and every Tomahawk in this war comes off a deck, so
+  // where the decks sit is the standing decision underneath all the others.
+  // FORWARD is the mouth of Hormuz: the full air wing, and a hull inside every
+  // anti-ship missile, swarm boat and midget submarine Iran has left. BACK is
+  // the deep Arabian Sea: untouchable, and half the strike power. The move
+  // between them takes a turn, and that turn buys the worst of both — reduced
+  // capability, still exposed.
+  //
+  // Nothing here mutates G.caps directly. Capacity is recomputed from the
+  // fleet's disposition (see fleetCapacity), so a posture change can never
+  // leak a permanent bonus and a restored save needs no migration.
+  // ============================================================
+
+  // per-deck contribution at FORWARD station. The Ford is the newer and larger
+  // ship and generates the heavier sortie rate; halved at BACK, she is worth
+  // exactly the +3 fighters / +4 TLAM her arrival is advertised as.
+  const CARRIER_BASE = {
+    'csg-lincoln': { fighters: 4, cruise: 8, repFighters: 2, repCruise: 2 },
+    'csg-ford':    { fighters: 6, cruise: 8, repFighters: 2, repCruise: 2 },
+  };
+  const FORD_TRANSIT_TURNS = 5;
+
+  const carrierById = (id) => G.carriers.find(c => c.id === id);
+
+  // how much of a deck's air wing is actually in the fight
+  function carrierFactor(cv) {
+    if (cv.lost || !cv.arrived) return 0;
+    // repositioning flies at the same reduced rate as sitting back, because
+    // that is what a carrier in transit is: off station either way
+    let f = (cv.moving || cv.posture === 'back') ? 0.5 : 1;
+    if (cv.damaged) f *= 0.5;   // fires out, catapults down, flying a fraction of her rate
+    return f;
+  }
+
+  // exposure to Iranian anti-ship fires, 0..1 — the mirror of the capability above
+  function carrierExposure(cv) {
+    if (cv.lost || !cv.arrived) return 0;
+    if (cv.moving) return 0.5;                    // clearing the area, or closing back in
+    return cv.posture === 'forward' ? 1 : 0;
+  }
+
+  // fighter/TLAM caps and per-turn replenishment, derived from the whole fleet
+  function fleetCapacity() {
+    let fighters = 0, cruise = 0, repFighters = 0, repCruise = 0;
+    for (const cv of G.carriers) {
+      const f = carrierFactor(cv);
+      if (!f) continue;
+      const b = CARRIER_BASE[cv.id];
+      fighters += b.fighters * f;
+      cruise += b.cruise * f;
+      repFighters += b.repFighters * f;
+      repCruise += b.repCruise * f;
+    }
+    return {
+      // allied squadrons fly from land and survive the loss of every deck
+      fighters: Math.round(fighters) + G.alliedFighters,
+      cruise: Math.round(cruise),
+      repFighters: Math.round(repFighters),
+      repCruise: Math.round(repCruise),
+    };
+  }
+
+  // push the derived caps into G and clamp any stock that no longer fits under
+  // them — pulling back doesn't just cap the magazine, it empties what the
+  // deck can no longer hold ready
+  function syncFleetCaps() {
+    const cap = fleetCapacity();
+    G.caps.fighters = cap.fighters;
+    G.caps.cruise = cap.cruise;
+    G.res.fighters = Math.min(G.res.fighters, G.caps.fighters);
+    G.res.cruise = Math.min(G.res.cruise, G.caps.cruise);
+  }
+
+  // put every deck where its state says it is (also used on load/restore)
+  function syncCarrierMap() {
+    for (const cv of G.carriers) {
+      if (cv.id === 'csg-ford' && !cv.arrived) {
+        // still crossing: place her along the run-in, or nowhere at all
+        MapView.setCarrierIngress(cv.id, G.secondCarrierOrdered
+          ? 1 - G.secondCarrierEta / FORD_TRANSIT_TURNS : -1);
+        continue;
+      }
+      MapView.setCarrierPosture(cv);
+    }
+  }
+
+  // ---- the two fleet commands ----
+
+  // Surging a second deck is a five-turn decision. She is somewhere in the
+  // Indian Ocean when the order goes out and no amount of wanting moves her
+  // faster — the cost of the second carrier is paid in the turns before it.
+  function orderCarrier() {
+    if (G.over || G.secondCarrierOrdered) return;
+    G.secondCarrierOrdered = true;
+    G.secondCarrierEta = FORD_TRANSIT_TURNS;
+    syncCarrierMap();
+    AudioSys.play('cable');
+    UI.renderAll(G);
+    Save.write();
+  }
+
+  // Order a deck between stations. Takes effect at the end of the turn — the
+  // order is given now, the ship is somewhere in between until then.
+  function toggleCarrierPosture(id) {
+    if (G.over || SpecOps.busy()) return;
+    const cv = carrierById(id);
+    if (!cv || !cv.arrived || cv.lost || cv.moving) return;
+    cv.moving = cv.posture === 'forward' ? 'back' : 'forward';
+    syncFleetCaps();
+    MapView.setCarrierPosture(cv);
+    AudioSys.play('cable');
+    UI.renderAll(G);
+    Save.write();
+  }
+
+  // ---- end-of-turn fleet movement ----
+
+  // a deck that spent this turn repositioning is now on its new station
+  function checkCarrierTransit() {
+    const events = [];
+    for (const cv of G.carriers) {
+      if (!cv.moving) continue;
+      cv.posture = cv.moving;
+      cv.moving = null;
+      MapView.setCarrierPosture(cv);
+      events.push(cv.posture === 'forward' ? {
+        cls: 'friendly', title: `${cv.hull} ON STATION — HORMUZ APPROACHES`,
+        text: `${cv.name} has closed back up to the strait and resumed full flight operations. Her air wing is at your disposal again — and so is she, to everything Iran can range on the Gulf.`,
+      } : {
+        cls: 'friendly', title: `${cv.hull} WITHDRAWN TO THE ARABIAN SEA`,
+        text: `${cv.name} is clear of the anti-ship envelope and steaming in open water. She is out of reach, and so is half of what she could do for you: the tanker chain from out here only supports a fraction of her sortie rate.`,
+      });
+    }
+    if (events.length) syncFleetCaps();
+    return events;
+  }
+
+  // tick the second carrier's transit; on arrival she joins at safe standoff
+  function checkCarrierArrival() {
+    if (!G.secondCarrierOrdered || G.secondCarrierEta <= 0) return null;
+    G.secondCarrierEta--;
+    const ford = carrierById('csg-ford');
+
+    if (G.secondCarrierEta > 0) {
+      MapView.setCarrierIngress(ford.id, 1 - G.secondCarrierEta / FORD_TRANSIT_TURNS);
+      return null;
+    }
+
+    ford.arrived = true;
+    ford.posture = 'back';
+    ford.moving = null;
+    syncFleetCaps();
+    MapView.setCarrierPosture(ford);
+    AudioSys.play('cable');
+    return {
+      cls: 'friendly', title: 'CVN-78 GERALD R. FORD ON STATION',
+      text: 'The Gerald R. Ford Carrier Strike Group has arrived in the Arabian Sea and checked in with Fifth Fleet. Her air wing is available from standoff at reduced rate — bring her up to the strait and she doubles what she gives you, on the same terms as every other hull in that water.',
+    };
+  }
+
+  // ---- Iranian anti-ship fires ----
+  // The reason a carrier at the strait is a decision and not scenery. The
+  // threat is Iran's navy: kill the naval bases and the risk goes with them.
+  function carrierRisk() {
+    const events = [];
+    const naval = IranAI.navalStrength(); // 0..2
+    if (naval <= 0) return events;        // nothing left to shoot at her
+    for (const cv of G.carriers) {
+      const exposure = carrierExposure(cv);
+      if (!exposure) continue;
+      // 10% a turn at full Iranian naval strength, forward — halved in transit,
+      // and falling to nothing as their naval bases burn
+      if (Math.random() >= 0.05 * naval * exposure) continue;
+      events.push(strikeCarrier(cv, naval));
+    }
+    return events;
+  }
+
+  // Resolve a hit. The event carries the numbers; applyEvent spends them, so
+  // nothing here touches approval or the casualty count directly.
+  function strikeCarrier(cv, naval) {
+    // an unlucky hit hurts; only a coordinated salvo from an intact navy has
+    // any real chance of putting a supercarrier under
+    const sunk = Math.random() < (naval >= 1 ? 0.18 : 0.06);
+    AudioSys.play('aircraftLost', 600);
+
+    if (sunk) {
+      cv.lost = true;
+      cv.moving = null;
+      G.stats.carriersLost++;
+      syncFleetCaps();
+      MapView.setCarrierPosture(cv);
+      return {
+        cls: 'iran', title: `${cv.hull} ${cv.name.toUpperCase()} LOST`,
+        text: `A coordinated Iranian salvo — anti-ship ballistic missiles from the coast, cruise missiles from the islands, and small craft coming in underneath the engagement envelope — saturated the strike group's defenses and put multiple weapons into ${cv.name}. Flooding was uncontrolled. The order to abandon ship was given four hours later and her escorts recovered the great majority of her ship's company; the rest are dead or unaccounted for. The United States has lost a nuclear aircraft carrier for the first time in its history, on television, and Tehran is claiming the largest naval victory since the age of sail.`,
+        casualties: rand(45, 85), dApproval: -20, dOil: 16, dWorld: -3,
+        flashAsset: cv.id, attack: { kind: 'missile', base: cv.id, count: 6 },
+      };
+    }
+
+    cv.damaged = true;
+    cv.moving = null;
+    cv.posture = 'back';   // she comes off the line whether you ordered it or not
+    syncFleetCaps();
+    MapView.setCarrierPosture(cv);
+    return {
+      cls: 'iran', title: `${cv.hull} STRUCK — WITHDRAWING FROM THE STRAIT`,
+      text: `An Iranian anti-ship missile got through the screen and hit ${cv.name} above the waterline, starting fires on the hangar deck. Damage control has the ship, but her flight deck is fouled and her catapults are down. She is retiring to the Arabian Sea and will fly at a fraction of her rate for the rest of this war. Fifth Fleet did not order the withdrawal — the damage did.`,
+      casualties: rand(8, 25), dApproval: -7, dOil: 6,
+      flashAsset: cv.id, attack: { kind: 'missile', base: cv.id, count: 4 },
+    };
   }
 
   // ---- Israel: the joint deep-strike option ----
@@ -382,7 +621,9 @@ const Game = (() => {
         if (G.coalition) return;
         G.coalition = true;
         G.world = clamp(G.world + 5, 0, 100);
-        G.caps.fighters += 2;
+        // allied squadrons fly from land — they survive whatever happens afloat
+        G.alliedFighters += 2;
+        syncFleetCaps();
         G.res.fighters = Math.min(G.res.fighters + 2, G.caps.fighters);
         events.push({
           cls: 'world', title: 'Strike coalition assembled',
@@ -399,7 +640,8 @@ const Game = (() => {
         syncJointPackages();
         G.world = clamp(G.world - 8, 0, 100);
         G.oil += 5;
-        G.caps.fighters += 2;
+        G.alliedFighters += 2;
+        syncFleetCaps();
         G.res.fighters = Math.min(G.res.fighters + 2, G.caps.fighters);
         events.push({
           cls: 'world', title: 'Israel brought into the operation',
@@ -498,6 +740,9 @@ const Game = (() => {
       // Tehran is responding to their strike as much as to yours
       const israeli = israelTurn();
       const events = IranAI.respond(G);
+      // anti-ship fires are resolved against wherever the decks sat THIS turn,
+      // before any repositioning ordered this turn completes below
+      for (const ev of carrierRisk()) events.unshift(ev);
       if (israeli) events.unshift(israeli);
       if (events.some(ev => ev.casualties || ev.hormuz === 'CLOSED')) AudioSys.play('retaliation');
 
@@ -522,8 +767,14 @@ const Game = (() => {
         else if (G.oil >= 115) G.approval = clamp(G.approval - 1, 0, 100);
         if (G.turn > 8) G.approval = clamp(G.approval - 0.5, 0, 100);
 
+        // fleet movement closes the turn: decks that spent it repositioning are
+        // on their new stations, and the second carrier is one leg closer
+        const fleet = checkCarrierTransit();
+        const arrival = checkCarrierArrival();
+        if (arrival) fleet.push(arrival);
+
         const day = Math.ceil(G.turn / 2);
-        const all = [...bda, ...events];
+        const all = [...bda, ...events, ...fleet];
         UI.setTicker(IranAI.headlines(G, all));
         const result = checkEnd();
 
@@ -549,9 +800,11 @@ const Game = (() => {
       return;
     }
 
-    // replenish
-    G.res.fighters = Math.min(G.res.fighters + 2, G.caps.fighters);
-    G.res.cruise = Math.min(G.res.cruise + 2, G.caps.cruise);
+    // replenish — what the decks can turn around depends on where they are
+    syncFleetCaps();
+    const cap = fleetCapacity();
+    G.res.fighters = Math.min(G.res.fighters + cap.repFighters, G.caps.fighters);
+    G.res.cruise = Math.min(G.res.cruise + cap.repCruise, G.caps.cruise);
     if (G.turn % 3 === 0) G.res.stealth = Math.min(G.res.stealth + 1, G.caps.stealth);
 
     if (G.addressCooldown > 0) G.addressCooldown--;
@@ -626,7 +879,8 @@ const Game = (() => {
 
     const grades = [
       ['MILITARY SUCCESS', milGrade, `Nuclear program ${deg}% degraded · ${G.stats.destroyed} targets destroyed · ${G.stats.aircraftLost} aircraft lost`],
-      ['AMERICAN LIVES', livesGrade, `${G.casualties.us} US service members killed`],
+      ['AMERICAN LIVES', livesGrade, `${G.casualties.us} US service members killed` +
+        (G.stats.carriersLost ? ` · ${G.stats.carriersLost} carrier${G.stats.carriersLost > 1 ? 's' : ''} lost` : '')],
       ['DIPLOMATIC STANDING', worldGrade, `World opinion ${Math.round(G.world)}/100`],
       ['ECONOMIC DAMAGE', econGrade, `Peak oil price $${Math.round(G.stats.peakOil)}/bbl`],
     ];
@@ -665,6 +919,8 @@ const Game = (() => {
     document.getElementById('title-screen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     MapView.render();
+    syncFleetCaps();
+    syncCarrierMap();   // the decks are only where the fleet state says they are
     MapView.setTargetClickHandler((t) => {
       if (G.over || SpecOps.busy()) return;
       if (t.status === 'destroyed') return;
@@ -719,5 +975,7 @@ const Game = (() => {
 
   // airDefenseWeight is exported read-only for the tactical scope's threat ring —
   // the scope dramatizes the number, it never feeds back into the strike math.
-  return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, israelStatus, airDefenseWeight, G };
+  return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, israelStatus,
+    airDefenseWeight, orderCarrier, toggleCarrierPosture, carrierFactor, carrierExposure,
+    FORD_TRANSIT_TURNS, G };
 })();
