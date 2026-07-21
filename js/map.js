@@ -51,6 +51,10 @@ const MapView = (() => {
         return el('path', { class: 'tgt-core', d: 'M0,-5.5 L2.5,3 L0,1.2 L-2.5,3 Z' });
       case 'naval':
         return el('path', { class: 'tgt-core', d: 'M-4,-1 L4,-1 L2,3 L-2,3 Z M-0.8,-5 L0.8,-5 L0.8,-1 L-0.8,-1 Z' });
+      case 'airbase':   // swept-wing planform, nose up
+        return el('path', { class: 'tgt-core',
+          d: 'M0,-5.5 L1.1,-1.6 L5,1.4 L5,2.6 L1.1,1.4 L1.1,3.4 L2.4,4.8 L2.4,5.5 ' +
+             'L0,4.7 L-2.4,5.5 L-2.4,4.8 L-1.1,3.4 L-1.1,1.4 L-5,2.6 L-5,1.4 L-1.1,-1.6 Z' });
       case 'oil':
         return el('circle', { class: 'tgt-core', r: 3.5 });
       default:
@@ -962,6 +966,7 @@ const MapView = (() => {
   const HIT_CLIPS = {
     'msl-shiraz': 'video/shiraz-hit.mp4',
     'naval-bandar': 'video/naval-bandar-hit.mp4',
+    'tabriz-ab': 'video/tabriz-hit.mp4',
   };
 
   // Called by game.js only when BDA confirms a successful hit (destroyed/damaged).

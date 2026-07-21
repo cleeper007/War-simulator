@@ -106,6 +106,16 @@ const TARGETS = [
     ],
   },
   {
+    id: 'tabriz-ab', name: 'Tabriz Air Base', short: 'TABRIZ AB',
+    type: 'airbase', x: 260, y: 54,
+    desc: 'Second Tactical Air Base — MiG-29 and F-5 squadrons covering the northwestern approaches, and the dispersal field aircraft are flown to when the interior is hit. Far from the Gulf: a long way in and a long way back out.',
+    world: -3,
+    packages: [
+      { asset: 'fighter', qty: 2, base: 0.66, label: 'Air strike — 2 fighter sorties (deep, unrefuelled leg)' },
+      { asset: 'cruise', qty: 3, base: 0.80, label: 'TLAM salvo — 3 cruise missiles' },
+    ],
+  },
+  {
     id: 'kharg', name: 'Kharg Island Oil Terminal', short: 'KHARG OIL',
     type: 'oil', x: 394, y: 387,
     desc: 'Handles ~90% of Iranian crude exports. Crippling it strangles Tehran\'s economy — and spikes global oil prices. Heavy diplomatic cost.',
