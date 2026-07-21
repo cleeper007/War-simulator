@@ -155,7 +155,7 @@ const IranAI = (() => {
     // coordination: killing command degrades the response machine
     const irgc = TARGETS.find(t => t.id === 'irgc-hq');
     let coord = irgc.status === 'destroyed' ? 0.6 : irgc.status === 'damaged' ? 0.8 : 1;
-    if (G.regimeChaosTurns > 0) coord *= 0.4;                       // decapitated: paralysis
+    if (G.regimeChaosTurns > 0) coord *= 0.55;                      // decapitated: paralysis
     else if (G.regimeErratic) coord = Math.min(1.15, coord + 0.25); // erratic remnant: lashing out
     // the war machine spins up over the first days, faster when provoked
     const spool = Math.min(1, 0.5 + 0.25 * (G.turn - 1) + (struckAny ? 0.25 : 0));
@@ -197,8 +197,10 @@ const IranAI = (() => {
       events.push(EV.backchannelFeeler());
     }
 
-    // captured raid personnel are a recurring propaganda drumbeat
-    if (G.hostageCrisis && chance(0.35)) events.push(EV.hostageParade());
+    // Captured raid personnel are a recurring propaganda drumbeat — a standing
+    // political cost, not a death spiral: often enough to stay a running sore,
+    // rare enough that it cannot bleed a presidency out on its own.
+    if (G.hostageCrisis && chance(0.22)) events.push(EV.hostageParade());
 
     // Hormuz reopens the war-sim way: break Iran's navy and the Fifth Fleet
     // clears the strait by force. While the navy fights, it mostly stays shut.

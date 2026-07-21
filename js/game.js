@@ -56,12 +56,13 @@ const Game = (() => {
     // 'pyrrhic' bought the same decapitation at the price of the whole team.
     raidDecapitated() { return this.raid === 'success' || this.raid === 'pyrrhic'; },
     negotiationReady() {
-      // Tehran only talks when it is already losing the war: the program largely
-      // gone AND its ability to fight visibly draining away. A successful
-      // decapitation raid (with the pragmatists in charge) lowers the bar.
-      const degNeeded = this.raidDecapitated() && !this.regimeErratic ? 75 : 100;
+      // Tehran only talks when it is already losing the war: the program gone
+      // AND its ability to fight visibly draining away. The raid does NOT
+      // discount this gate — killing the leadership cannot substitute for
+      // destroying the thing the war is about, or the raid becomes the game.
+      // What it buys instead is a better chance at the table (see doDiplo).
       const warStr = IranAI.missileStrength() + IranAI.navalStrength(); // 0..4
-      return this.nukeDegraded() >= degNeeded && warStr <= 1.5;
+      return this.nukeDegraded() >= 100 && warStr <= 1.5;
     },
   };
 
@@ -327,9 +328,13 @@ const Game = (() => {
           // odds are driven by how badly Iran is losing, not by how calm things are
           const warStr = IranAI.missileStrength() + IranAI.navalStrength(); // 0..4
           const irgcDown = TARGETS.find(t => t.id === 'irgc-hq').status === 'destroyed';
+          // A dead leadership is leverage at the table rather than a shortcut to
+          // it: a lasting bonus while the pragmatists hold on, plus the sharper
+          // temporary one during the immediate power vacuum.
           const p = clamp(0.08 + (1.5 - warStr) * 0.12 + (irgcDown ? 0.08 : 0) +
             G.sanctions * 0.03 + G.negotiationMomentum +
-            (G.regimeChaosTurns > 0 ? 0.15 : 0) - (G.regimeErratic ? 0.2 : 0), 0.03, 0.65);
+            (G.raidDecapitated() && !G.regimeErratic ? 0.10 : 0) +
+            (G.regimeChaosTurns > 0 ? 0.15 : 0) - (G.regimeErratic ? 0.15 : 0), 0.03, 0.65);
           if (Math.random() < p) {
             G.negotiationsAccepted = true;
             G.diploUsed = true;

@@ -135,6 +135,8 @@ const SpecOps = (() => {
       `${label}: <span class="est-good">+${Math.round(v * 100)}%</span><br>`).join('');
     html += `EST. PROBABILITY OF SUCCESS: <span class="${sCls}">${pct}%</span><br>` +
       `<span class="dim">The mission runs about two minutes. It is narrated live in the tactical panel.</span><br>` +
+      `<span class="est-good">Success buys a window of Iranian paralysis and a weaker Tehran at the table.</span><br>` +
+      `<span class="est-warn">It does not destroy the nuclear program. Nothing here wins the war for you.</span><br>` +
       `<span class="est-bad">Attempting the raid costs world opinion — success or failure.</span><br>` +
       `<span class="est-bad">Short of success, operators will be killed or captured on Iranian soil.</span>`;
     $('specops-estimate').innerHTML = html;
@@ -329,27 +331,27 @@ const SpecOps = (() => {
   const OUTCOMES = {
     clean(G, events) {
       G.raid = 'success';
-      G.approval = clamp(G.approval + 12, 0, 100);
-      G.regimeChaosTurns = 3;
+      G.approval = clamp(G.approval + 8, 0, 100);
+      G.regimeChaosTurns = 2;
       events.push({
         cls: 'friendly', title: 'OBJECTIVE SECURED — LEADERSHIP TARGET ELIMINATED',
-        text: 'The task force is feet-dry, feet-wet, and aboard the recovery ship before Tehran state media finishes denying it. Not one American was hurt. The top of the regime\'s command chain is gone, and retaliation orders are not being issued — no one is sure who has the authority to issue them.',
-        dApproval: 12,
+        text: 'The task force is feet-dry, feet-wet, and aboard the recovery ship before Tehran state media finishes denying it. Not one American was hurt. The top of the regime\'s command chain is gone, and retaliation orders are not being issued — no one is sure who has the authority to issue them. CENTCOM\'s caution is in the last line of the assessment: this buys a window and a weaker Tehran at the table. It does not destroy a single centrifuge.',
+        dApproval: 8,
       });
       successAftermath(G, events);
     },
 
     heloDown(G, events) {
       G.raid = 'success';
-      G.approval = clamp(G.approval + 8, 0, 100);
-      G.world = clamp(G.world - 4, 0, 100);
+      G.approval = clamp(G.approval + 6, 0, 100);
+      G.world = clamp(G.world - 3, 0, 100);
       G.casualties.us += 1;
       G.stats.aircraftLost++;
-      G.regimeChaosTurns = 3;
+      G.regimeChaosTurns = 2;
       events.push({
         cls: 'friendly', title: 'OBJECTIVE SECURED — ONE AIRFRAME LOST ON THE OBJECTIVE',
         text: 'The overwatch helicopter went in inside the compound wall and the assault went anyway. The target is dead, the exploitation material is aboard the recovery ship, and one operator is coming home in a transfer case. The airframe was destroyed in place — badly enough to deny the technology, publicly enough that Tehran has wreckage to photograph.',
-        casualties: 1, dApproval: 8, dWorld: -4,
+        casualties: 1, dApproval: 6, dWorld: -3,
       });
       successAftermath(G, events);
     },
@@ -357,16 +359,16 @@ const SpecOps = (() => {
     mixed(G, events) {
       G.raid = 'pyrrhic';
       G.approval = clamp(G.approval - 3, 0, 100);
-      G.world = clamp(G.world - 6, 0, 100);
-      const c = rand(14, 22);
+      G.world = clamp(G.world - 5, 0, 100);
+      const c = rand(10, 16);
       G.casualties.us += c;
       G.stats.aircraftLost += 2;
       G.hostageCrisis = true;
-      G.regimeChaosTurns = 3;
+      G.regimeChaosTurns = 2;
       events.push({
         cls: 'iran', title: 'TARGET ELIMINATED — TASK FORCE DID NOT COME OUT',
         text: `They killed him. Positive identification was passed before the net went quiet. Then both helicopters were destroyed, the assault element was surrounded in the main house, and it ended the way it was always going to end without a ride home. ${c} Americans are dead; the survivors are in IRGC custody. The Supreme Leader is dead and so is the task force, and the country will spend a generation arguing about whether that was a trade worth making.`,
-        casualties: c, dApproval: -3, dWorld: -6,
+        casualties: c, dApproval: -3, dWorld: -5,
       });
       if (Math.random() < 0.55) {
         G.regimeErratic = true;
@@ -385,16 +387,16 @@ const SpecOps = (() => {
 
     failure(G, events) {
       G.raid = 'failed';
-      G.approval = clamp(G.approval - 14, 0, 100);
-      G.world = clamp(G.world - 10, 0, 100);
-      const c = rand(12, 18);
+      G.approval = clamp(G.approval - 9, 0, 100);
+      G.world = clamp(G.world - 7, 0, 100);
+      const c = rand(9, 14);
       G.casualties.us += c;
       G.stats.aircraftLost += 2;
       G.hostageCrisis = true;
       events.push({
         cls: 'iran', title: 'RAID COMPROMISED — TASK FORCE DESTROYED',
         text: `The compound was dressed and the ambush was laid. The assault helicopter was shot down on short final, the overwatch bird followed it, and the house was empty — no target, no family, no papers. ${c} Americans are dead and the survivors are in IRGC custody. Within hours Iranian state television is airing footage of captured Americans and burning stealth helicopters. It is the worst night for American special operations since Desert One, the pattern-of-life picture was wrong or leaked, and now Tehran holds hostages.`,
-        casualties: c, dApproval: -14, dWorld: -10,
+        casualties: c, dApproval: -9, dWorld: -7,
       });
     },
   };
