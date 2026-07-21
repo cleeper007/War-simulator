@@ -95,18 +95,18 @@ const UI = (() => {
   // The panel answers three questions at a glance: where is each deck, what is
   // it worth there, and can it be shot at.
   function carrierLine(cv) {
-    if (cv.lost) return { label: 'LOST', cls: 'cv-lost', note: 'Sunk in the Strait of Hormuz.' };
+    if (cv.lost) return { label: 'LOST', cls: 'cv-lost', note: 'Sunk in the Gulf of Oman.' };
     if (!cv.arrived) return null;   // handled by the order/ETA button below
     if (cv.moving) {
       return {
-        label: cv.moving === 'forward' ? 'CLOSING THE STRAIT' : 'WITHDRAWING',
+        label: cv.moving === 'forward' ? 'CLOSING THE GULF' : 'WITHDRAWING',
         cls: 'cv-moving',
         note: 'Repositioning — 50% strike capability, and still inside the envelope until she is clear.',
       };
     }
     if (cv.posture === 'forward') {
       return {
-        label: 'ON STATION — HORMUZ', cls: 'cv-forward',
+        label: 'ON STATION — GULF OF OMAN', cls: 'cv-forward',
         note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
           'Full sortie generation. Under threat from Iranian anti-ship fires.',
       };
@@ -127,32 +127,34 @@ const UI = (() => {
     status.style.color = naval > 0 ? 'var(--red)' : 'var(--green)';
 
     box.innerHTML = G.carriers.map(cv => {
+      const info = CARRIER_INFO[cv.id];
       const st = carrierLine(cv);
-      const head = `<div class="cv-head"><span class="cv-hull">${cv.hull}</span>` +
+      const head = `<div class="cv-head"><span class="cv-hull">${info.short}</span>` +
         `<span class="cv-state ${st ? st.cls : 'cv-away'}">${st ? st.label : 'NOT IN THEATER'}</span></div>`;
       const note = st ? st.note
         : G.secondCarrierOrdered
           ? `Under way from the Indian Ocean — ${G.secondCarrierEta} turn(s) out.`
           : 'Available to be surged into the theater.';
-      return `<div class="cv-row"><div class="cv-name dim">${cv.name}</div>${head}` +
+      return `<div class="cv-row"><div class="cv-name dim">${info.name}</div>${head}` +
         `<div class="cv-note dim">${note}</div></div>`;
     }).join('');
 
     const buttons = G.carriers.map(cv => {
+      const info = CARRIER_INFO[cv.id];
       if (cv.lost) return '';
       if (!cv.arrived) {
         return G.secondCarrierOrdered
-          ? `<button disabled>${cv.hull} EN ROUTE<span class="diplo-desc">` +
+          ? `<button disabled>${info.short} EN ROUTE<span class="diplo-desc">` +
             `ETA ${G.secondCarrierEta} turn(s). She cannot be hurried.</span></button>`
-          : `<button data-carrier-order="1">SURGE ${cv.hull} TO THE THEATER` +
-            `<span class="diplo-desc">Orders ${cv.name} to the Gulf. ${Game.FORD_TRANSIT_TURNS} turns out; ` +
+          : `<button data-carrier-order="1">SURGE ${info.short} TO THE THEATER` +
+            `<span class="diplo-desc">Orders ${info.name} to the Gulf. ${Game.FORD_TRANSIT_TURNS} turns out; ` +
             `arrives at standoff in the Arabian Sea. Free — the cost is the turns you wait.</span></button>`;
       }
       const fwd = cv.posture === 'forward';
       return `<button data-carrier-toggle="${cv.id}" ${cv.moving ? 'disabled' : ''}>` +
-        (cv.moving ? `${cv.hull} REPOSITIONING`
-          : fwd ? `PULL ${cv.hull} BACK TO THE ARABIAN SEA`
-          : `SEND ${cv.hull} FORWARD TO HORMUZ`) +
+        (cv.moving ? `${info.short} REPOSITIONING`
+          : fwd ? `PULL ${info.short} BACK TO THE ARABIAN SEA`
+          : `SEND ${info.short} FORWARD TO THE GULF OF OMAN`) +
         `<span class="diplo-desc">` +
         (cv.moving ? 'The order is given. She is between stations until the end of the turn.'
           : fwd ? 'Takes one turn at 50% capability, exposed until she is clear. Safe once there, at half the strike power.'

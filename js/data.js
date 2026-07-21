@@ -133,10 +133,10 @@ const TARGETS = [
 // (ATACMS/PrSM) — drawn with range rings on the forward-basing layer;
 // forward: lives on the toggleable forward-basing layer (off by default)
 const US_ASSETS = [
-  { id: 'csg-lincoln', name: 'CSG-3 — USS Abraham Lincoln', short: 'CVN-72 LINCOLN', x: 648, y: 522, kind: 'carrier', sortie: true,
-    desc: 'The only carrier strike group in theater, on station at the mouth of the Strait of Hormuz. Full sortie generation — and inside every anti-ship weapon Iran owns.' },
+  { id: 'csg-lincoln', name: 'USS Abraham Lincoln', short: 'LINCOLN', x: 710, y: 587, kind: 'carrier', sortie: true,
+    desc: 'The only carrier strike group in theater, on station in the middle of the Gulf of Oman. Full sortie generation — and inside every anti-ship weapon Iran owns.' },
   // labelAbove keeps her name clear of Diego Garcia's on the way in
-  { id: 'csg-ford', name: 'CSG-12 — USS Gerald R. Ford', short: 'CVN-78 FORD', x: 1060, y: 646, kind: 'carrier', sortie: true, active: false, labelAbove: true,
+  { id: 'csg-ford', name: 'USS Gerald R. Ford', short: 'FORD', x: 1060, y: 646, kind: 'carrier', sortie: true, active: false, labelAbove: true,
     desc: 'Second carrier strike group. Not in theater — she has to be sent for, and she has an ocean to cross.' },
   { id: 'udeid', name: 'Al Udeid AB — Qatar', short: 'AL UDEID', x: 427, y: 543, kind: 'airbase', sortie: true,
     desc: 'Forward headquarters, tankers and strike aircraft. Within Iranian ballistic missile range.' },
@@ -183,17 +183,25 @@ const US_ASSETS = [
     desc: 'IAF F-15I and F-16I squadrons west of Beersheba — the aircraft that would fly a deep-strike package into Iran.' },
 ];
 
-// ---- carrier stations ----
-// A deck is either FORWARD — the mouth of Hormuz, full sortie generation, and
-// inside the anti-ship envelope — or BACK in the deep Arabian Sea, safe and
-// flying at half rate. Repositioning between them takes a turn, and that turn
-// is spent at reduced capability while still exposed.
-const CARRIER_STATIONS = {
-  'csg-lincoln': { forward: { x: 648, y: 522 }, back: { x: 762, y: 620 } },
-  'csg-ford':    { forward: { x: 718, y: 528 }, back: { x: 846, y: 600 } },
+// ---- carrier strike groups ----
+// Ships are referred to by name everywhere the player can see them — hull
+// numbers mean nothing at a glance in the middle of a war.
+const CARRIER_INFO = {
+  'csg-lincoln': { name: 'USS Abraham Lincoln', short: 'LINCOLN' },
+  'csg-ford':    { name: 'USS Gerald R. Ford',  short: 'FORD' },
 };
 
-// Where CVN-78 begins her run-in: over the horizon east of the plot, outside
+// A deck is either FORWARD — in the Gulf of Oman, full sortie generation, and
+// inside the anti-ship envelope — or BACK in the deep Arabian Sea, safe and
+// flying at half rate. Repositioning between them takes a turn, and that turn
+// is spent at reduced capability while still exposed. Every station below sits
+// in open water clear of both coasts; check any change against the coastline.
+const CARRIER_STATIONS = {
+  'csg-lincoln': { forward: { x: 710, y: 587 }, back: { x: 786, y: 658 } },
+  'csg-ford':    { forward: { x: 766, y: 604 }, back: { x: 872, y: 616 } },
+};
+
+// Where the Ford begins her run-in: over the horizon east of the plot, outside
 // the frame. She closes one leg per turn until she's on station, on a track
 // that keeps her clear of the Diego Garcia marker.
 const FORD_INGRESS = { x: 1060, y: 646 };

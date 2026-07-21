@@ -19,12 +19,12 @@ const Game = (() => {
     // forward. B-2s and the SOF task force are not carrier-based.
     res: { fighters: 3, cruise: 6, stealth: 1, specops: 1 },
     caps: { fighters: 4, cruise: 8, stealth: 2, specops: 1 },
-    // The fleet. One deck to start; the second has to be sent for.
+    // The fleet. One deck to start; the second has to be sent for. Only mutable
+    // state lives here — names come from CARRIER_INFO by id, so a restored save
+    // can never carry a stale ship name back into the war.
     carriers: [
-      { id: 'csg-lincoln', name: 'USS Abraham Lincoln', hull: 'CVN-72',
-        arrived: true, posture: 'forward', moving: null, damaged: false, lost: false },
-      { id: 'csg-ford', name: 'USS Gerald R. Ford', hull: 'CVN-78',
-        arrived: false, posture: 'back', moving: null, damaged: false, lost: false },
+      { id: 'csg-lincoln', arrived: true, posture: 'forward', moving: null, damaged: false, lost: false },
+      { id: 'csg-ford', arrived: false, posture: 'back', moving: null, damaged: false, lost: false },
     ],
     secondCarrierOrdered: false, secondCarrierEta: 0,
     alliedFighters: 0,     // coalition and IAF squadrons folded into the fighter cap
@@ -142,7 +142,7 @@ const Game = (() => {
   // ------------------------------------------------------------
   // Every fighter sortie and every Tomahawk in this war comes off a deck, so
   // where the decks sit is the standing decision underneath all the others.
-  // FORWARD is the mouth of Hormuz: the full air wing, and a hull inside every
+  // FORWARD is the Gulf of Oman: the full air wing, and a hull inside every
   // anti-ship missile, swarm boat and midget submarine Iran has left. BACK is
   // the deep Arabian Sea: untouchable, and half the strike power. The move
   // between them takes a turn, and that turn buys the worst of both — reduced
@@ -163,6 +163,8 @@ const Game = (() => {
   const FORD_TRANSIT_TURNS = 5;
 
   const carrierById = (id) => G.carriers.find(c => c.id === id);
+  const cvName = (cv) => CARRIER_INFO[cv.id].name;    // "USS Abraham Lincoln"
+  const cvShort = (cv) => CARRIER_INFO[cv.id].short;  // "LINCOLN"
 
   // how much of a deck's air wing is actually in the fight
   function carrierFactor(cv) {
@@ -266,11 +268,11 @@ const Game = (() => {
       cv.moving = null;
       MapView.setCarrierPosture(cv);
       events.push(cv.posture === 'forward' ? {
-        cls: 'friendly', title: `${cv.hull} ON STATION — HORMUZ APPROACHES`,
-        text: `${cv.name} has closed back up to the strait and resumed full flight operations. Her air wing is at your disposal again — and so is she, to everything Iran can range on the Gulf.`,
+        cls: 'friendly', title: `${cvShort(cv)} ON STATION — GULF OF OMAN`,
+        text: `${cvName(cv)} has closed back up into the Gulf of Oman and resumed full flight operations. Her air wing is at your disposal again — and so is she, to everything Iran can range on that water.`,
       } : {
-        cls: 'friendly', title: `${cv.hull} WITHDRAWN TO THE ARABIAN SEA`,
-        text: `${cv.name} is clear of the anti-ship envelope and steaming in open water. She is out of reach, and so is half of what she could do for you: the tanker chain from out here only supports a fraction of her sortie rate.`,
+        cls: 'friendly', title: `${cvShort(cv)} WITHDRAWN TO THE ARABIAN SEA`,
+        text: `${cvName(cv)} is clear of the anti-ship envelope and steaming in open water. She is out of reach, and so is half of what she could do for you: the tanker chain from out here only supports a fraction of her sortie rate.`,
       });
     }
     if (events.length) syncFleetCaps();
@@ -295,13 +297,13 @@ const Game = (() => {
     MapView.setCarrierPosture(ford);
     AudioSys.play('cable');
     return {
-      cls: 'friendly', title: 'CVN-78 GERALD R. FORD ON STATION',
-      text: 'The Gerald R. Ford Carrier Strike Group has arrived in the Arabian Sea and checked in with Fifth Fleet. Her air wing is available from standoff at reduced rate — bring her up to the strait and she doubles what she gives you, on the same terms as every other hull in that water.',
+      cls: 'friendly', title: 'FORD ON STATION — ARABIAN SEA',
+      text: 'The USS Gerald R. Ford Carrier Strike Group has arrived in the Arabian Sea and checked in with Fifth Fleet. Her air wing is available from standoff at reduced rate — bring her up into the Gulf of Oman and she doubles what she gives you, on the same terms as every other hull in that water.',
     };
   }
 
   // ---- Iranian anti-ship fires ----
-  // The reason a carrier at the strait is a decision and not scenery. The
+  // The reason a carrier in the Gulf of Oman is a decision and not scenery. The
   // threat is Iran's navy: kill the naval bases and the risk goes with them.
   function carrierRisk() {
     const events = [];
@@ -333,8 +335,8 @@ const Game = (() => {
       syncFleetCaps();
       MapView.setCarrierPosture(cv);
       return {
-        cls: 'iran', title: `${cv.hull} ${cv.name.toUpperCase()} LOST`,
-        text: `A coordinated Iranian salvo — anti-ship ballistic missiles from the coast, cruise missiles from the islands, and small craft coming in underneath the engagement envelope — saturated the strike group's defenses and put multiple weapons into ${cv.name}. Flooding was uncontrolled. The order to abandon ship was given four hours later and her escorts recovered the great majority of her ship's company; the rest are dead or unaccounted for. The United States has lost a nuclear aircraft carrier for the first time in its history, on television, and Tehran is claiming the largest naval victory since the age of sail.`,
+        cls: 'iran', title: `${cvName(cv).toUpperCase()} LOST`,
+        text: `A coordinated Iranian salvo — anti-ship ballistic missiles from the coast, cruise missiles from the islands, and small craft coming in underneath the engagement envelope — saturated the strike group's defenses and put multiple weapons into ${cvName(cv)}. Flooding was uncontrolled. The order to abandon ship was given four hours later and her escorts recovered the great majority of her ship's company; the rest are dead or unaccounted for. The United States has lost a nuclear aircraft carrier for the first time in its history, on television, and Tehran is claiming the largest naval victory since the age of sail.`,
         casualties: rand(45, 85), dApproval: -20, dOil: 16, dWorld: -3,
         flashAsset: cv.id, attack: { kind: 'missile', base: cv.id, count: 6 },
       };
@@ -346,8 +348,8 @@ const Game = (() => {
     syncFleetCaps();
     MapView.setCarrierPosture(cv);
     return {
-      cls: 'iran', title: `${cv.hull} STRUCK — WITHDRAWING FROM THE STRAIT`,
-      text: `An Iranian anti-ship missile got through the screen and hit ${cv.name} above the waterline, starting fires on the hangar deck. Damage control has the ship, but her flight deck is fouled and her catapults are down. She is retiring to the Arabian Sea and will fly at a fraction of her rate for the rest of this war. Fifth Fleet did not order the withdrawal — the damage did.`,
+      cls: 'iran', title: `${cvShort(cv)} STRUCK — WITHDRAWING FROM THE GULF`,
+      text: `An Iranian anti-ship missile got through the screen and hit ${cvName(cv)} above the waterline, starting fires on the hangar deck. Damage control has the ship, but her flight deck is fouled and her catapults are down. She is retiring to the Arabian Sea and will fly at a fraction of her rate for the rest of this war. Fifth Fleet did not order the withdrawal — the damage did.`,
       casualties: rand(8, 25), dApproval: -7, dOil: 6,
       flashAsset: cv.id, attack: { kind: 'missile', base: cv.id, count: 4 },
     };
