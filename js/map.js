@@ -882,7 +882,10 @@ const MapView = (() => {
   }
 
   // Some targets have their own hit clip; everything else uses the generic one.
-  const HIT_CLIPS = { 'msl-shiraz': 'video/shiraz-hit.mp4' };
+  const HIT_CLIPS = {
+    'msl-shiraz': 'video/shiraz-hit.mp4',
+    'naval-bandar': 'video/naval-bandar-hit.mp4',
+  };
 
   // Called by game.js only when BDA confirms a successful hit (destroyed/damaged).
   // Plays in the same window as the radar, then fades out to reveal the BDA state.
