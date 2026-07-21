@@ -535,9 +535,12 @@ const MapView = (() => {
   function animateScope(assetType, target, done, count) {
     const stealth = assetType === 'stealth';
     const cruise = assetType === 'cruise';
+    // Half of all fighter sorties are flown off the carrier strike groups:
+    // pick the carrier/land group at 50/50, then a random airframe within it.
+    const fromGroup = Math.random() < 0.5 ? 'carrier' : 'land';
     const ft = stealth ? { type: 'B-2', cs: 'SPIRIT' }
       : cruise ? { type: 'RGM-109 TLAM', cs: 'ARSENAL' }
-      : pick(FIGHTER_TYPES);
+      : pick(FIGHTER_TYPES.filter(f => f.from === fromGroup));
     const origin = stealth ? US_ASSETS.find(a => a.id === 'diego')
       : cruise ? US_ASSETS.find(a => a.id === STRIKE_ORIGINS.cruise)
       : nearestSortieBase(target, ft.from === 'carrier');
