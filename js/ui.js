@@ -70,14 +70,17 @@ const UI = (() => {
   }
 
   function renderResources(G) {
+    // the bomber line reads as a deployment status until there is a force to count
+    const b2 = G.bombersArrived ? `${G.res.stealth} / ${G.caps.stealth}`
+      : G.bombersOrdered ? `EN ROUTE — ${G.bomberEta}T` : 'NOT IN THEATER';
     const rows = [
-      ['Fighter sorties', G.res.fighters, G.caps.fighters],
-      ['Cruise missiles (TLAM)', G.res.cruise, G.caps.cruise],
-      ['B-2 missions (GBU-57)', G.res.stealth, G.caps.stealth],
-      ['SOF task force (Tier 1)', G.res.specops, G.caps.specops],
+      ['Fighter sorties', `${G.res.fighters} / ${G.caps.fighters}`],
+      ['Cruise missiles (TLAM)', `${G.res.cruise} / ${G.caps.cruise}`],
+      ['B-2 missions (GBU-57)', b2],
+      ['SOF task force (Tier 1)', `${G.res.specops} / ${G.caps.specops}`],
     ];
-    let html = rows.map(([n, v, cap]) =>
-      `<div class="res-row"><span>${n}</span><span class="res-count">${v} / ${cap}</span></div>`).join('');
+    let html = rows.map(([n, v]) =>
+      `<div class="res-row"><span>${n}</span><span class="res-count">${v}</span></div>`).join('');
     if (G.missions.length) {
       html += `<div class="res-row" style="margin-top:6px"><span style="color:var(--amber)">MISSIONS IN FLIGHT</span></div>`;
       html += G.missions.map(m => {
@@ -118,6 +121,29 @@ const UI = (() => {
     };
   }
 
+  // ---- the bomber force ----
+  // The 509th is a third piece of the deployment picture, and it competes with
+  // the Ford for the same air bridge — so it lives in the same panel, where the
+  // player can see both halves of the choice at once.
+  function bomberLine(G) {
+    if (G.bombersArrived) {
+      return {
+        label: 'ON THE RAMP — DIEGO GARCIA', cls: 'cv-forward',
+        note: `${G.res.stealth} of ${G.caps.stealth} mission(s) generated. 2,900 nm south of the fight and out of Iranian reach.`,
+      };
+    }
+    if (G.bombersOrdered) {
+      return {
+        label: 'EN ROUTE — WHITEMAN → DIEGO GARCIA', cls: 'cv-moving',
+        note: `Crossing the Pacific on tankers — ${G.bomberEta} turn(s) out.`,
+      };
+    }
+    return {
+      label: 'NOT IN THEATER', cls: 'cv-away',
+      note: 'At Whiteman AFB, Missouri. One turn to Diego Garcia — and the only aircraft in the inventory that can reach Fordow.',
+    };
+  }
+
   function renderFleet(G) {
     const box = $('fleet-list');
     if (!box) return;
@@ -139,16 +165,35 @@ const UI = (() => {
         `<div class="cv-note dim">${note}</div></div>`;
     }).join('');
 
+    const bl = bomberLine(G);
+    box.innerHTML +=
+      `<div class="cv-row"><div class="cv-name dim">509th Bomb Wing — B-2 Spirit</div>` +
+      `<div class="cv-head"><span class="cv-hull">B-2</span>` +
+      `<span class="cv-state ${bl.cls}">${bl.label}</span></div>` +
+      `<div class="cv-note dim">${bl.note}</div></div>`;
+
+    // one force flow at a time: whichever deployment is on the bridge blocks
+    // the other until it lands
+    const bomberInbound = G.bombersOrdered && !G.bombersArrived;
+    const fordInbound = G.secondCarrierOrdered && G.secondCarrierEta > 0;
+
     const buttons = G.carriers.map(cv => {
       const info = CARRIER_INFO[cv.id];
       if (cv.lost) return '';
       if (!cv.arrived) {
-        return G.secondCarrierOrdered
-          ? `<button disabled>${info.short} EN ROUTE<span class="diplo-desc">` +
-            `ETA ${G.secondCarrierEta} turn(s). She cannot be hurried.</span></button>`
-          : `<button data-carrier-order="1">SURGE ${info.short} TO THE THEATER` +
-            `<span class="diplo-desc">Orders ${info.name} to the Gulf. ${Game.FORD_TRANSIT_TURNS} turns out; ` +
-            `arrives at standoff in the Arabian Sea. Free — the cost is the turns you wait.</span></button>`;
+        if (G.secondCarrierOrdered) {
+          return `<button disabled>${info.short} EN ROUTE<span class="diplo-desc">` +
+            `ETA ${G.secondCarrierEta} turn(s). She cannot be hurried.</span></button>`;
+        }
+        if (bomberInbound) {
+          return `<button disabled>AIR BRIDGE COMMITTED — B-2 FORCE MOVING` +
+            `<span class="diplo-desc">TRANSCOM runs one force flow at a time. ${info.short} can be surged ` +
+            `once the bombers are down at Diego Garcia — ${G.bomberEta} turn(s).</span></button>`;
+        }
+        return `<button data-carrier-order="1">SURGE ${info.short} TO THE THEATER` +
+          `<span class="diplo-desc">Orders ${info.name} to the Gulf. ${Game.FORD_TRANSIT_TURNS} turns out; ` +
+          `arrives at standoff in the Arabian Sea. Costs no money and no lives — it costs the air bridge ` +
+          `for five turns, and the B-2s cannot move while she is moving.</span></button>`;
       }
       const fwd = cv.posture === 'forward';
       return `<button data-carrier-toggle="${cv.id}" ${cv.moving ? 'disabled' : ''}>` +
@@ -162,9 +207,27 @@ const UI = (() => {
         `</span></button>`;
     }).join('');
 
-    $('fleet-buttons').innerHTML = buttons;
+    let bomberBtn = '';
+    if (!G.bombersArrived) {
+      if (bomberInbound) {
+        bomberBtn = `<button disabled>B-2 FORCE EN ROUTE<span class="diplo-desc">` +
+          `ETA ${G.bomberEta} turn(s). They land, they get built up, then they fly.</span></button>`;
+      } else if (fordInbound) {
+        bomberBtn = `<button disabled>AIR BRIDGE COMMITTED — FORD UNDER WAY` +
+          `<span class="diplo-desc">The tankers are supporting the carrier surge. The 509th can move ` +
+          `once she is on station — ${G.secondCarrierEta} turn(s).</span></button>`;
+      } else {
+        bomberBtn = `<button data-bomber-order="1">DEPLOY B-2 FORCE — WHITEMAN → DIEGO GARCIA` +
+          `<span class="diplo-desc">Moves the 509th into theater. ${Game.B2_TRANSIT_TURNS} turn out; unlocks ` +
+          `GBU-57 penetrator missions — the only way to reach Fordow. Ties up the air bridge, so the ` +
+          `${CARRIER_INFO['csg-ford'].short} cannot be surged in the same turn.</span></button>`;
+      }
+    }
+
+    $('fleet-buttons').innerHTML = buttons + bomberBtn;
     for (const btn of $('fleet-buttons').querySelectorAll('button')) {
       if (btn.dataset.carrierOrder) btn.addEventListener('click', () => Game.orderCarrier());
+      else if (btn.dataset.bomberOrder) btn.addEventListener('click', () => Game.orderBombers());
       else if (btn.dataset.carrierToggle) {
         btn.addEventListener('click', () => Game.toggleCarrierPosture(btn.dataset.carrierToggle));
       }

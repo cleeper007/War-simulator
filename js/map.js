@@ -1403,5 +1403,5 @@ const MapView = (() => {
 
   return { render, updateTarget, setHormuz, flashAsset, animateStrike, playStrikeHit,
     whenFootageDone, updateTransit, animateIranianAttacks, setTargetClickHandler,
-    setCarrierPosture, setCarrierIngress, raidOpen };
+    setCarrierPosture, setCarrierIngress, setAssetActive, raidOpen };
 })();

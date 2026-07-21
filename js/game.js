@@ -16,9 +16,10 @@ const Game = (() => {
     casualties: { us: 7 }, // the destroyer attack that starts the crisis
     // Fighter and TLAM capacity is DERIVED from where the carriers are (see
     // fleetCapacity) — these are the opening values with the Lincoln alone,
-    // forward. B-2s and the SOF task force are not carrier-based.
-    res: { fighters: 3, cruise: 6, stealth: 1, specops: 1 },
-    caps: { fighters: 4, cruise: 8, stealth: 2, specops: 1 },
+    // forward. The SOF task force is not carrier-based, and the B-2s are not
+    // in theater at all: they sit at Whiteman until they are sent for.
+    res: { fighters: 3, cruise: 6, stealth: 0, specops: 1 },
+    caps: { fighters: 4, cruise: 8, stealth: 0, specops: 1 },
     // The fleet. One deck to start; the second has to be sent for. Only mutable
     // state lives here — names come from CARRIER_INFO by id, so a restored save
     // can never carry a stale ship name back into the war.
@@ -27,6 +28,8 @@ const Game = (() => {
       { id: 'csg-ford', arrived: false, posture: 'back', moving: null, damaged: false, lost: false },
     ],
     secondCarrierOrdered: false, secondCarrierEta: 0,
+    // the 509th Bomb Wing: at Whiteman AFB, Missouri, until called forward
+    bombersOrdered: false, bomberEta: 0, bombersArrived: false,
     alliedFighters: 0,     // coalition and IAF squadrons folded into the fighter cap
     strikesThisTurn: 0, struckThisTurn: [],
     missions: [],          // strike packages in flight: {targetId, pkg, eta}
@@ -88,9 +91,9 @@ const Game = (() => {
 
   // ---- save / continue (localStorage) ----
   const Save = (() => {
-    // v3: the fleet became state. A v2 save has caps that no longer correspond
-    // to any carrier disposition, so those saves are retired rather than migrated.
-    const KEY = 'cic-save-v3';   // bump the version to invalidate old saves
+    // v4: the bomber force became state too. A v3 save has B-2s in theater from
+    // turn one, which no longer corresponds to anything — retired, not migrated.
+    const KEY = 'cic-save-v4';   // bump the version to invalidate old saves
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -100,12 +103,13 @@ const Game = (() => {
       'israelPosture', 'israelPatience', 'israelStrikesUsed', 'israelJointAvailable',
       'regimeChaosTurns', 'regimeErratic', 'hostageCrisis', 'stats',
       'carriers', 'secondCarrierOrdered', 'secondCarrierEta', 'alliedFighters',
+      'bombersOrdered', 'bomberEta', 'bombersArrived',
     ];
 
     function write() {
       if (G.over) return;
       try {
-        const data = { version: 3, muted: AudioSys.isMuted(), fields: {}, targets: {} };
+        const data = { version: 4, muted: AudioSys.isMuted(), fields: {}, targets: {} };
         for (const f of FIELDS) data.fields[f] = G[f];
         for (const t of TARGETS) data.targets[t.id] = t.status || 'intact';
         localStorage.setItem(KEY, JSON.stringify(data));
@@ -115,7 +119,7 @@ const Game = (() => {
     function read() {
       try {
         const data = JSON.parse(localStorage.getItem(KEY));
-        return data && data.version === 3 ? data : null;
+        return data && data.version === 4 ? data : null;
       } catch (e) { return null; }
     }
 
@@ -161,6 +165,28 @@ const Game = (() => {
     'csg-ford':    { fighters: 6, cruise: 8, repFighters: 2, repCruise: 2 },
   };
   const FORD_TRANSIT_TURNS = 5;
+
+  // ============================================================
+  // THE AIR BRIDGE
+  // ------------------------------------------------------------
+  // Neither the second deck nor the bomber force is in this theater when the
+  // war opens, and TRANSCOM can only run one force flow at a time: the tanker
+  // bridge that walks the B-2s across the Pacific is the same one carrying the
+  // Ford's surge support east. So the two deployments queue behind each other,
+  // and the order you put them in is the decision. The Ford is five turns away
+  // and doubles what you can throw in a day; the bombers are one turn away and
+  // are the only key that fits Fordow. You can have both — eventually — but
+  // never at the same time, and the war does not wait for the second one.
+  // ============================================================
+  const B2_TRANSIT_TURNS = 1;
+  const BOMBER_CAP = 2;     // sustainable missions off the Diego Garcia ramp
+  const BOMBER_READY = 1;   // generated and ready the turn they land
+
+  // is a force flow already on the bridge?
+  function deploymentInbound() {
+    return (G.secondCarrierOrdered && G.secondCarrierEta > 0) ||
+      (G.bombersOrdered && !G.bombersArrived);
+  }
 
   const carrierById = (id) => G.carriers.find(c => c.id === id);
   const cvName = (cv) => CARRIER_INFO[cv.id].name;    // "USS Abraham Lincoln"
@@ -228,13 +254,46 @@ const Game = (() => {
     }
   }
 
+  // the Diego Garcia marker is only on the plot once there is something on it
+  function syncBomberMap() {
+    MapView.setAssetActive('diego', G.bombersArrived);
+  }
+
+  // Call the 509th forward. One turn wingtip-to-wingtip across the Pacific with
+  // the whole tanker force behind it — and for that turn, nothing else moves.
+  function orderBombers() {
+    if (G.over || G.bombersOrdered || deploymentInbound()) return;
+    G.bombersOrdered = true;
+    G.bomberEta = B2_TRANSIT_TURNS;
+    AudioSys.play('cable');
+    UI.renderAll(G);
+    Save.write();
+  }
+
+  // tick the bomber deployment; on arrival the ramp at Diego Garcia goes live
+  function checkBomberArrival() {
+    if (!G.bombersOrdered || G.bombersArrived || G.bomberEta <= 0) return null;
+    G.bomberEta--;
+    if (G.bomberEta > 0) return null;
+
+    G.bombersArrived = true;
+    G.caps.stealth = BOMBER_CAP;
+    G.res.stealth = BOMBER_READY;
+    syncBomberMap();
+    AudioSys.play('cable');
+    return {
+      cls: 'friendly', title: 'B-2 FORCE IN THEATER — DIEGO GARCIA',
+      text: 'The 509th Bomb Wing flew from Whiteman with the tanker force strung out behind it across the Pacific, and the aircraft are on the ramp at Diego Garcia under cover. Munitions handlers are building up GBU-57s tonight. From here the Massive Ordnance Penetrator is on the table — which means Fordow is finally a target and not a briefing slide. The bridge is clear again for whatever you want moved next.',
+    };
+  }
+
   // ---- the two fleet commands ----
 
   // Surging a second deck is a five-turn decision. She is somewhere in the
   // Indian Ocean when the order goes out and no amount of wanting moves her
   // faster — the cost of the second carrier is paid in the turns before it.
   function orderCarrier() {
-    if (G.over || G.secondCarrierOrdered) return;
+    if (G.over || G.secondCarrierOrdered || deploymentInbound()) return;
     G.secondCarrierOrdered = true;
     G.secondCarrierEta = FORD_TRANSIT_TURNS;
     syncCarrierMap();
@@ -774,6 +833,8 @@ const Game = (() => {
         const fleet = checkCarrierTransit();
         const arrival = checkCarrierArrival();
         if (arrival) fleet.push(arrival);
+        const bombers = checkBomberArrival();
+        if (bombers) fleet.push(bombers);
 
         const day = Math.ceil(G.turn / 2);
         const all = [...bda, ...events, ...fleet];
@@ -807,7 +868,11 @@ const Game = (() => {
     const cap = fleetCapacity();
     G.res.fighters = Math.min(G.res.fighters + cap.repFighters, G.caps.fighters);
     G.res.cruise = Math.min(G.res.cruise + cap.repCruise, G.caps.cruise);
-    if (G.turn % 3 === 0) G.res.stealth = Math.min(G.res.stealth + 1, G.caps.stealth);
+    // the bombers only regenerate once there are bombers — turnaround at Diego
+    // Garcia is three turns per airframe, and an empty ramp turns nothing around
+    if (G.bombersArrived && G.turn % 3 === 0) {
+      G.res.stealth = Math.min(G.res.stealth + 1, G.caps.stealth);
+    }
 
     if (G.addressCooldown > 0) G.addressCooldown--;
     if (G.regimeChaosTurns > 0) G.regimeChaosTurns--;
@@ -923,6 +988,7 @@ const Game = (() => {
     MapView.render();
     syncFleetCaps();
     syncCarrierMap();   // the decks are only where the fleet state says they are
+    syncBomberMap();    // and Diego Garcia is only on the plot once it is manned
     MapView.setTargetClickHandler((t) => {
       if (G.over || SpecOps.busy()) return;
       if (t.status === 'destroyed') return;
@@ -979,5 +1045,5 @@ const Game = (() => {
   // the scope dramatizes the number, it never feeds back into the strike math.
   return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, israelStatus,
     airDefenseWeight, orderCarrier, toggleCarrierPosture, carrierFactor, carrierExposure,
-    FORD_TRANSIT_TURNS, G };
+    orderBombers, deploymentInbound, FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, G };
 })();

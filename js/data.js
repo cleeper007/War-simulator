@@ -144,8 +144,10 @@ const US_ASSETS = [
     desc: 'F-35 squadrons and ISR platforms. Within Iranian ballistic missile range.' },
   { id: 'asad', name: 'Ain al-Asad AB — Iraq', short: 'AIN AL-ASAD', x: 131, y: 216, kind: 'airbase', sortie: true,
     desc: 'US forces in western Iraq. Repeatedly targeted by Iranian missiles and proxy rockets.' },
-  { id: 'diego', name: 'Diego Garcia (B-2 staging)', short: 'B-2 // DIEGO GARCIA →', x: 895, y: 655, kind: 'bomber',
-    desc: 'Stealth bombers staging 2,900 nm south. The only platform that can kill Fordow.' },
+  // active: false — the ramp is bare until the bomber force is called forward
+  // from Whiteman AFB. Nothing stealthy exists in this theater until it is.
+  { id: 'diego', name: 'Diego Garcia (B-2 staging)', short: 'B-2 // DIEGO GARCIA →', x: 895, y: 655, kind: 'bomber', active: false,
+    desc: 'Staging field 2,900 nm south. Empty until the 509th Bomb Wing is deployed forward from Whiteman AFB, Missouri — and the B-2 is the only platform that can kill Fordow.' },
 
   // -- forward basing layer (projected from real coordinates; toggle in map header) --
   { id: 'arifjan', name: 'Camp Arifjan — Kuwait', short: 'ARIFJAN', x: 322, y: 401, kind: 'logistics',

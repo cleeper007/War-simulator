@@ -49,6 +49,32 @@ fight — the mission is driving it to zero.
 - **Campaign culmination** — 20 turns expire with the program still standing (defeat);
   expire with real damage done and it's a graded stalemate instead.
 
+### Theater forces and the air bridge
+
+You open the war with one deck — the *Abraham Lincoln*, on station in the Gulf of Oman
+— and everything else is somewhere else. Two forces can be brought in, and **TRANSCOM
+runs one force flow at a time**, so they queue behind each other and the order is the
+decision:
+
+- **USS Gerald R. Ford** — five turns out. She arrives at standoff in the Arabian Sea
+  and roughly doubles what you can put in the air in a day. Every fighter sortie and
+  every Tomahawk in this war comes off a deck, so the second one is the difference
+  between servicing the target list and picking at it.
+- **509th Bomb Wing (B-2)** — one turn out, Whiteman AFB to Diego Garcia. There is not
+  a stealth bomber in the hemisphere until you send for it, and the GBU-57 is the only
+  thing in the inventory that reaches Fordow. Two sustainable missions off the ramp,
+  regenerating one every three turns.
+
+Move one and the other waits. The bombers are cheap in time and priceless in reach;
+the carrier is slow and pays out for the rest of the war. Sending the Ford first means
+Fordow is untouchable for at least five turns — long enough for Israel's patience to
+run out and take the joint package with it.
+
+Once in theater, each deck is either **forward** in the Gulf of Oman (full sortie
+generation, inside every anti-ship weapon Iran owns) or **back** in the deep Arabian
+Sea (untouchable, half the strike power). Repositioning takes a turn at reduced
+capability, still exposed.
+
 ### Israel
 
 Israel is not an American asset. It is a **semi-autonomous actor with its own clock**,
@@ -98,8 +124,11 @@ rather than US blue: allied, but not under your command.
   for the packages behind it.
   - *Fighter sorties* — flexible, but at risk from whatever SAMs are alive at TOT.
   - *Cruise missiles (TLAM)* — no aircrew risk, ineffective against buried sites.
-  - *B-2 missions (GBU-57)* — scarce, slow to arrive; the **only** weapon that can
-    kill Fordow.
+  - *B-2 missions (GBU-57)* — scarce, slow to arrive, and not in theater until the
+    509th is deployed forward; the **only** weapon that can kill Fordow.
+- **Move forces** — surge the *Ford*, deploy the B-2s forward, or shift a deck between
+  the Gulf of Oman and the Arabian Sea. Only one deployment can be on the air bridge
+  at a time (see above); posture changes are free of it.
 - **Take one diplomatic action** — backchannel talks, UN pressure, sanctions,
   coalition building, **coordinating with Israel**, an address to the nation, or
   **ISR prep** for the raid below.
