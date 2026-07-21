@@ -62,6 +62,15 @@
     <!-- Situation Room sidebar -->
     <div id="sidebar">
       <div id="sidebar-scroll">
+      <!-- Personnel recovery: this panel does not exist as a standing option.
+           CSAR.renderPanel un-hides it only while aircrew are down, and hides
+           it again the moment they are recovered or taken. -->
+      <div class="panel hidden" id="csar-panel">
+        <div class="panel-title">PERSONNEL RECOVERY <span id="csar-status"></span></div>
+        <div id="csar-brief"></div>
+        <div id="csar-buttons"></div>
+      </div>
+
       <div class="panel" id="objectives-panel">
         <div class="panel-title">MISSION OBJECTIVES</div>
         <ul id="objectives-list"></ul>
@@ -185,6 +194,24 @@
   </div>
 </div>
 
+<!-- ============ PERSONNEL RECOVERY MODAL ============ -->
+<div id="csar-modal" class="overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="panel-title">PERSONNEL RECOVERY — COMBAT SEARCH AND RESCUE</span>
+      <button class="modal-close" data-close="csar-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="csar-brief-text" class="dim"></p>
+      <div id="csar-estimate" class="estimate-box"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-close="csar-modal">HOLD THE PACKAGE</button>
+      <button id="btn-confirm-rescue" class="btn-danger">LAUNCH THE RECOVERY</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ TURN REPORT MODAL ============ -->
 <div id="report-modal" class="overlay hidden">
   <div class="modal">
@@ -218,6 +245,7 @@
 <script src="js/audio.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/specops.js"></script>
+<script src="js/csar.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

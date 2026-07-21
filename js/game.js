@@ -44,7 +44,11 @@ const Game = (() => {
     // special operations (see specops.js)
     raid: 'none', raidThisTurn: false, isrPrep: 0,
     regimeChaosTurns: 0, regimeErratic: false, hostageCrisis: false,
-    stats: { strikes: 0, destroyed: 0, aircraftLost: 0, peakOil: 84, backchannels: 0, carriersLost: 0 },
+    // downed aircrew awaiting recovery, or null — the whole CSAR subsystem
+    // (see csar.js) exists only while this does
+    downed: null,
+    stats: { strikes: 0, destroyed: 0, aircraftLost: 0, peakOil: 84, backchannels: 0, carriersLost: 0,
+      downedCrews: 0, aircrewRescued: 0, aircrewCaptured: 0 },
 
     // Is the flagship out of the anti-ship envelope? Derived rather than stored:
     // with two independently-stationed decks there is no single fleet posture,
@@ -91,15 +95,16 @@ const Game = (() => {
 
   // ---- save / continue (localStorage) ----
   const Save = (() => {
-    // v4: the bomber force became state too. A v3 save has B-2s in theater from
-    // turn one, which no longer corresponds to anything — retired, not migrated.
-    const KEY = 'cic-save-v4';   // bump the version to invalidate old saves
+    // v5: downed aircrew and their recovery counters became state. A v4 save has
+    // no `downed` field and a stats block missing three counters — retired
+    // rather than migrated, the same as every version before it.
+    const KEY = 'cic-save-v5';   // bump the version to invalidate old saves
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
       'strikesThisTurn', 'struckThisTurn', 'missions', 'sanctions', 'coalition',
       'addressCooldown', 'negotiationsAccepted', 'negotiationMomentum',
-      'diploUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep',
+      'diploUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep', 'downed',
       'israelPosture', 'israelPatience', 'israelStrikesUsed', 'israelJointAvailable',
       'regimeChaosTurns', 'regimeErratic', 'hostageCrisis', 'stats',
       'carriers', 'secondCarrierOrdered', 'secondCarrierEta', 'alliedFighters',
@@ -109,7 +114,7 @@ const Game = (() => {
     function write() {
       if (G.over) return;
       try {
-        const data = { version: 4, muted: AudioSys.isMuted(), fields: {}, targets: {} };
+        const data = { version: 5, muted: AudioSys.isMuted(), fields: {}, targets: {} };
         for (const f of FIELDS) data.fields[f] = G[f];
         for (const t of TARGETS) data.targets[t.id] = t.status || 'intact';
         localStorage.setItem(KEY, JSON.stringify(data));
@@ -119,7 +124,7 @@ const Game = (() => {
     function read() {
       try {
         const data = JSON.parse(localStorage.getItem(KEY));
-        return data && data.version === 4 ? data : null;
+        return data && data.version === 5 ? data : null;
       } catch (e) { return null; }
     }
 
@@ -305,7 +310,7 @@ const Game = (() => {
   // Order a deck between stations. Takes effect at the end of the turn — the
   // order is given now, the ship is somewhere in between until then.
   function toggleCarrierPosture(id) {
-    if (G.over || SpecOps.busy()) return;
+    if (G.over || SpecOps.busy() || CSAR.busy()) return;
     const cv = carrierById(id);
     if (!cv || !cv.arrived || cv.lost || cv.moving) return;
     cv.moving = cv.posture === 'forward' ? 'back' : 'forward';
@@ -541,13 +546,19 @@ const Game = (() => {
         : 'Strike failed to achieve desired effects. Weather, decoys, and hardening are assessed as contributing factors.';
     }
 
-    // aircrew attrition vs the SAMs still standing at time-on-target
+    // Aircrew attrition vs the SAMs still standing at time-on-target. Losing the
+    // aircraft is where this ends; whether it costs two names on a casualty list
+    // or puts living Americans on the ground belongs to csar.js.
     if (est.lossRisk > 0 && Math.random() < est.lossRisk) {
       G.stats.aircraftLost++;
-      G.casualties.us += 2;
       G.approval = clamp(G.approval - 4, 0, 100);
-      text += ' One strike aircraft was lost to surface-to-air fire. Two aviators are dead; footage is already on Iranian state TV.';
-      ev.casualties = 2;
+      ev.dApproval = (ev.dApproval || 0) - 4;
+      const loss = CSAR.aircraftDown(target);
+      text += ' ' + loss.text;
+      if (loss.casualties) {
+        G.casualties.us += loss.casualties;
+        ev.casualties = loss.casualties;
+      }
       AudioSys.play('aircraftLost', 600);
     }
 
@@ -790,9 +801,10 @@ const Game = (() => {
   }
 
   function endTurn() {
-    // the task force is still on the objective — nothing else moves until the
-    // mission resolves, or the sequencing of its debrief and the turn breaks
-    if (G.over || SpecOps.busy()) return;
+    // a task force or a recovery package is still on the objective — nothing
+    // else moves until the mission resolves, or the sequencing of its debrief
+    // and the turn breaks
+    if (G.over || SpecOps.busy() || CSAR.busy()) return;
 
     // strike packages arrive first — BDA lands, then Iran answers with
     // whatever the volley left standing
@@ -801,6 +813,10 @@ const Game = (() => {
       // Tehran is responding to their strike as much as to yours
       const israeli = israelTurn();
       const events = IranAI.respond(G);
+      // any aircrew still on the ground get another night of being hunted —
+      // resolved after the BDA that may have just put them there
+      const csar = CSAR.turnTick(G);
+      if (csar) events.unshift(csar);
       // anti-ship fires are resolved against wherever the decks sat THIS turn,
       // before any repositioning ordered this turn completes below
       for (const ev of carrierRisk()) events.unshift(ev);
@@ -932,10 +948,10 @@ const Game = (() => {
     };
     const narratives = {
       military: `CENTCOM's assessment is unambiguous: enrichment halted, missile brigades combat-ineffective, the IRGC command chain severed.` +
-        (G.hostageCrisis ? ' The captured operators were recovered in the final hours as the regime\'s prison apparatus dissolved.' : '') +
+        (G.hostageCrisis ? ' The American prisoners were recovered in the final hours as the regime\'s prison apparatus dissolved.' : '') +
         ` It took ${G.turn} turns and ${G.casualties.us} American lives.`,
       deal: `Backchannel talks in Muscat produced a framework: verified dismantlement against phased sanctions relief — terms dictated by the battlefield.` +
-        (G.hostageCrisis ? ' The final sticking point was the captured operators — their release is written into the first annex.' : '') +
+        (G.hostageCrisis ? ' The final sticking point was the American prisoners — their release is written into the first annex.' : '') +
         ` It took ${G.turn} turns and ${G.casualties.us} American lives.`,
       casualties: 'The war was winnable on the map. It was lost in the arrival ceremonies at Dover.',
       impeachment: 'The objectives, whatever their merits, could not survive the politics.',
@@ -951,6 +967,18 @@ const Game = (() => {
       ['DIPLOMATIC STANDING', worldGrade, `World opinion ${Math.round(G.world)}/100`],
       ['ECONOMIC DAMAGE', econGrade, `Peak oil price $${Math.round(G.stats.peakOil)}/bbl`],
     ];
+    // Personnel recovery is only graded if the war ever put aircrew on the
+    // ground — a campaign that never lost an aircraft is not scored on it.
+    if (G.stats.downedCrews > 0) {
+      const saved = G.stats.aircrewRescued, taken = G.stats.aircrewCaptured;
+      const prGrade = taken === 0 && saved > 0 ? 'A'
+        : taken === 0 ? 'B'
+        : saved > 0 ? 'C'
+        : G.downed ? 'D' : 'F';
+      grades.splice(1, 0, ['PERSONNEL RECOVERY', prGrade,
+        `${saved} aircrew recovered · ${taken} taken into Iranian custody` +
+        (G.downed ? ' · 1 crew still evading when the war ended' : '')]);
+    }
     if (G.raid !== 'none') {
       grades.splice(1, 0,
         G.raid === 'success'
@@ -989,8 +1017,9 @@ const Game = (() => {
     syncFleetCaps();
     syncCarrierMap();   // the decks are only where the fleet state says they are
     syncBomberMap();    // and Diego Garcia is only on the plot once it is manned
+    CSAR.syncMap(G);    // and downed aircrew are on it only while they are down
     MapView.setTargetClickHandler((t) => {
-      if (G.over || SpecOps.busy()) return;
+      if (G.over || SpecOps.busy() || CSAR.busy()) return;
       if (t.status === 'destroyed') return;
       UI.openStrikeModal(G, t);
     });
@@ -1018,6 +1047,7 @@ const Game = (() => {
     AudioSys.init();
     UI.init();
     SpecOps.init();
+    CSAR.init();
 
     document.getElementById('btn-start').addEventListener('click', () => start(false));
     document.getElementById('btn-end-turn').addEventListener('click', endTurn);

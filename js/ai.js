@@ -130,8 +130,8 @@ const IranAI = (() => {
       text: 'Intelligence reports internal debate in Tehran. No significant Iranian military action in the last 12 hours.',
     }),
     hostageParade: () => ({
-      title: 'Captured US operators shown on Iranian state TV',
-      text: 'Tehran airs new footage of the captured special operators — coerced statements, flags, cameras. The families are watching. Congress is demanding to know the plan to bring them home.',
+      title: 'Captured Americans shown on Iranian state TV',
+      text: 'Tehran airs new footage of the prisoners — coerced statements, flags, cameras. The families are watching. Congress is demanding to know the plan to bring them home.',
       dApproval: -2,
     }),
     backchannelFeeler: () => ({
@@ -260,7 +260,14 @@ const IranAI = (() => {
       secstate.text = 'No one in Tehran will talk while they can still shoot. My job right now is holding the coalition together while you win — pair the strikes with UN pressure and sanctions.';
     }
 
-    if (israelUrgent) {
+    // Americans on the ground outrank everything else on this table
+    if (G.downed) {
+      nsa.text = `We have ${G.downed.crew === 2 ? 'two aircrew' : 'an aviator'} alive on Iranian soil — ` +
+        `${G.downed.callsign}, ${G.downed.loc} — and a search cordon closing on them. This is the ` +
+        `decision that will define the news cycle either way, and it does not keep. Recovered, it is the ` +
+        `best night of this war. Captured, it is a flight suit on their television for as long as they ` +
+        `want it there, and every deal you ever sign runs through that cell.`;
+    } else if (israelUrgent) {
       nsa.text = `Israeli readiness indicators are unambiguous — tanker movements, reserve call-ups, the whole signature. They are going, with or without you, in roughly ${G.israelPatience} turn${G.israelPatience === 1 ? '' : 's'}. If it happens on their timetable you get the blame and none of the targeting.`;
     } else if (G.israelPosture === 'unilateral') {
       nsa.text = 'Israel struck on its own and Fordow is still under the mountain. We inherited the escalation without the result — expect Iranian salvos to go west as well as at us, and expect the Gulf states to start putting distance between themselves and our aircraft.';
@@ -309,7 +316,8 @@ const IranAI = (() => {
     if (G.casualties.us >= 100) h.push('CASUALTY COUNT MOUNTS — CONGRESS DEBATES LIMITS ON THE WAR');
     if (G.hormuz === 'CLOSED') h.push('GAS LINES FORM AS HORMUZ CLOSURE CHOKES GLOBAL SUPPLY');
     if (G.regimeChaosTurns > 0) h.push('POWER VACUUM IN TEHRAN — INTELLIGENCE AGENCIES ASK: WHO IS IN CHARGE?');
-    if (G.hostageCrisis) h.push('VIGILS HELD FOR CAPTURED US SPECIAL OPERATORS');
+    if (G.downed) h.push(`SEARCH UNDER WAY FOR US AIRCREW DOWN INSIDE IRAN — PENTAGON WILL NOT DISCUSS RECOVERY OPERATIONS`);
+    if (G.hostageCrisis) h.push('VIGILS HELD FOR AMERICANS IN IRANIAN CUSTODY');
     if (G.israelPosture === 'unilateral') h.push('ARAB CAPITALS DEMAND ANSWERS: DID WASHINGTON GREEN-LIGHT THE ISRAELI STRIKE?');
     else if (G.israelPosture === 'coordinated') h.push('IAF SQUADRONS FLYING WITH CENTCOM AS ISRAEL JOINS THE CAMPAIGN OPENLY');
     const fillers = [...FILLER_HEADLINES].sort(() => Math.random() - 0.5).slice(0, 3);

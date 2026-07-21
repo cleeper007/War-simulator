@@ -498,20 +498,39 @@ button { font-family: var(--mono); }
 }
 #btn-mute:hover { border-color: var(--blue); }
 
-/* ============ special operations ============ */
-#specops-buttons { display: flex; flex-direction: column; gap: 6px; }
-#specops-buttons button {
+/* ============ special operations & personnel recovery ============ */
+#specops-buttons, #csar-buttons { display: flex; flex-direction: column; gap: 6px; }
+#specops-buttons button, #csar-buttons button {
   text-align: left; padding: 7px 10px; font-size: 11.5px;
   background: var(--bg-panel2); border: 1px solid var(--line);
   color: var(--text); cursor: pointer;
 }
-#specops-buttons button:hover:not(:disabled) { border-color: var(--blue); }
-#specops-buttons button:disabled { opacity: 0.35; cursor: not-allowed; }
-#specops-buttons button.specops-danger { border-color: #7a2525; color: var(--red); }
-#specops-buttons button.specops-danger:hover:not(:disabled) {
+#specops-buttons button:hover:not(:disabled),
+#csar-buttons button:hover:not(:disabled) { border-color: var(--blue); }
+#specops-buttons button:disabled, #csar-buttons button:disabled { opacity: 0.35; cursor: not-allowed; }
+#specops-buttons button.specops-danger, #csar-buttons button.specops-danger {
+  border-color: #7a2525; color: var(--red);
+}
+#specops-buttons button.specops-danger:hover:not(:disabled),
+#csar-buttons button.specops-danger:hover:not(:disabled) {
   border-color: var(--red); background: #2a0d0d;
 }
+#specops-buttons .diplo-desc, #csar-buttons .diplo-desc {
+  color: var(--dim); display: block; font-size: 10.5px;
+}
 #specops-status { color: var(--dim); }
+
+/* The recovery panel only exists while someone is down, so it is allowed to
+   shout — an amber border at the top of the sidebar that was not there before. */
+#csar-panel { border-color: #7a5a1a; }
+#csar-status { color: var(--amber); }
+#csar-brief { margin-bottom: 8px; }
+.csar-line {
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: 11px; line-height: 1.7; border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.csar-key { color: var(--dim); letter-spacing: 1px; flex: none; }
+.csar-evading { color: var(--amber); }
 
 /* ============================================================
    RAID SCOPE — the leadership mission, narrated live in the map panel
@@ -587,3 +606,41 @@ button { font-family: var(--mono); }
 .raid-blast { fill: var(--amber); }
 .raid-muzzle { fill: #fff2c2; }
 .raid-jackpot { fill: #fff; }
+
+/* ============================================================
+   CSAR SCOPE — the recovery, flown in the same card as the raid
+   ============================================================ */
+.csar-card { border-left-color: var(--amber); }
+.csar-ridge path { fill: none; stroke: #1e2c44; stroke-width: 0.8; }
+.csar-wadi { fill: none; stroke: #2c3d5c; stroke-width: 3; opacity: 0.9; }
+.csar-track { fill: none; stroke: #22334f; stroke-width: 2.2; stroke-dasharray: 6 3; }
+
+/* the beacon ring goes live on authentication and red when they are lost */
+.csar-ring {
+  fill: none; stroke: #5b6f92; stroke-width: 0.9; stroke-dasharray: 3 3; opacity: 0.6;
+}
+.csar-survivors.csar-contact .csar-ring {
+  stroke: var(--green); opacity: 1; animation: pulse 1.6s infinite;
+}
+.csar-survivors.csar-lost .csar-ring { stroke: var(--red); animation: none; opacity: 0.9; }
+.csar-surv path { fill: var(--green); }
+.csar-surv-safe path { fill: var(--blue); }
+.csar-surv-taken path { fill: var(--amber); }
+
+/* the search party, and the search party after a gun run */
+.csar-hunter rect { fill: var(--red); }
+.csar-hunter-dead rect { fill: #4a2020; }
+
+/* the on-scene commander's wheel */
+.csar-sandy-hull { fill: #cfe0f5; }
+.csar-sandy-wreck .csar-sandy-hull { fill: var(--red); }
+.raid-helo.csar-hit .raid-hull { fill: var(--amber); }
+
+/* ---- isolated personnel on the strategic map ---- */
+.survivor-marker { cursor: help; }
+.surv-ring { fill: none; stroke: var(--amber); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.surv-mark { stroke: var(--amber); stroke-width: 1.6; fill: none; }
+.surv-label {
+  fill: var(--amber); font-size: 7px; letter-spacing: 1.2px;
+  text-anchor: middle; font-family: var(--mono);
+}

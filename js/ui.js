@@ -288,6 +288,7 @@ const UI = (() => {
   }
 
   function renderSidebar(G) {
+    CSAR.renderPanel(G);   // hidden unless there are Americans on the ground
     renderObjectives(G);
     renderResources(G);
     renderFleet(G);

@@ -113,6 +113,38 @@ a broken Iran cannot sustain a two-front fight.
 Israeli bases (Nevatim and Hatzerim) appear on the forward-basing layer in amber
 rather than US blue: allied, but not under your command.
 
+### When an aircraft goes down: personnel recovery
+
+Fighter packages flown against live SAMs can be shot down. Most of the time the crew
+gets out — two good chutes, two beacons, and living Americans on Iranian soil. When
+that happens, and *only* when that happens:
+
+- An amber **AIRCREW DOWN** marker appears on the map at the crash area, and a
+  **PERSONNEL RECOVERY** panel opens at the top of the situation room showing the
+  callsign, the airframe, how long they have been down, and the running **capture
+  risk**. Recover them or lose them; both panel and marker disappear the moment it
+  resolves either way.
+- **Every turn you wait, the odds get worse in both directions** — the recovery
+  estimate falls and the capture risk rises, because IRGC search parties are working
+  the ground and helicopters are flying a pattern over it. Do nothing long enough and
+  they are taken alive: hostage crisis, −10 approval, −4 world opinion, and Tehran
+  running the footage for the rest of the war.
+- **Push ISR** (spends the turn's action slot) to lock the position: +10% recovery,
+  −8% capture risk.
+- **Launch the recovery** — a pair of HH-60W Jolly Green IIs with pararescuemen, an
+  A-10 Sandy flight as on-scene commander, tankers off the coast. Costs one fighter
+  sortie for the escort. One attempt. It plays out live in the tactical panel over
+  about seventy seconds, and it branches four ways: everyone out clean; everyone out
+  at the cost of a pararescueman and a shot-up airframe; a **partial recovery** where
+  the helicopter leaves with one crewman and not two; or the rescue force itself
+  destroyed on the objective — a downed Jolly, a downed Sandy, up to nine dead, and
+  more Americans in IRGC custody than the shootdown created.
+
+Night turns (18:00) help. Rolled-back SAM belts help. A carrier forward helps. Time
+does not. The failure cases are the harshest political outcomes in the game — a failed
+rescue costs 15 points of approval and 8 of world opinion — and a clean one is worth
+more at home than any target on the map.
+
 ### Each turn you can
 
 - **Lay on strikes** — click any Iranian target on the map, pick a strike package,
@@ -138,6 +170,9 @@ rather than US blue: allied, but not under your command.
   command raise them. Success shatters Tehran's command chain (and may open — or
   poison — the negotiation window); failure puts dead or captured operators on
   Iranian state TV.
+- **Go get your people** — *only if a strike aircraft has actually been shot down.*
+  There is no standing rescue button; the panel does not exist until aircrew are on
+  the ground. See below.
 - **End the turn** — your packages arrive and BDA comes back, then Iran answers with
   whatever the volley left standing: missile barrages, proxy attacks, shipping
   attacks, cyber, or moves against the Strait of Hormuz.
@@ -149,7 +184,12 @@ step away, and the mute toggle in the status bar to silence sound effects.
 ### Tips
 
 - Intact air defense networks (SEAD targets) degrade every non-stealth strike and can
-  shoot down your aircraft. Roll them back first.
+  shoot down your aircraft. Roll them back first — and remember that a shootdown is
+  not just two names on a list, it is a rescue decision you will have to make under a
+  clock.
+- **If you have aircrew on the ground, go the first night.** Waiting a turn is the one
+  thing that worsens the recovery odds and the capture odds at the same time. Push ISR
+  *and* launch in the same turn — it costs the diplomatic action slot, not the clock.
 - **Tempo is everything.** Iran does not stop shooting because you did, and its war
   machine spins up over the first days. Every turn it survives is a turn it spends
   killing Americans.
@@ -188,6 +228,7 @@ commander-in-chief/
     ├── audio.js      # Sound manager: preload, play, mute toggle
     ├── ui.js         # HUD, sidebar, modal rendering
     ├── specops.js    # Special forces: ISR prep + leadership raid
+    ├── csar.js       # Combat search and rescue: downed aircrew, recovery mission
     └── game.js       # State, turn loop, strikes, save/continue, endings
 ```
 

@@ -1268,6 +1268,401 @@ const MapView = (() => {
     return handle;
   }
 
+  // ============================================================
+  // CSAR SCOPE — personnel recovery, flown in its own card
+  // ============================================================
+  // The raid scope's sibling: same card, same grammar, different ground. There
+  // is no compound here — just terrain, a beacon, and a search party walking
+  // toward it. csar.js owns the script, the branch and every outcome; this owns
+  // nothing but pixels.
+  const CS = {
+    surv: { x: 92, y: 96 },      // the wadi the aircrew are holding
+    hold: { x: 154, y: 150 },    // JOLLY 52's holding point, south-east
+    east: { x: 192, y: 122 },    // where the search party comes up the track
+    north: { x: 96, y: 6 },      // and where the second element comes from
+    edge: 214,                   // aircraft enter and leave off the bottom
+  };
+
+  function csarOpen(header, crew, onSkip) {
+    const { scope } = fsStacks();
+    const entry = document.createElement('div');
+    entry._alive = true;
+    entry.className = 'flight-entry raid-card csar-card';
+    entry.innerHTML =
+      `<div class="fs-head">${header}<button type="button" class="raid-skip">SKIP ▸</button></div>` +
+      `<div class="scope-wrap"></div>` +
+      `<div class="fs-lines raid-lines"></div>` +
+      `<div class="progress-row"><span class="progress-phase">STANDING BY</span>` +
+      `<span class="progress-pct">0%</span></div>` +
+      `<div class="progress-bar"><div class="progress-fill"></div></div>`;
+    scope.appendChild(entry);
+    fsPanel().classList.remove('hidden');
+    entry.querySelector('.raid-skip').addEventListener('click', () => { if (onSkip) onSkip(); });
+
+    const svg = el('svg', { class: 'scope-view raid-view csar-view', viewBox: '0 0 200 200' });
+
+    const grid = el('g', { class: 'raid-grid' });
+    for (let i = 25; i < 200; i += 25) {
+      grid.appendChild(el('line', { x1: i, y1: 0, x2: i, y2: 200 }));
+      grid.appendChild(el('line', { x1: 0, y1: i, x2: 200, y2: i }));
+    }
+    svg.appendChild(grid);
+
+    // terrain: ridge lines, the wadi the survivors are in, and the track the
+    // search party is coming up. Everything about this ground is why it is hard.
+    const ridges = el('g', { class: 'csar-ridge' });
+    for (const d of [
+      'M0,44 C38,32 68,58 100,46 C132,34 164,54 200,40',
+      'M0,74 C34,66 60,90 94,78 C130,66 168,86 200,74',
+      'M0,140 C40,128 76,150 112,140 C148,130 176,146 200,136',
+    ]) ridges.appendChild(el('path', { d }));
+    svg.appendChild(ridges);
+    svg.appendChild(el('path', { class: 'csar-wadi', d: 'M40,124 C62,112 76,104 92,96 C110,87 124,74 150,66' }));
+    svg.appendChild(el('path', { class: 'csar-track', d: 'M200,112 L164,124 L140,150 L118,200' }));
+
+    // the survivors: one marker per aviator, in a dashed contact ring
+    const survG = el('g', { class: 'csar-survivors' });
+    const ring = el('circle', { class: 'csar-ring', cx: CS.surv.x, cy: CS.surv.y, r: 13 });
+    survG.appendChild(ring);
+    const survLbl = el('text', { class: 'raid-label', x: CS.surv.x, y: CS.surv.y + 25 });
+    survLbl.textContent = 'SURVIVORS';
+    survG.appendChild(survLbl);
+    const survs = [];
+    for (let i = 0; i < (crew || 1); i++) {
+      const g = el('g', { class: 'csar-surv' });
+      g.appendChild(el('path', { d: 'M0,-2.4 L2,2 L-2,2 Z' }));
+      const at = { x: CS.surv.x + (i ? 5 : -5), y: CS.surv.y + (i ? 3 : -2) };
+      g.setAttribute('transform', `translate(${at.x},${at.y})`);
+      survG.appendChild(g);
+      survs.push({ g, x: at.x, y: at.y, state: 'down' });
+    }
+    svg.appendChild(survG);
+
+    const fx = el('g', { class: 'raid-fx' });
+    svg.appendChild(fx);
+    entry.querySelector('.scope-wrap').appendChild(svg);
+
+    // ---- aircraft ----
+    const helos = [];
+    let sandy = null;
+
+    function makeHelo(id, x, y) {
+      const g = el('g', { class: 'raid-helo' });
+      g.appendChild(el('path', { class: 'raid-hull', d: SIL.helo }));
+      const rotor = el('g', { class: 'raid-rotor' });
+      rotor.appendChild(el('line', { x1: -12, y1: 0, x2: 12, y2: 0 }));
+      rotor.appendChild(el('line', { x1: 0, y1: -12, x2: 0, y2: 12 }));
+      g.appendChild(rotor);
+      fx.appendChild(g);
+      const h = { id, g, rotor, x, y, hdg: 0, spin: Math.random() * 360, power: 1, down: false };
+      helos.push(h);
+      placeHelo(h);
+      return h;
+    }
+    function placeHelo(h) {
+      h.g.setAttribute('transform', `translate(${h.x.toFixed(2)},${h.y.toFixed(2)}) rotate(${h.hdg.toFixed(1)})`);
+      h.rotor.setAttribute('transform', `translate(0,-1) rotate(${h.spin.toFixed(1)})`);
+    }
+
+    // the Sandy: a fixed-wing escort holding a wheel over the survivors, which
+    // is the one thing on this display that never stops moving
+    function makeSandy() {
+      const g = el('g', { class: 'csar-sandy' });
+      g.appendChild(el('path', { class: 'csar-sandy-hull', d: SIL.fighter }));
+      fx.appendChild(g);
+      sandy = { g, ang: 200, r: 56, down: false, gone: false };
+    }
+    function placeSandy() {
+      if (!sandy) return;
+      const a = sandy.ang * Math.PI / 180;
+      sandy.x = CS.surv.x + Math.cos(a) * sandy.r;
+      sandy.y = CS.surv.y + Math.sin(a) * sandy.r * 0.8;
+      sandy.g.setAttribute('transform',
+        `translate(${sandy.x.toFixed(2)},${sandy.y.toFixed(2)}) rotate(${(sandy.ang + 90).toFixed(1)})`);
+    }
+
+    (function spinLoop(last) {
+      return function step(now) {
+        if (!entry._alive) return;
+        const dt = Math.min(64, now - last);
+        last = now;
+        for (const h of helos) {
+          if (h.power <= 0) continue;
+          h.spin = (h.spin + dt * 1.6 * h.power) % 360;
+          h.rotor.setAttribute('transform', `translate(0,-1) rotate(${h.spin.toFixed(1)})`);
+        }
+        if (sandy && !sandy.down && !sandy.gone) { sandy.ang = (sandy.ang + dt * 0.055) % 360; placeSandy(); }
+        requestAnimationFrame(step);
+      };
+    })(performance.now())(performance.now());
+
+    // ---- the search party: red squares walking onto the position ----
+    const hunters = [];
+    function makeHunters(from, ms) {
+      const start = CS[from] || CS.east;
+      const grp = { x: start.x, y: start.y, stopped: false, sq: [] };
+      for (let i = 0; i < 5; i++) {
+        const g = el('g', { class: 'csar-hunter' });
+        g.appendChild(el('rect', { x: -1.5, y: -1.5, width: 3, height: 3 }));
+        fx.appendChild(g);
+        grp.sq.push({ g, dx: (i % 3 - 1) * 6, dy: (i < 3 ? -1 : 1) * 4 });
+      }
+      hunters.push(grp);
+      const to = { x: CS.surv.x + (start.x > CS.surv.x ? 22 : -6), y: CS.surv.y + (start.y > CS.surv.y ? 18 : -18) };
+      const from0 = { x: grp.x, y: grp.y };
+      tween(ms, (p) => {
+        if (grp.stopped) return;
+        grp.x = from0.x + (to.x - from0.x) * p;
+        grp.y = from0.y + (to.y - from0.y) * p;
+        for (const s of grp.sq) {
+          s.g.setAttribute('transform', `translate(${(grp.x + s.dx).toFixed(2)},${(grp.y + s.dy).toFixed(2)})`);
+        }
+      });
+      return grp;
+    }
+
+    // ---- pararescue team: same square vocabulary as the raid's assault element ----
+    const pjs = [];
+    const pjTeam = { x: CS.surv.x, y: CS.surv.y };
+
+    function tween(ms, step, done) {
+      const t0 = performance.now();
+      (function frame(now) {
+        if (!entry._alive) return;
+        const p = Math.min(1, (now - t0) / ms);
+        step(p);
+        if (p < 1) { requestAnimationFrame(frame); return; }
+        if (done) done();
+      })(performance.now());
+    }
+
+    const jolly = () => helos.find(h => h.id === 'jolly1');
+
+    const handle = {
+      entry,
+
+      log(text, kind, clockMs) {
+        const div = document.createElement('div');
+        div.className = 'fs-line raid-line' + (kind ? ` raid-${kind}` : '');
+        const s = Math.max(0, Math.round((clockMs || 0) / 1000));
+        const stamp = document.createElement('span');
+        stamp.className = 'raid-stamp';
+        stamp.textContent = `T+${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+        div.appendChild(stamp);
+        div.appendChild(document.createTextNode(' ' + text));
+        const box = entry.querySelector('.fs-lines');
+        box.appendChild(div);
+        const lines = box.querySelectorAll('.fs-line');
+        if (lines.length > 5) lines[0].remove();
+      },
+
+      phase(p, label, contested) { setProgress(entry, p, label, contested); },
+
+      // two Jollies and the Sandy flight run in from the south
+      ingress(ms) {
+        const j1 = makeHelo('jolly1', CS.hold.x - 30, CS.edge);
+        const j2 = makeHelo('jolly2', CS.hold.x + 6, CS.edge + 24);
+        makeSandy();
+        placeSandy();
+        const a0 = { x: j1.x, y: j1.y }, b0 = { x: j2.x, y: j2.y };
+        const a1 = { x: CS.hold.x - 26, y: CS.hold.y + 10 };
+        tween(ms, (p) => {
+          const e = p * p * (3 - 2 * p);
+          if (!j1.down && !j1.landing) {
+            j1.x = a0.x + (a1.x - a0.x) * e; j1.y = a0.y + (a1.y - a0.y) * e; placeHelo(j1);
+          }
+          if (!j2.down) {
+            j2.x = b0.x + (CS.hold.x - b0.x) * e; j2.y = b0.y + (CS.hold.y - b0.y) * e; placeHelo(j2);
+          }
+        });
+      },
+
+      // contact authenticated: the ring goes live
+      beacon() { survG.classList.add('csar-contact'); },
+
+      searchers(ms, from) { makeHunters(from || 'east', ms); },
+
+      // Sandy strafes the gap between the search party and the survivors
+      gunRun(kill) {
+        const grp = hunters[hunters.length - 1];
+        const at = grp ? { x: grp.x, y: grp.y } : { x: CS.east.x, y: CS.east.y };
+        for (let i = 0; i < 7; i++) {
+          setTimeout(() => {
+            if (!entry._alive) return;
+            scopeBurst(fx, at.x + (i - 3) * 4 + rand(-3, 3), at.y + rand(-5, 5), 'raid-muzzle', 5);
+          }, i * 90);
+        }
+        setTimeout(() => { if (entry._alive) scopeBurst(fx, at.x, at.y, 'raid-blast', 15); }, 700);
+        if (kill && grp) {
+          grp.stopped = true;
+          for (const s of grp.sq) s.g.classList.add('csar-hunter-dead');
+        }
+      },
+
+      // JOLLY 51 comes off the hold and settles on the survivors
+      land(ms) {
+        const h = jolly();
+        if (!h || h.down) return;
+        h.landing = true;
+        const from = { x: h.x, y: h.y };
+        const to = { x: CS.surv.x + 12, y: CS.surv.y + 10 };
+        tween(ms, (p) => {
+          h.x = from.x + (to.x - from.x) * p;
+          h.y = from.y + (to.y - from.y) * p;
+          placeHelo(h);
+        }, () => {
+          for (let i = 0; i < 2; i++) {
+            const g = el('g', { class: 'raid-op' });
+            g.appendChild(el('rect', { x: -1.4, y: -1.4, width: 2.8, height: 2.8 }));
+            fx.appendChild(g);
+            pjs.push({ g, dx: (i ? 3 : -3), dy: 0, hit: false });
+          }
+          pjTeam.x = h.x; pjTeam.y = h.y;
+          tween(1400, (p) => {
+            pjTeam.x = h.x + (CS.surv.x - h.x) * p;
+            pjTeam.y = h.y + (CS.surv.y - h.y) * p;
+            for (const o of pjs) {
+              if (o.frozen) continue;
+              o.g.setAttribute('transform',
+                `translate(${(pjTeam.x + o.dx).toFixed(2)},${(pjTeam.y + o.dy).toFixed(2)})`);
+            }
+          });
+        });
+      },
+
+      // n survivors get aboard — they cross to the aircraft and are gone
+      pickup(n) {
+        const h = jolly();
+        const live = survs.filter(s => s.state === 'down');
+        for (const s of live.slice(0, Math.max(0, n))) {
+          s.state = 'aboard';
+          const from = { x: s.x, y: s.y };
+          const to = h && !h.down ? { x: h.x, y: h.y } : { x: CS.surv.x, y: CS.surv.y };
+          s.g.classList.add('csar-surv-safe');
+          tween(2200, (p) => {
+            s.g.setAttribute('transform',
+              `translate(${(from.x + (to.x - from.x) * p).toFixed(2)},${(from.y + (to.y - from.y) * p).toFixed(2)})`);
+          }, () => {
+            s.g.classList.add('raid-op-gone');
+            // nobody left in the wadi: the beacon ring stops being a live contact
+            if (!survs.some(x => x.state === 'down')) survG.classList.remove('csar-contact');
+          });
+        }
+      },
+
+      // whoever is still on the ground stops being ours
+      taken() {
+        for (const s of survs) {
+          if (s.state !== 'down') continue;
+          s.state = 'taken';
+          s.g.classList.add('csar-surv-taken');
+        }
+        survG.classList.remove('csar-contact');
+        survG.classList.add('csar-lost');
+        for (const o of pjs) { o.frozen = true; o.g.classList.add('raid-op-taken'); }
+      },
+
+      // a rescue crewman goes down on the objective
+      crewHit() {
+        const live = pjs.filter(o => !o.hit);
+        const o = live[0];
+        if (!o) { scopeBurst(fx, CS.surv.x, CS.surv.y, 'raid-muzzle', 7); return; }
+        o.hit = true;
+        o.frozen = true;
+        o.g.classList.add('raid-op-down');
+        scopeBurst(fx, pjTeam.x + o.dx, pjTeam.y + o.dy, 'raid-muzzle', 7);
+      },
+
+      heloHit(which) {
+        const h = helos.find(x => x.id === which) || helos[0];
+        if (!h) return;
+        h.g.classList.add('csar-hit');
+        scopeBurst(fx, h.x, h.y, 'raid-muzzle', 9);
+      },
+
+      heloDown(which, onGround) {
+        const h = helos.find(x => x.id === which) || helos[0];
+        if (!h || h.down) return;
+        h.down = true;
+        const from = { x: h.x, y: h.y };
+        const to = onGround ? { x: h.x + 6, y: h.y - 10 } : { x: h.x + 14, y: h.y + 16 };
+        tween(1600, (p) => {
+          h.x = from.x + (to.x - from.x) * p;
+          h.y = from.y + (to.y - from.y) * p;
+          h.hdg = p * 140;
+          h.power = 1 - p;
+          placeHelo(h);
+        }, () => {
+          h.power = 0;
+          h.g.classList.add('raid-wreck');
+          scopeBurst(fx, h.x, h.y, 'raid-blast', 20);
+        });
+      },
+
+      // the on-scene commander is hit: the wheel stops turning
+      sandyDown() {
+        if (!sandy || sandy.down) return;
+        sandy.down = true;
+        const from = { x: sandy.x, y: sandy.y };
+        tween(1500, (p) => {
+          const x = from.x + 18 * p, y = from.y - 26 * p;
+          sandy.g.setAttribute('transform', `translate(${x.toFixed(2)},${y.toFixed(2)}) rotate(${(p * 220).toFixed(1)})`);
+          if (p >= 1) scopeBurst(fx, x, y, 'raid-blast', 18);
+        }, () => sandy.g.classList.add('csar-sandy-wreck'));
+      },
+
+      // whatever is still flying runs south off the display
+      egress(ms) {
+        for (const o of pjs) if (!o.hit && !o.frozen) o.g.classList.add('raid-op-gone');
+        if (sandy && !sandy.down) {
+          sandy.gone = true;
+          const from = { x: sandy.x, y: sandy.y };
+          tween(ms, (p) => {
+            sandy.g.setAttribute('transform',
+              `translate(${(from.x - 10 * p).toFixed(2)},${(from.y + (CS.edge + 20 - from.y) * p).toFixed(2)}) rotate(180)`);
+          });
+        }
+        for (const h of helos) {
+          if (h.down) continue;
+          const from = { x: h.x, y: h.y };
+          const to = { x: h.x - 8, y: CS.edge + 20 };
+          h.hdg = 180;
+          tween(ms, (p) => {
+            h.x = from.x + (to.x - from.x) * p;
+            h.y = from.y + (to.y - from.y) * p;
+            placeHelo(h);
+          });
+        }
+      },
+
+      close(delay) { fsClose(entry, delay || 0); },
+    };
+
+    return handle;
+  }
+
+  // ---- isolated personnel on the strategic plot ----
+  // Americans on the ground are the one thing on this map that is neither a
+  // target nor an asset. The marker exists exactly as long as they are down:
+  // csar.js creates it on a shootdown and clears it on any resolution.
+  function setSurvivor(pos, label) {
+    let g = document.getElementById('survivor-marker');
+    if (!pos) { if (g) g.remove(); return; }
+    if (!g) {
+      g = el('g', { id: 'survivor-marker', class: 'survivor-marker' });
+      g.appendChild(el('circle', { class: 'surv-ring pulsing', r: 11 }));
+      g.appendChild(el('path', { class: 'surv-mark', d: 'M-4,-4 L4,4 M4,-4 L-4,4' }));
+      const t = el('text', { class: 'surv-label', x: 0, y: -15 });
+      t.textContent = 'AIRCREW DOWN';
+      g.appendChild(t);
+      attachTooltip(g, () => `<span class="tt-name">ISOLATED PERSONNEL</span><br>${g.dataset.label || ''}` +
+        `<br><em style="color:var(--amber)">Personnel recovery is an option in the situation room.</em>`);
+      world.appendChild(g);
+    }
+    g.dataset.label = label || '';
+    g.setAttribute('transform', `translate(${pos.x},${pos.y})`);
+  }
+
   // ---- Iranian counterattacks: ballistic/cruise missiles arc in fast,
   // Shahed drones swarm slowly; both can be intercepted short of the base ----
   function iranOrigin(kind, tx, ty) {
@@ -1408,5 +1803,6 @@ const MapView = (() => {
 
   return { render, updateTarget, setHormuz, flashAsset, animateStrike, playStrikeHit,
     whenFootageDone, updateTransit, animateIranianAttacks, setTargetClickHandler,
-    setCarrierPosture, setCarrierIngress, setAssetActive, raidOpen };
+    setCarrierPosture, setCarrierIngress, setAssetActive, raidOpen,
+    csarOpen, setSurvivor };
 })();
