@@ -414,6 +414,11 @@ const MapView = (() => {
     // TLAM: a body and two stub fins, deliberately not a jet
     cruise: 'M0,-7 L1.2,-3.5 L1.2,3.2 L2.9,6.2 L1.2,5.6 L1.2,7 L-1.2,7 L-1.2,5.6 ' +
             'L-2.9,6.2 L-1.2,3.2 L-1.2,-3.5 Z',
+    // assault helo: blunt cabin, long tail boom, canted tail fin — read at a
+    // glance as "not a jet", which is the only job it has in the raid scope
+    helo: 'M0,-6.4 C2.7,-6.4 3.6,-4 3.6,-1.2 L3.6,2.4 L1.5,3.4 L1.2,8.8 ' +
+          'L3.2,9.6 L3.2,10.8 L-1.2,10.8 L-1.2,9.6 L-1.4,3.4 L-3.6,2.4 ' +
+          'L-3.6,-1.2 C-3.6,-4 -2.7,-6.4 0,-6.4 Z',
   };
   const BURNER = 'M-1.5,7 L1.5,7 L0.9,12.5 L-0.9,12.5 Z';
 
@@ -896,6 +901,296 @@ const MapView = (() => {
       HIT_CLIPS[target.id] || 'video/strike-hit.mp4');
   }
 
+  // ============================================================
+  // RAID SCOPE — the special-operations mission, flown in its own card
+  // ============================================================
+  // Same panel and the same visual grammar as a strike scope, but the display
+  // is a compound overhead instead of a radar picture, and the mission plays as
+  // a scripted timeline minutes long rather than a single run-in. specops.js
+  // owns the script, the branch, and every outcome; this owns nothing but
+  // pixels — no method here decides anything.
+  const RC = {
+    lz: { x: 100, y: 162 },      // primary LZ, outside the south wall
+    hold: { x: 150, y: 132 },    // overwatch bird's orbit point
+    breach: { x: 100, y: 132 },  // south wall — where the charge goes
+    hvt: { x: 89, y: 97 },       // main residence
+    edge: 214,                   // helos enter/leave off the bottom of the view
+  };
+
+  function raidOpen(header, onSkip) {
+    const { scope } = fsStacks();
+    const entry = document.createElement('div');
+    entry._alive = true;
+    entry.className = 'flight-entry raid-card';
+    entry.innerHTML =
+      `<div class="fs-head">${header}<button type="button" class="raid-skip">SKIP ▸</button></div>` +
+      `<div class="scope-wrap"></div>` +
+      `<div class="fs-lines raid-lines"></div>` +
+      `<div class="progress-row"><span class="progress-phase">STANDING BY</span>` +
+      `<span class="progress-pct">0%</span></div>` +
+      `<div class="progress-bar"><div class="progress-fill"></div></div>`;
+    scope.appendChild(entry);
+    fsPanel().classList.remove('hidden');
+    entry.querySelector('.raid-skip').addEventListener('click', () => { if (onSkip) onSkip(); });
+
+    const svg = el('svg', { class: 'scope-view raid-view', viewBox: '0 0 200 200' });
+
+    // ground furniture: a block grid and the two roads that box the compound in
+    const grid = el('g', { class: 'raid-grid' });
+    for (let i = 25; i < 200; i += 25) {
+      grid.appendChild(el('line', { x1: i, y1: 0, x2: i, y2: 200 }));
+      grid.appendChild(el('line', { x1: 0, y1: i, x2: 200, y2: i }));
+    }
+    svg.appendChild(grid);
+    const roads = el('g', { class: 'raid-road' });
+    roads.appendChild(el('line', { x1: 0, y1: 146, x2: 200, y2: 146 }));
+    roads.appendChild(el('line', { x1: 156, y1: 146, x2: 156, y2: 0 }));
+    svg.appendChild(roads);
+
+    // the objective: perimeter wall, main residence, annex, guard barracks
+    const cmp = el('g', { class: 'raid-compound' });
+    cmp.appendChild(el('rect', { class: 'raid-wall', x: 66, y: 76, width: 68, height: 56 }));
+    const main = el('rect', { class: 'raid-bldg raid-main', x: 74, y: 84, width: 30, height: 26 });
+    cmp.appendChild(main);
+    cmp.appendChild(el('rect', { class: 'raid-bldg', x: 110, y: 90, width: 16, height: 16 }));
+    const guard = el('rect', { class: 'raid-bldg raid-guard', x: 74, y: 117, width: 15, height: 9 });
+    cmp.appendChild(guard);
+    const cmpLbl = el('text', { class: 'raid-label', x: 100, y: 70 });
+    cmpLbl.textContent = 'OBJECTIVE';
+    cmp.appendChild(cmpLbl);
+    svg.appendChild(cmp);
+
+    // landing zone
+    const lzg = el('g', { class: 'raid-lz' });
+    lzg.appendChild(el('circle', { cx: RC.lz.x, cy: RC.lz.y, r: 10 }));
+    const lzl = el('text', { class: 'raid-label', x: RC.lz.x, y: RC.lz.y + 21 });
+    lzl.textContent = 'LZ';
+    lzg.appendChild(lzl);
+    svg.appendChild(lzg);
+
+    const fx = el('g', { class: 'raid-fx' });
+    svg.appendChild(fx);
+    entry.querySelector('.scope-wrap').appendChild(svg);
+
+    // ---- helicopters ----
+    // Two birds: the assault bird puts the team on the LZ, the overwatch bird
+    // holds off the compound's east side. Rotors spin on their own loop so a
+    // bird sitting on the ground still reads as running.
+    const helos = [];
+    function makeHelo(id, x, y) {
+      const g = el('g', { class: 'raid-helo' });
+      g.appendChild(el('path', { class: 'raid-hull', d: SIL.helo }));
+      const rotor = el('g', { class: 'raid-rotor' });
+      rotor.appendChild(el('line', { x1: -12, y1: 0, x2: 12, y2: 0 }));
+      rotor.appendChild(el('line', { x1: 0, y1: -12, x2: 0, y2: 12 }));
+      g.appendChild(rotor);
+      fx.appendChild(g);
+      const h = { id, g, rotor, x, y, hdg: 0, spin: Math.random() * 360, power: 1, down: false };
+      helos.push(h);
+      placeHelo(h);
+      return h;
+    }
+    function placeHelo(h) {
+      h.g.setAttribute('transform', `translate(${h.x.toFixed(2)},${h.y.toFixed(2)}) rotate(${h.hdg.toFixed(1)})`);
+      h.rotor.setAttribute('transform', `translate(0,-1) rotate(${h.spin.toFixed(1)})`);
+    }
+    (function spinLoop(last) {
+      return function step(now) {
+        if (!entry._alive) return;
+        const dt = Math.min(64, now - last);
+        last = now;
+        for (const h of helos) {
+          if (h.power <= 0) continue;
+          h.spin = (h.spin + dt * 1.6 * h.power) % 360;
+          h.rotor.setAttribute('transform', `translate(0,-1) rotate(${h.spin.toFixed(1)})`);
+        }
+        requestAnimationFrame(step);
+      };
+    })(performance.now())(performance.now());
+
+    // ---- assault element: one square per operator, moving as a cluster ----
+    const ops = [];
+    const team = { x: RC.lz.x, y: RC.lz.y };
+    // a frozen operator (dead, or captured in place) stops riding the cluster
+    function placeOps() {
+      for (const o of ops) {
+        if (o.frozen) continue;
+        o.g.setAttribute('transform',
+          `translate(${(team.x + o.dx).toFixed(2)},${(team.y + o.dy).toFixed(2)})`);
+      }
+    }
+
+    function tween(ms, step, done) {
+      const t0 = performance.now();
+      (function frame(now) {
+        if (!entry._alive) return;
+        const p = Math.min(1, (now - t0) / ms);
+        step(p);
+        if (p < 1) { requestAnimationFrame(frame); return; }
+        if (done) done();
+      })(performance.now());
+    }
+
+    function moveTeam(to, ms, done) {
+      const from = { x: team.x, y: team.y };
+      tween(ms, (p) => {
+        team.x = from.x + (to.x - from.x) * p;
+        team.y = from.y + (to.y - from.y) * p;
+        placeOps();
+      }, done);
+    }
+
+    const handle = {
+      entry,
+
+      // Feed line, stamped with the mission clock. Kinds colour the line:
+      // status is white, problem amber, bad red, good green.
+      log(text, kind, clockMs) {
+        const div = document.createElement('div');
+        div.className = 'fs-line raid-line' + (kind ? ` raid-${kind}` : '');
+        const s = Math.max(0, Math.round((clockMs || 0) / 1000));
+        const stamp = document.createElement('span');
+        stamp.className = 'raid-stamp';
+        stamp.textContent = `T+${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+        div.appendChild(stamp);
+        div.appendChild(document.createTextNode(' ' + text));
+        const box = entry.querySelector('.fs-lines');
+        box.appendChild(div);
+        const lines = box.querySelectorAll('.fs-line');
+        if (lines.length > 5) lines[0].remove();
+      },
+
+      phase(p, label, contested) { setProgress(entry, p, label, contested); },
+
+      // birds run in from off the bottom of the display and settle on the LZ
+      infil(ms) {
+        const assault = makeHelo('assault', RC.lz.x - 8, RC.edge);
+        const over = makeHelo('over', RC.lz.x + 22, RC.edge + 26);
+        fx.insertBefore(el('line', {
+          class: 'raid-track', x1: RC.lz.x - 8, y1: RC.edge, x2: RC.lz.x, y2: RC.lz.y,
+        }), fx.firstChild);
+        const a0 = { x: assault.x, y: assault.y }, o0 = { x: over.x, y: over.y };
+        tween(ms, (p) => {
+          const e = p * p * (3 - 2 * p); // ease in/out: they slow onto the objective
+          if (!assault.down) {
+            assault.x = a0.x + (RC.lz.x - a0.x) * e;
+            assault.y = a0.y + (RC.lz.y - a0.y) * e;
+            placeHelo(assault);
+          }
+          if (!over.down) {
+            over.x = o0.x + (RC.hold.x - o0.x) * e;
+            over.y = o0.y + (RC.hold.y - o0.y) * e;
+            placeHelo(over);
+          }
+        });
+      },
+
+      // fast-rope the team in and walk it up to the wall
+      fastrope(ms, n) {
+        for (let i = 0; i < (n || 6); i++) {
+          const g = el('g', { class: 'raid-op' });
+          g.appendChild(el('rect', { x: -1.6, y: -1.6, width: 3.2, height: 3.2 }));
+          fx.appendChild(g);
+          ops.push({ g, dx: (i % 3 - 1) * 5, dy: (i < 3 ? -1 : 1) * 3.5, hit: false });
+        }
+        team.x = RC.lz.x; team.y = RC.lz.y;
+        placeOps();
+        moveTeam(RC.breach, ms);
+      },
+
+      breach() {
+        scopeBurst(fx, RC.breach.x, RC.breach.y, 'raid-blast', 16);
+        cmp.classList.add('raid-breached');
+      },
+
+      // sporadic muzzle flashes around the wall for the length of the fight
+      firefight(ms) {
+        const t0 = performance.now();
+        (function pop() {
+          if (!entry._alive || performance.now() - t0 > ms) return;
+          const x = 66 + Math.random() * 68, y = 76 + Math.random() * 56;
+          scopeBurst(fx, x, y, 'raid-muzzle', 4);
+          setTimeout(pop, 120 + Math.random() * 220);
+        })();
+      },
+
+      enter(ms) { moveTeam(RC.hvt, ms); },
+
+      jackpot() {
+        main.classList.add('raid-cleared');
+        scopeBurst(fx, RC.hvt.x, RC.hvt.y, 'raid-jackpot', 22);
+      },
+
+      // a bird goes in: it drifts, yaws, and burns where it lands
+      heloDown(which, onGround) {
+        const h = helos.find(x => x.id === which) || helos[0];
+        if (!h || h.down) return;
+        h.down = true;
+        const from = { x: h.x, y: h.y };
+        const to = onGround ? { x: h.x, y: h.y } : { x: h.x + 14, y: h.y + 16 };
+        tween(1600, (p) => {
+          h.x = from.x + (to.x - from.x) * p;
+          h.y = from.y + (to.y - from.y) * p;
+          h.hdg = p * 140;
+          h.power = 1 - p;
+          placeHelo(h);
+        }, () => {
+          h.power = 0;
+          h.g.classList.add('raid-wreck');
+          scopeBurst(fx, h.x, h.y, 'raid-blast', 20);
+        });
+      },
+
+      // n operators go down — the squares stop moving with the cluster and go red
+      teamHit(n) {
+        const live = ops.filter(o => !o.hit);
+        for (let i = 0; i < Math.min(n, live.length); i++) {
+          const o = live[i];
+          o.hit = true;
+          o.g.classList.add('raid-op-down');
+          const at = { x: team.x + o.dx, y: team.y + o.dy };
+          o.g.setAttribute('transform', `translate(${at.x.toFixed(2)},${at.y.toFixed(2)})`);
+          scopeBurst(fx, at.x, at.y, 'raid-muzzle', 6);
+          // frozen in place: overwrite its offset so placeOps() can't move it
+          o.dx = at.x - team.x; o.dy = at.y - team.y;
+          o.frozen = true;
+        }
+      },
+
+      // survivors stop being ours — amber, static, inside the wire
+      teamCaptured() {
+        for (const o of ops) {
+          if (o.hit) continue;
+          o.frozen = true;
+          o.g.classList.add('raid-op-taken');
+        }
+        cmp.classList.add('raid-lost');
+      },
+
+      teamOut(ms) { moveTeam(RC.lz, ms); },
+
+      // whatever is still flying lifts off and runs south, off the display
+      exfil(ms) {
+        for (const o of ops) if (!o.hit && !o.frozen) o.g.classList.add('raid-op-gone');
+        for (const h of helos) {
+          if (h.down) continue;
+          const from = { x: h.x, y: h.y };
+          const to = { x: h.x - 6, y: RC.edge + 20 };
+          h.hdg = 180;
+          tween(ms, (p) => {
+            h.x = from.x + (to.x - from.x) * p;
+            h.y = from.y + (to.y - from.y) * p;
+            placeHelo(h);
+          });
+        }
+      },
+
+      close(delay) { fsClose(entry, delay || 0); },
+    };
+
+    return handle;
+  }
+
   // ---- Iranian counterattacks: ballistic/cruise missiles arc in fast,
   // Shahed drones swarm slowly; both can be intercepted short of the base ----
   function iranOrigin(kind, tx, ty) {
@@ -1035,5 +1330,6 @@ const MapView = (() => {
   }
 
   return { render, updateTarget, setHormuz, flashAsset, animateStrike, playStrikeHit,
-    whenFootageDone, updateTransit, animateIranianAttacks, setTargetClickHandler };
+    whenFootageDone, updateTransit, animateIranianAttacks, setTargetClickHandler,
+    raidOpen };
 })();

@@ -52,11 +52,14 @@ const Game = (() => {
       return IranAI.missileStrength() <= 0.5 && IranAI.navalStrength() <= 0.5 &&
         irgc.status === 'destroyed';
     },
+    // The leadership target died — whether or not the task force came home.
+    // 'pyrrhic' bought the same decapitation at the price of the whole team.
+    raidDecapitated() { return this.raid === 'success' || this.raid === 'pyrrhic'; },
     negotiationReady() {
       // Tehran only talks when it is already losing the war: the program largely
       // gone AND its ability to fight visibly draining away. A successful
       // decapitation raid (with the pragmatists in charge) lowers the bar.
-      const degNeeded = this.raid === 'success' && !this.regimeErratic ? 75 : 100;
+      const degNeeded = this.raidDecapitated() && !this.regimeErratic ? 75 : 100;
       const warStr = IranAI.missileStrength() + IranAI.navalStrength(); // 0..4
       return this.nukeDegraded() >= degNeeded && warStr <= 1.5;
     },
@@ -479,7 +482,9 @@ const Game = (() => {
   }
 
   function endTurn() {
-    if (G.over) return;
+    // the task force is still on the objective — nothing else moves until the
+    // mission resolves, or the sequencing of its debrief and the turn breaks
+    if (G.over || SpecOps.busy()) return;
 
     // strike packages arrive first — BDA lands, then Iran answers with
     // whatever the volley left standing
@@ -621,8 +626,11 @@ const Game = (() => {
       ['ECONOMIC DAMAGE', econGrade, `Peak oil price $${Math.round(G.stats.peakOil)}/bbl`],
     ];
     if (G.raid !== 'none') {
-      grades.splice(1, 0, G.raid === 'success'
-        ? ['SPECIAL OPERATIONS', 'A', 'Leadership decapitation raid succeeded — regime command chain shattered']
+      grades.splice(1, 0,
+        G.raid === 'success'
+          ? ['SPECIAL OPERATIONS', 'A', 'Leadership decapitation raid succeeded — regime command chain shattered']
+        : G.raid === 'pyrrhic'
+          ? ['SPECIAL OPERATIONS', 'C', 'Leadership target killed — the entire task force was lost taking him']
         : ['SPECIAL OPERATIONS', 'F', G.hostageCrisis
           ? 'Leadership raid failed — operators captured and paraded on Iranian state TV'
           : 'Leadership raid failed — the task force was lost on Iranian soil']);
@@ -653,7 +661,7 @@ const Game = (() => {
     document.getElementById('app').classList.remove('hidden');
     MapView.render();
     MapView.setTargetClickHandler((t) => {
-      if (G.over) return;
+      if (G.over || SpecOps.busy()) return;
       if (t.status === 'destroyed') return;
       UI.openStrikeModal(G, t);
     });
