@@ -73,7 +73,7 @@ const Game = (() => {
     alliedFighters: 0,     // coalition and IAF squadrons folded into the fighter cap
     strikesThisTurn: 0, struckThisTurn: [],
     missions: [],          // strike packages in flight: {targetId, pkg, eta}
-    sanctions: 0, coalition: false, addressCooldown: 0,
+    sanctions: 0, coalition: false, addressCooldown: 0, sprReleases: 0,
     negotiationsAccepted: false, negotiationMomentum: 0,
     diploUsed: false, over: false,
     // Israel: a semi-autonomous actor, not an American asset. Sidelined by
@@ -212,7 +212,7 @@ const Game = (() => {
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
       'strikesThisTurn', 'struckThisTurn', 'missions', 'sanctions', 'coalition',
-      'addressCooldown', 'negotiationsAccepted', 'negotiationMomentum',
+      'addressCooldown', 'sprReleases', 'negotiationsAccepted', 'negotiationMomentum',
       'diploUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep', 'downed',
       'israelPosture', 'israelPatience', 'israelStrikesUsed', 'israelJointAvailable',
       'regimeChaosTurns', 'regimeErratic', 'hostageCrisis', 'stats',
@@ -1340,7 +1340,7 @@ const Game = (() => {
             'hide and secondary explosions off the reload rounds. That is a piece of the missile force that ' +
             'does not come back and does not move again.'
           : 'Battle damage assessment confirms the target is destroyed. Functional capability eliminated.';
-      if (target.type === 'oil') { G.oil += 10; ev.dOil = 10; }
+      if (target.type === 'oil') { G.oil += 6; ev.dOil = 6; }
       // The sheds die, and whatever was still alive when the night started
       // drives away. Measured from the turn-start snapshot rather than from
       // beforeHp, so packing three packages onto one base in a single turn
@@ -1679,7 +1679,7 @@ const Game = (() => {
       }
       case 'address': {
         if (G.addressCooldown > 0) return;
-        G.addressCooldown = 3;
+        G.addressCooldown = 2;
         G.addresses++;
         G.approval = clamp(G.approval + 6, 0, 100);
         events.push({
@@ -1688,6 +1688,29 @@ const Game = (() => {
             'requires. The rally effect is real, for now — and every one of these is a vote on the floor ' +
             'when the authorization comes up.',
           dApproval: 6,
+        });
+        break;
+      }
+      case 'spr': {
+        // The one lever that pushes the pump price DOWN. Coordinated reserve
+        // draws — the SPR plus allied stocks under the IEA — put barrels on the
+        // market the war is taking off it. It is finite: two meaningful releases
+        // and the tanks are low enough that a third would be political theater.
+        if (G.sprReleases >= 2) return;
+        G.sprReleases++;
+        const drop = G.sprReleases === 1 ? 20 : 12; // the second draw moves less
+        G.oil = Math.max(60, G.oil - drop);
+        G.approval = clamp(G.approval + 2, 0, 100);
+        G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
+        events.push({
+          cls: 'friendly', title: 'Strategic Petroleum Reserve released',
+          text: `You order a coordinated draw from the Strategic Petroleum Reserve, with allied ` +
+            `stocks released in parallel. Crude falls roughly $${drop} a barrel as the barrels hit ` +
+            `the market, and the price at the pump follows it down — relief the country feels this week. ` +
+            (G.sprReleases >= 2
+              ? 'The tanks are running low now; there is no third draw of this size to give.'
+              : 'The reserve is deep, but not bottomless — one more release of this scale is all it holds.'),
+          dOil: -drop, dApproval: 2,
         });
         break;
       }
@@ -1910,19 +1933,26 @@ const Game = (() => {
         }
 
         // economy: oil carries a war premium set by Iran's remaining ability
-        // to threaten the Gulf, plus the state of the strait
-        const warPremium = IranAI.missileStrength() + IranAI.navalStrength() > 1 ? 14 : 4;
+        // to threaten the Gulf, plus the state of the strait. The premium scales
+        // with what Iran can still do rather than snapping between two values, so
+        // grinding the missile and naval forces down is visible at the pump — and
+        // the market eases toward the new target slowly, one night at a time.
+        const warStr = IranAI.missileStrength() + IranAI.navalStrength(); // 0..4
+        const warPremium = 3 + warStr * 2.5; // ~3 when Iran is finished, ~13 at full strength
         const oilTarget = 88 + warPremium +
-          (G.hormuz === 'CONTESTED' ? 20 : G.hormuz === 'CLOSED' ? 75 : 0);
-        G.oil = Math.max(60, G.oil + (oilTarget - G.oil) * 0.25);
+          (G.hormuz === 'CONTESTED' ? 14 : G.hormuz === 'CLOSED' ? 55 : 0);
+        G.oil = Math.max(60, G.oil + (oilTarget - G.oil) * 0.16);
         G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
 
         if (G.hormuz === 'CLOSED') G.hormuzClosedTurns++;
         else G.hormuzClosedTurns = 0;
 
-        // domestic drift: expensive gas and long wars erode approval
+        // domestic drift: the country reacts to the price at the pump. Expensive
+        // gas and a long war bleed approval; cheap, calm markets let it recover a
+        // little on its own — the one lever the president can always turn.
         if (G.oil >= 150) G.approval = clamp(G.approval - 2, 0, 100);
-        else if (G.oil >= 115) G.approval = clamp(G.approval - 1, 0, 100);
+        else if (G.oil >= 125) G.approval = clamp(G.approval - 1, 0, 100);
+        else if (G.oil <= 95) G.approval = clamp(G.approval + 1, 0, 100);
         if (G.turn > WEARINESS_TURN) G.approval = clamp(G.approval - 0.5, 0, 100);
 
         // the centrifuges ran again tonight, whatever else happened

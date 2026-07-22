@@ -489,6 +489,14 @@ const UI = (() => {
         disabled: G.israelPosture !== 'sidelined',
       },
       {
+        id: 'spr', name: 'Release the Strategic Reserve',
+        desc: G.sprReleases >= 2
+          ? 'Reserve drawn down — the tanks are too low for another release of scale.'
+          : `Coordinated SPR draw to push the pump price down. Oil ${G.sprReleases === 0 ? '−$20' : '−$12'}, approval +2. ` +
+            `${2 - G.sprReleases} release(s) left.`,
+        disabled: G.sprReleases >= 2,
+      },
+      {
         id: 'address', name: 'Address the nation',
         desc: G.addressCooldown > 0
           ? `Available in ${G.addressCooldown} turn(s).`
