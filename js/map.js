@@ -8,6 +8,13 @@ const MapView = (() => {
   let panning = false, panStart = null;
   let forwardOn = false; // forward-basing layer starts hidden
 
+  // FAST FORWARD — the player asked for the result, not the show. Everything
+  // that animates on a clock checks this flag and collapses to its end state:
+  // runs already in the air resolve on their next frame, anything queued behind
+  // them never draws at all. Nothing here changes an outcome — the BDA and the
+  // Iranian answer are already decided by the time the pixels move.
+  let ff = false;
+
   const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -823,6 +830,7 @@ const MapView = (() => {
     // one loop drives the sweep, the aircraft, acquisition and the progress bar
     function frame(now) {
       if (!entry._alive) return;
+      if (ff) { impact(); return; }   // skipped mid-run: go straight to weapons away
       const dt = now - lastFrame;
       lastFrame = now;
 
@@ -879,6 +887,9 @@ const MapView = (() => {
     }
 
     function impact() {
+      // deregistering is also the once-guard: the run reaches weapons away one
+      // time, whether it got there by flying or by being skipped
+      if (!skipEnders.delete(forceImpact)) return;
       for (const a of acs) a.g.setAttribute('opacity', 0);
       lock.setAttribute('opacity', 0);
       if (view.ring) view.ring.classList.remove('painting');
@@ -889,10 +900,14 @@ const MapView = (() => {
       done();                 // BDA resolves now — everything after is cosmetic
       targetPulse(target);    // the map's one quiet acknowledgement
       // a single egress beat, then the card retires. Held open long enough for
-      // the hit clip (played by game.js on a successful hit) to finish first.
+      // the hit clip (played by game.js on a successful hit) to finish first —
+      // unless the player skipped, in which case the card has nothing left to say.
+      if (ff) { fsClose(entry, 0); return; }
       if (!cruise) setTimeout(() => { if (entry._alive) fireUpTo(1.2); }, 1400);
       fsClose(entry, 5200);
     }
+    const forceImpact = () => { if (entry._alive) impact(); else skipEnders.delete(forceImpact); };
+    skipEnders.add(forceImpact);
 
     // Start the terminal run. For a TLAM the launch clip plays first and in full
     // — the flight (and the radar) only begins once the clip is done, so the clip
@@ -982,6 +997,8 @@ const MapView = (() => {
   function animateStrike(assetType, target, done, count, pkg) {
     let called = false;
     const once = () => { if (called) return; called = true; if (done) done(); };
+    // skipped: the package still flies and still resolves, it just never draws
+    if (ff) { once(); return; }
     try {
       animateScope(assetType, target, once, count, pkg);
     } catch (e) {
@@ -996,6 +1013,15 @@ const MapView = (() => {
   // clips are still on screen and let it await an idle scope.
   let activeClips = 0;
   let clipWaiters = [];
+  // Live clip finishers, so a skip can end them properly rather than yanking the
+  // element out from under them — a launch clip gates the flight behind it, and
+  // an orphaned one would hold that run for its full stall timeout.
+  const clipEnders = new Set();
+  // Everything else a skip has to force: live strike runs and the Iranian salvo
+  // phase. A frame loop that checks `ff` is not enough on its own — a
+  // backgrounded tab stops requestAnimationFrame cold, and a skip must land
+  // whether or not the browser is still handing out frames.
+  const skipEnders = new Set();
   function clipEnded() {
     activeClips = Math.max(0, activeClips - 1);
     if (activeClips === 0) { const w = clipWaiters; clipWaiters = []; w.forEach(fn => fn()); }
@@ -1003,7 +1029,7 @@ const MapView = (() => {
   // Run cb once every strike clip has finished (or immediately if none are up).
   // The timeout is a hard safety net: a stuck clip must never hang the report.
   function whenFootageDone(cb) {
-    if (activeClips === 0) { cb(); return; }
+    if (ff || activeClips === 0) { cb(); return; }
     let fired = false;
     const go = () => { if (fired) return; fired = true; cb(); };
     clipWaiters.push(go);
@@ -1015,6 +1041,7 @@ const MapView = (() => {
   // onEnd fires once — on natural end, a load error, or a stall timeout — so a
   // launch clip can gate the flight run behind itself without ever hanging.
   function overlayScopeClip(wrap, src, onEnd) {
+    if (ff) { if (onEnd) onEnd(); return; }   // skipped: no footage, no gate
     if (!wrap || wrap.querySelector('.scope-hit-video')) { if (onEnd) onEnd(); return; }
     const vid = document.createElement('video');
     vid.className = 'scope-hit-video';
@@ -1025,10 +1052,12 @@ const MapView = (() => {
     const finish = () => {
       if (done) return;
       done = true;
+      clipEnders.delete(finish);
       vid.remove();
       clipEnded();
       if (onEnd) onEnd();
     };
+    clipEnders.add(finish);
     vid.addEventListener('ended', finish);
     vid.addEventListener('error', finish);   // genuine decode/load failure
     setTimeout(finish, 9000);                // stall safety (e.g. backgrounded tab)
@@ -1036,6 +1065,25 @@ const MapView = (() => {
     // Try to play with sound; a rejected audible autoplay falls back to muted so
     // the footage still runs. Any sound in the clip plays when the browser allows.
     vid.play().catch(() => { vid.muted = true; vid.play().catch(() => {}); });
+  }
+
+  // ---- fast forward ----
+  // Called by game.js when the player skips the turn. Raising the flag is most
+  // of the work — every loop reads it — but anything parked on a clock rather
+  // than on a frame has to be told, so live clips are ended here explicitly.
+  function setFastForward(on) {
+    if (!on) {
+      ff = false;
+      // frozen sprites from a salvo that was skipped rather than flown
+      document.querySelectorAll('.iran-missile, .iran-drone, .iran-missile-path, .iran-drone-path')
+        .forEach(n => n.remove());
+      return;
+    }
+    ff = true;
+    // clips first: a launch clip gates the run behind it, so ending the clip is
+    // what lets that run reach its impact
+    for (const end of [...clipEnders]) end();
+    for (const end of [...skipEnders]) end();
   }
 
   // Some targets have their own hit clip; everything else uses the generic one.
@@ -1763,6 +1811,7 @@ const MapView = (() => {
     let left = count;
     for (let i = 0; i < count; i++) {
       setTimeout(() => {
+        if (ff) { if (--left === 0) cb(); return; }
         const jx = base.x + rand(-8, 8), jy = base.y + rand(-6, 6);
         const mx = (o.x + jx) / 2 + (o.y - jy) * 0.35 + rand(-15, 15);
         const my = (o.y + jy) / 2 + (jx - o.x) * 0.35 + rand(-15, 15);
@@ -1781,6 +1830,7 @@ const MapView = (() => {
           if (--left === 0) cb();
         };
         function step(now) {
+          if (ff) { end(); return; }   // skipped: the salvo comes off the plot
           const p = Math.min(1, (now - t0) / dur);
           const pt = path.getPointAtLength(total * p);
           m.setAttribute('cx', pt.x);
@@ -1801,6 +1851,7 @@ const MapView = (() => {
     let left = count;
     for (let i = 0; i < count; i++) {
       setTimeout(() => {
+        if (ff) { if (--left === 0) cb(); return; }
         const sx = o.x + rand(-12, 12), sy = o.y + rand(-10, 10);
         const jx = base.x + rand(-7, 7), jy = base.y + rand(-5, 5);
         const mx = (sx + jx) / 2 + rand(-30, 30);
@@ -1821,6 +1872,7 @@ const MapView = (() => {
           if (--left === 0) cb();
         };
         function step(now) {
+          if (ff) { end(); return; }   // skipped: the swarm comes off the plot
           const p = Math.min(1, (now - t0) / dur);
           const pt = path.getPointAtLength(total * p);
           const pb = path.getPointAtLength(Math.min(total, total * p + 2));
@@ -1859,18 +1911,22 @@ const MapView = (() => {
         }
       }
     }
-    if (!specs.length) { if (done) done(); return; }
+    if (ff || !specs.length) { if (done) done(); return; }
 
     let leftSalvos = specs.length, called = false;
     const finish = () => {
       if (called) return;
       called = true;
+      skipEnders.delete(finish);
       if (done) done();
     };
+    skipEnders.add(finish);   // a skip mid-salvo hands the turn straight on
     specs.forEach((s, i) => {
       setTimeout(() => {
+        // a salvo that hasn't launched by the time the player skips never flies
+        if (ff) { if (--leftSalvos === 0) finish(); return; }
         (s.kind === 'missile' ? launchMissiles : launchDrones)(s.asset, s.count, () => {
-          if (--leftSalvos === 0) setTimeout(finish, 400);
+          if (--leftSalvos === 0) setTimeout(finish, ff ? 0 : 400);
         });
       }, i * 600);
     });
@@ -1878,7 +1934,7 @@ const MapView = (() => {
   }
 
   return { render, updateTarget, setHormuz, flashAsset, animateStrike, playStrikeHit,
-    whenFootageDone, updateTransit, animateIranianAttacks, setTargetClickHandler,
+    whenFootageDone, updateTransit, animateIranianAttacks, setTargetClickHandler, setFastForward,
     setCarrierPosture, setCarrierIngress, setAssetActive, raidOpen,
     csarOpen, setSurvivor };
 })();

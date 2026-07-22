@@ -314,7 +314,7 @@ const Game = (() => {
   // Call the 509th forward. One turn wingtip-to-wingtip across the Pacific with
   // the whole tanker force behind it — and for that turn, nothing else moves.
   function orderBombers() {
-    if (G.over || G.bombersOrdered || transitCommitted()) return;
+    if (G.over || G.bombersOrdered || transitCommitted() || busy()) return;
     G.bombersOrdered = true;
     G.bomberEta = B2_TRANSIT_TURNS;
     G.deployTurn = G.turn;
@@ -346,7 +346,7 @@ const Game = (() => {
   // Indian Ocean when the order goes out and no amount of wanting moves her
   // faster — the cost of the second carrier is paid in the turns before it.
   function orderCarrier() {
-    if (G.over || G.secondCarrierOrdered || transitCommitted()) return;
+    if (G.over || G.secondCarrierOrdered || transitCommitted() || busy()) return;
     G.secondCarrierOrdered = true;
     G.secondCarrierEta = FORD_TRANSIT_TURNS;
     G.deployTurn = G.turn;
@@ -359,7 +359,7 @@ const Game = (() => {
   // Order a deck between stations. Takes effect at the end of the turn — the
   // order is given now, the ship is somewhere in between until then.
   function toggleCarrierPosture(id) {
-    if (G.over || SpecOps.busy() || CSAR.busy()) return;
+    if (G.over || busy()) return;
     const cv = carrierById(id);
     if (!cv || !cv.arrived || cv.lost || cv.moving) return;
     cv.moving = cv.posture === 'forward' ? 'back' : 'forward';
@@ -557,7 +557,7 @@ const Game = (() => {
   const MISSION_ETA = { fighter: 1, cruise: 1, stealth: 2 };
 
   function executeStrike(target, pkg) {
-    if (G.over) return;
+    if (G.over || busy()) return;
     const key = resKey(pkg.asset);
     if (G.res[key] < pkg.qty) return;
     G.res[key] -= pkg.qty;
@@ -756,7 +756,7 @@ const Game = (() => {
 
   // ---- diplomacy ----
   function doDiplo(action) {
-    if (G.over || G.diploUsed) return;
+    if (G.over || G.diploUsed || busy()) return;
     const events = [];
 
     switch (action) {
@@ -924,11 +924,39 @@ const Game = (() => {
     if (ev.flashAsset) MapView.flashAsset(ev.flashAsset);
   }
 
+  // ---- the turn lock ----
+  // A turn is ended once. From the order until the battle report is dismissed
+  // the war is resolving: the sidebar and the map go inert, and the end-turn
+  // button is replaced by SKIP TO RESULTS, which collapses the animation without
+  // touching a single outcome — everything below has already been decided.
+  let resolving = false;
+  const busy = () => resolving || SpecOps.busy() || CSAR.busy();
+
+  function setResolving(on) {
+    resolving = on;
+    document.getElementById('app').classList.toggle('turn-resolving', on);
+    document.getElementById('btn-end-turn').classList.toggle('hidden', on);
+    const skip = document.getElementById('btn-skip-turn');
+    skip.classList.toggle('hidden', !on);
+    skip.disabled = false;
+    skip.textContent = 'SKIP TO RESULTS ▸';
+  }
+
+  function skipToResults() {
+    if (!resolving) return;
+    const skip = document.getElementById('btn-skip-turn');
+    if (skip.disabled) return;      // already skipping; the report is on its way
+    skip.disabled = true;
+    skip.textContent = 'RESOLVING…';
+    MapView.setFastForward(true);
+  }
+
   function endTurn() {
     // a task force or a recovery package is still on the objective — nothing
     // else moves until the mission resolves, or the sequencing of its debrief
     // and the turn breaks
-    if (G.over || SpecOps.busy() || CSAR.busy()) return;
+    if (G.over || busy()) return;
+    setResolving(true);
 
     // strike packages arrive first — BDA lands, then Iran answers with
     // whatever the volley left standing
@@ -987,6 +1015,10 @@ const Game = (() => {
         // hold the battle report until every strike clip has finished playing
         MapView.whenFootageDone(() => {
           UI.showReport(`BATTLE REPORT — DAY ${day}, TURN ${G.turn}`, all, () => {
+            // the turn is over: the map animates at speed again and the button
+            // goes back to END TURN for the next one
+            MapView.setFastForward(false);
+            setResolving(false);
             if (result) { finish(result); return; }
             nextTurn();
           });
@@ -1146,7 +1178,7 @@ const Game = (() => {
     syncBomberMap();    // and Diego Garcia is only on the plot once it is manned
     CSAR.syncMap(G);    // and downed aircrew are on it only while they are down
     MapView.setTargetClickHandler((t) => {
-      if (G.over || SpecOps.busy() || CSAR.busy()) return;
+      if (G.over || busy()) return;
       if (t.status === 'destroyed') return;
       UI.openStrikeModal(G, t);
     });
@@ -1181,6 +1213,7 @@ const Game = (() => {
 
     document.getElementById('btn-start').addEventListener('click', () => start(false));
     document.getElementById('btn-end-turn').addEventListener('click', endTurn);
+    document.getElementById('btn-skip-turn').addEventListener('click', skipToResults);
 
     // continue / save & quit / new game
     const saved = Save.read();
