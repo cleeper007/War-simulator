@@ -123,8 +123,8 @@ const UI = (() => {
 
   // ---- the bomber force ----
   // The 509th is a third piece of the deployment picture, and it competes with
-  // the Ford for the same air bridge — so it lives in the same panel, where the
-  // player can see both halves of the choice at once.
+  // the Ford for the same naval transit — so it lives in the same panel, where
+  // the player can see both halves of the choice at once.
   function bomberLine(G) {
     if (G.bombersArrived) {
       return {
@@ -172,10 +172,10 @@ const UI = (() => {
       `<span class="cv-state ${bl.cls}">${bl.label}</span></div>` +
       `<div class="cv-note dim">${bl.note}</div></div>`;
 
-    // one force flow at a time: whichever deployment is on the bridge blocks
-    // the other until it lands
+    // one force flow a night: whichever deployment was ordered this turn holds
+    // tonight's transit plan, and the other one goes out on tomorrow's
+    const planCut = Game.transitCommitted();
     const bomberInbound = G.bombersOrdered && !G.bombersArrived;
-    const fordInbound = G.secondCarrierOrdered && G.secondCarrierEta > 0;
 
     const buttons = G.carriers.map(cv => {
       const info = CARRIER_INFO[cv.id];
@@ -185,15 +185,15 @@ const UI = (() => {
           return `<button disabled>${info.short} EN ROUTE<span class="diplo-desc">` +
             `ETA ${G.secondCarrierEta} turn(s). She cannot be hurried.</span></button>`;
         }
-        if (bomberInbound) {
-          return `<button disabled>AIR BRIDGE COMMITTED — B-2 FORCE MOVING` +
-            `<span class="diplo-desc">TRANSCOM runs one force flow at a time. ${info.short} can be surged ` +
-            `once the bombers are down at Diego Garcia — ${G.bomberEta} turn(s).</span></button>`;
+        if (planCut) {
+          return `<button disabled>NAVAL TRANSIT COMMITTED — B-2 FORCE MOVING` +
+            `<span class="diplo-desc">Fifth Fleet cuts one transit plan a night, and tonight's is the ` +
+            `509th. ${info.short} can be surged next turn.</span></button>`;
         }
         return `<button data-carrier-order="1">SURGE ${info.short} TO THE THEATER` +
           `<span class="diplo-desc">Orders ${info.name} to the Gulf. ${Game.FORD_TRANSIT_TURNS} turns out; ` +
-          `arrives at standoff in the Arabian Sea. Costs no money and no lives — it costs the air bridge ` +
-          `for five turns, and the B-2s cannot move while she is moving.</span></button>`;
+          `arrives at standoff in the Arabian Sea. Costs no money and no lives — it costs tonight's naval ` +
+          `transit, so the B-2s cannot be moved until next turn.</span></button>`;
       }
       const fwd = cv.posture === 'forward';
       return `<button data-carrier-toggle="${cv.id}" ${cv.moving ? 'disabled' : ''}>` +
@@ -212,15 +212,15 @@ const UI = (() => {
       if (bomberInbound) {
         bomberBtn = `<button disabled>B-2 FORCE EN ROUTE<span class="diplo-desc">` +
           `ETA ${G.bomberEta} turn(s). They land, they get built up, then they fly.</span></button>`;
-      } else if (fordInbound) {
-        bomberBtn = `<button disabled>AIR BRIDGE COMMITTED — FORD UNDER WAY` +
-          `<span class="diplo-desc">The tankers are supporting the carrier surge. The 509th can move ` +
-          `once she is on station — ${G.secondCarrierEta} turn(s).</span></button>`;
+      } else if (planCut) {
+        bomberBtn = `<button disabled>NAVAL TRANSIT COMMITTED — FORD UNDER WAY` +
+          `<span class="diplo-desc">Tonight's transit plan is the carrier surge. The 509th moves on ` +
+          `tomorrow's — they do not wait on her arrival.</span></button>`;
       } else {
         bomberBtn = `<button data-bomber-order="1">DEPLOY B-2 FORCE — WHITEMAN → DIEGO GARCIA` +
           `<span class="diplo-desc">Moves the 509th into theater. ${Game.B2_TRANSIT_TURNS} turn out; unlocks ` +
-          `GBU-57 penetrator missions — the only way to reach Fordow. Ties up the air bridge, so the ` +
-          `${CARRIER_INFO['csg-ford'].short} cannot be surged in the same turn.</span></button>`;
+          `GBU-57 penetrator missions — the only way to reach Fordow. Takes tonight's naval transit, so the ` +
+          `${CARRIER_INFO['csg-ford'].short} cannot be surged until next turn.</span></button>`;
       }
     }
 

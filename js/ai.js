@@ -231,7 +231,7 @@ const IranAI = (() => {
 
     // early on, the force-flow decision outranks everything else SecDef has to say
     if (!G.bombersOrdered && !G.secondCarrierOrdered && G.turn <= 3 && nukeDeg < 100) {
-      secdef.text = 'Two things are outside this theater and one bridge to move them on: the Ford, five turns out and worth double what one deck gives you, and the 509th, one turn out and the only thing that opens Fordow. Move one and the other waits. My advice is to decide tonight rather than discover in a week that you needed the one you left at home.';
+      secdef.text = 'Two things are outside this theater and Fifth Fleet cuts one transit plan a night to move them: the Ford, five turns out and worth double what one deck gives you, and the 509th, one turn out and the only thing that opens Fordow. One goes tonight, the other tomorrow. My advice is to decide which rather than discover in a week that you needed the one you left at home.';
     } else if (nukeDeg >= 100 && warStr <= 1.5) {
       secdef.text = 'They\'re beaten and they know it. Finish the missile force, the navy, and the IRGC command node — end this on our terms, not theirs.';
     } else if (nukeDeg >= 100) {
@@ -292,7 +292,7 @@ const IranAI = (() => {
     if (!G.bombersArrived && nukeDeg < 100) {
       cjcs.text = G.bombersOrdered
         ? `The 509th is airborne out of Whiteman with the tanker train strung out behind it — ${G.bomberEta} turn(s) to Diego Garcia. Until those aircraft are on that ramp, Fordow is a target we can photograph and not one we can service.`
-        : 'Be clear on what you do not have: there is not a B-2 within eight thousand miles of this war. They are parked at Whiteman. One turn on the tankers puts them at Diego Garcia and puts the GBU-57 in play, and nothing else in the inventory touches Fordow — not a Tomahawk, not a fighter, nothing. The bill is the air bridge: while they move, the Ford does not.';
+        : 'Be clear on what you do not have: there is not a B-2 within eight thousand miles of this war. They are parked at Whiteman. One turn on the tankers puts them at Diego Garcia and puts the GBU-57 in play, and nothing else in the inventory touches Fordow — not a Tomahawk, not a fighter, nothing. The bill is one night of the naval transit: the turn they move, nothing else does.';
     } else if (adLeft >= 2) {
       cjcs.text = `Their air defense network is largely intact — ${adLeft} SAM complexes active. Non-stealth strikes carry real attrition risk. Recommend SEAD first${G.bombersArrived ? ', or lean on the B-2s' : ''}.`;
     } else if (nukeDeg < 100) {

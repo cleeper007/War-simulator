@@ -30,6 +30,8 @@ const Game = (() => {
     secondCarrierOrdered: false, secondCarrierEta: 0,
     // the 509th Bomb Wing: at Whiteman AFB, Missouri, until called forward
     bombersOrdered: false, bomberEta: 0, bombersArrived: false,
+    // the turn a deployment order was cut, so only one goes out a night
+    deployTurn: 0,
     alliedFighters: 0,     // coalition and IAF squadrons folded into the fighter cap
     strikesThisTurn: 0, struckThisTurn: [],
     missions: [],          // strike packages in flight: {targetId, pkg, eta}
@@ -108,7 +110,7 @@ const Game = (() => {
       'israelPosture', 'israelPatience', 'israelStrikesUsed', 'israelJointAvailable',
       'regimeChaosTurns', 'regimeErratic', 'hostageCrisis', 'stats',
       'carriers', 'secondCarrierOrdered', 'secondCarrierEta', 'alliedFighters',
-      'bombersOrdered', 'bomberEta', 'bombersArrived',
+      'bombersOrdered', 'bomberEta', 'bombersArrived', 'deployTurn',
     ];
 
     function write() {
@@ -172,25 +174,26 @@ const Game = (() => {
   const FORD_TRANSIT_TURNS = 5;
 
   // ============================================================
-  // THE AIR BRIDGE
+  // THE NAVAL TRANSIT
   // ------------------------------------------------------------
   // Neither the second deck nor the bomber force is in this theater when the
-  // war opens, and TRANSCOM can only run one force flow at a time: the tanker
-  // bridge that walks the B-2s across the Pacific is the same one carrying the
-  // Ford's surge support east. So the two deployments queue behind each other,
-  // and the order you put them in is the decision. The Ford is five turns away
-  // and doubles what you can throw in a day; the bombers are one turn away and
-  // are the only key that fits Fordow. You can have both — eventually — but
-  // never at the same time, and the war does not wait for the second one.
+  // war opens, and Fifth Fleet writes the naval transit — escorts, oilers, the
+  // tanker tracks hung off them — once a night. So only one force flow is cut
+  // per turn: order the Ford tonight and the 509th waits for tomorrow's plan,
+  // and the reverse. The Ford is five turns away and doubles what you can throw
+  // in a day; the bombers are one turn away and are the only key that fits
+  // Fordow. You can have both — the cost is the night you spend choosing which
+  // one goes first, and the war does not wait while you do.
   // ============================================================
   const B2_TRANSIT_TURNS = 1;
   const BOMBER_CAP = 2;     // sustainable missions off the Diego Garcia ramp
   const BOMBER_READY = 1;   // generated and ready the turn they land
 
-  // is a force flow already on the bridge?
-  function deploymentInbound() {
-    return (G.secondCarrierOrdered && G.secondCarrierEta > 0) ||
-      (G.bombersOrdered && !G.bombersArrived);
+  // has tonight's transit plan already been cut? Only the turn the order goes
+  // out is blocked — a deployment still crossing does not hold the next plan,
+  // or ordering the Ford would lock the bombers out for her whole five turns.
+  function transitCommitted() {
+    return G.deployTurn === G.turn;
   }
 
   const carrierById = (id) => G.carriers.find(c => c.id === id);
@@ -267,9 +270,10 @@ const Game = (() => {
   // Call the 509th forward. One turn wingtip-to-wingtip across the Pacific with
   // the whole tanker force behind it — and for that turn, nothing else moves.
   function orderBombers() {
-    if (G.over || G.bombersOrdered || deploymentInbound()) return;
+    if (G.over || G.bombersOrdered || transitCommitted()) return;
     G.bombersOrdered = true;
     G.bomberEta = B2_TRANSIT_TURNS;
+    G.deployTurn = G.turn;
     AudioSys.play('cable');
     UI.renderAll(G);
     Save.write();
@@ -288,7 +292,7 @@ const Game = (() => {
     AudioSys.play('cable');
     return {
       cls: 'friendly', title: 'B-2 FORCE IN THEATER — DIEGO GARCIA',
-      text: 'The 509th Bomb Wing flew from Whiteman with the tanker force strung out behind it across the Pacific, and the aircraft are on the ramp at Diego Garcia under cover. Munitions handlers are building up GBU-57s tonight. From here the Massive Ordnance Penetrator is on the table — which means Fordow is finally a target and not a briefing slide. The bridge is clear again for whatever you want moved next.',
+      text: 'The 509th Bomb Wing flew from Whiteman with the tanker force strung out behind it across the Pacific, and the aircraft are on the ramp at Diego Garcia under cover. Munitions handlers are building up GBU-57s tonight. From here the Massive Ordnance Penetrator is on the table — which means Fordow is finally a target and not a briefing slide.',
     };
   }
 
@@ -298,9 +302,10 @@ const Game = (() => {
   // Indian Ocean when the order goes out and no amount of wanting moves her
   // faster — the cost of the second carrier is paid in the turns before it.
   function orderCarrier() {
-    if (G.over || G.secondCarrierOrdered || deploymentInbound()) return;
+    if (G.over || G.secondCarrierOrdered || transitCommitted()) return;
     G.secondCarrierOrdered = true;
     G.secondCarrierEta = FORD_TRANSIT_TURNS;
+    G.deployTurn = G.turn;
     syncCarrierMap();
     AudioSys.play('cable');
     UI.renderAll(G);
@@ -1075,5 +1080,5 @@ const Game = (() => {
   // the scope dramatizes the number, it never feeds back into the strike math.
   return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, israelStatus,
     airDefenseWeight, orderCarrier, toggleCarrierPosture, carrierFactor, carrierExposure,
-    orderBombers, deploymentInbound, FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, G };
+    orderBombers, transitCommitted, FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, G };
 })();

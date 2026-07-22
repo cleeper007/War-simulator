@@ -49,12 +49,12 @@ fight — the mission is driving it to zero.
 - **Campaign culmination** — 20 turns expire with the program still standing (defeat);
   expire with real damage done and it's a graded stalemate instead.
 
-### Theater forces and the air bridge
+### Theater forces and the naval transit
 
 You open the war with one deck — the *Abraham Lincoln*, on station in the Gulf of Oman
-— and everything else is somewhere else. Two forces can be brought in, and **TRANSCOM
-runs one force flow at a time**, so they queue behind each other and the order is the
-decision:
+— and everything else is somewhere else. Two forces can be brought in, and **Fifth
+Fleet cuts one naval transit plan a night**, so only one deployment order goes out per
+turn and the order you put them in is the decision:
 
 - **USS Gerald R. Ford** — five turns out. She arrives at standoff in the Arabian Sea
   and roughly doubles what you can put in the air in a day. Every fighter sortie and
@@ -65,10 +65,10 @@ decision:
   thing in the inventory that reaches Fordow. Two sustainable missions off the ramp,
   regenerating one every three turns.
 
-Move one and the other waits. The bombers are cheap in time and priceless in reach;
-the carrier is slow and pays out for the rest of the war. Sending the Ford first means
-Fordow is untouchable for at least five turns — long enough for Israel's patience to
-run out and take the joint package with it.
+One goes tonight, the other tomorrow. The bombers are cheap in time and priceless in
+reach; the carrier is slow and pays out for the rest of the war. Sending the Ford first
+costs a turn before the 509th can follow — she does not have to arrive first, but that
+lost night still puts Fordow a turn further away.
 
 Once in theater, each deck is either **forward** in the Gulf of Oman (full sortie
 generation, inside every anti-ship weapon Iran owns) or **back** in the deep Arabian
@@ -159,8 +159,8 @@ more at home than any target on the map.
   - *B-2 missions (GBU-57)* — scarce, slow to arrive, and not in theater until the
     509th is deployed forward; the **only** weapon that can kill Fordow.
 - **Move forces** — surge the *Ford*, deploy the B-2s forward, or shift a deck between
-  the Gulf of Oman and the Arabian Sea. Only one deployment can be on the air bridge
-  at a time (see above); posture changes are free of it.
+  the Gulf of Oman and the Arabian Sea. Only one deployment order can be cut per turn
+  (see above); posture changes are free of it.
 - **Take one diplomatic action** — backchannel talks, UN pressure, sanctions,
   coalition building, **coordinating with Israel**, an address to the nation, or
   **ISR prep** for the raid below.
