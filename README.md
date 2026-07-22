@@ -46,7 +46,7 @@ fight — the mission is driving it to zero.
 - **Iran goes nuclear** — the enrichment clock runs out. This is the race the whole war
   is against, and it is the only loss condition you cannot see coming exactly (see below).
 - **Unsustainable losses** — the casualty ceiling is passed. What the country will absorb
-  depends on the command level you chose: 320, 250, or 190.
+  depends on the difficulty you chose: 320 on easy, 250 on normal, 190 on hard.
 - **Impeachment** — approval collapses below 20%.
 - **Congress cuts off the war** — you lose the War Powers vote (see below).
 - **Economic collapse** — the Strait of Hormuz stays closed too long, or oil passes $240.

@@ -335,13 +335,18 @@ const BREAKOUT = {
 // how fast Iran puts its damaged sites back together, and how well it
 // coordinates what it has left.
 const DIFFICULTY = {
-  advisor:   { name: 'NATIONAL SECURITY ADVISOR', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25,
+  easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25,
     desc: 'A forgiving war. The country absorbs more, Iran reconstitutes slower, and the enrichment clock runs long.' },
-  general:   { name: 'COMMANDER, CENTCOM', casualties: 250, repair: 1, coord: 1, breakout: 1,
-    desc: 'The war as designed. Everything below is scaled from here.' },
-  president: { name: 'COMMANDER IN CHIEF', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85,
+  normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1,
+    desc: 'The war as designed. Everything above and below is scaled from here.' },
+  hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85,
     desc: 'The country has less patience, Iran repairs faster and fights better coordinated, and the centrifuges are further along than you would like.' },
 };
+
+// These levels were once named for the chair you were sitting in. A save
+// written under those names still restores at the level it was played at
+// rather than silently dropping to normal.
+const DIFFICULTY_ALIAS = { advisor: 'easy', general: 'normal', president: 'hard' };
 
 // ---- US assets shown on the map ----
 // sortie: can generate fixed-wing strike sorties (flight animations launch

@@ -229,7 +229,7 @@ const IranAI = (() => {
 
     // coordination: killing command degrades the response machine
     const irgc = TARGETS.find(t => t.id === 'irgc-hq');
-    let coord = (0.6 + 0.4 * (irgc.hp / 100)) * (DIFFICULTY[G.difficulty] || DIFFICULTY.general).coord;
+    let coord = (0.6 + 0.4 * (irgc.hp / 100)) * (DIFFICULTY[G.difficulty] || DIFFICULTY.normal).coord;
     if (G.regimeChaosTurns > 0) coord *= 0.55;                      // decapitated: paralysis
     else if (G.regimeErratic) coord = Math.min(1.15, coord + 0.25); // erratic remnant: lashing out
     // the war machine spins up over the first days, faster when provoked

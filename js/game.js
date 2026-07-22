@@ -18,7 +18,7 @@ const Game = (() => {
   // reads casualtyLimit() rather than baking a number in.
   const WEARINESS_TURN = 14;    // after this, a long war bleeds approval on its own
 
-  const diff = () => DIFFICULTY[G.difficulty] || DIFFICULTY.general;
+  const diff = () => DIFFICULTY[G.difficulty] || DIFFICULTY.normal;
   const casualtyLimit = () => diff().casualties;
 
   // The congressional clock. Somewhere in the middle of the second week the
@@ -79,7 +79,7 @@ const Game = (() => {
     // Set once at kickoff and never during. Difficulty scales the three numbers
     // that matter (see DIFFICULTY); the Iranian war plan is chosen at random and
     // hidden until the analysts are asked for it.
-    difficulty: 'general',
+    difficulty: 'normal',
     iranPosture: 'attrition', postureKnown: false,
 
     // ---- the enrichment race ----
@@ -1895,6 +1895,9 @@ const Game = (() => {
 
   function restoreAndStart(data) {
     for (const [f, v] of Object.entries(data.fields)) G[f] = v;
+    // a save written before the levels were renamed still restores at the level
+    // it was actually played at
+    G.difficulty = DIFFICULTY_ALIAS[G.difficulty] || G.difficulty;
     for (const t of TARGETS) {
       const rec = data.targets[t.id] || {};
       t.hp = typeof rec.hp === 'number' ? rec.hp : (t.dispersal ? 0 : 100);
@@ -1917,7 +1920,7 @@ const Game = (() => {
   // shown to the player; all of it is discoverable.
   // ============================================================
   function newWar(difficulty) {
-    G.difficulty = DIFFICULTY[difficulty] ? difficulty : 'general';
+    G.difficulty = DIFFICULTY[difficulty] ? difficulty : 'normal';
 
     // launcher groups start off the board entirely
     for (const t of TARGETS) {
@@ -1965,7 +1968,7 @@ const Game = (() => {
 
     document.getElementById('btn-start').addEventListener('click', () => {
       const sel = document.querySelector('input[name="difficulty"]:checked');
-      newWar(sel ? sel.value : 'general');
+      newWar(sel ? sel.value : 'normal');
       start(false);
     });
     document.getElementById('btn-end-turn').addEventListener('click', endTurn);
