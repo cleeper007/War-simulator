@@ -43,11 +43,117 @@ fight — the mission is driving it to zero.
 
 ### How you lose
 
-- **Unsustainable losses** — 250+ US dead. The home front stops funding the war.
+- **Iran goes nuclear** — the enrichment clock runs out. This is the race the whole war
+  is against, and it is the only loss condition you cannot see coming exactly (see below).
+- **Unsustainable losses** — the casualty ceiling is passed. What the country will absorb
+  depends on the command level you chose: 320, 250, or 190.
 - **Impeachment** — approval collapses below 20%.
+- **Congress cuts off the war** — you lose the War Powers vote (see below).
 - **Economic collapse** — the Strait of Hormuz stays closed too long, or oil passes $240.
 - **Campaign culmination** — 30 turns expire with the program still standing (defeat);
   expire with real damage done and it's a graded stalemate instead.
+
+### The enrichment clock
+
+Iran is enriching the entire time, and the war exists to stop it. The halls run every
+turn they are standing, Natanz and Fordow contribute at different rates, and the total
+required for a device is **rolled fresh for every war** — so what you are shown is a
+genuine estimate with a band on it, not a countdown wearing a fog filter:
+
+> EST. TIME TO A DEVICE — **11–18 turns** *(low confidence)*
+
+Spend an intelligence tasking on it and the band narrows. Ignore it and you may be five
+turns wrong in the direction that loses the game.
+
+### You do not know what you have destroyed
+
+Target condition is no longer a number you can read off the map. It is an **assessment**:
+the last figure BDA produced, how old it is, and how far it could have drifted since —
+because the site has been repairing the whole time and nobody has looked.
+
+- A target nobody has touched is intact, and a collapsed hall is destroyed. Those are
+  never in doubt.
+- Everything in between reads as a band — `30–55% operational` — that **widens every
+  turn nobody looks**, and widens upward faster than down, because the thing that
+  happens to an unobserved site is repair.
+- The strike planner tells you "an estimated 1–2 more packages on target to finish it."
+  Deciding under that is the game.
+
+A collection deck tasking narrows the three worst estimates to ±3. It costs the same
+action slot as diplomacy — knowing costs exactly what doing costs.
+
+### Tehran has a war plan
+
+One of three is chosen when the war opens and **it is not shown to you**:
+
+- **Strait Strangler** — the naval arm and the mine warfare units are the main effort;
+  Tehran means to win this at the gas pump.
+- **Attrition** — missile brigades and proxies spent freely against bases and fleet
+  units; they are playing for the casualty count.
+- **Nuclear Sprint** — restrained retaliation, hardened air defense, faster enrichment.
+  They are buying time for the halls and nothing else.
+
+You can read it off what Iran actually does, or buy the answer with a tasking. It is
+revealed on the endgame screen either way — and if you never assessed it, the screen
+says so.
+
+Iran also **adapts**. Every package is logged by platform; lean on one and Tehran works
+the counter to that one — decoys and dispersal against Tomahawks, mobile ambush SAMs
+against manned packages. It caps out at −15%, and mixing the force keeps it shallow.
+
+### Fuel in the air
+
+The binding constraint on an air campaign flown from the sea is not aircraft and not
+weapons — it is tankers. Every fighter package and every bomber mission books **tanker
+tracks** out of a nightly theater total; Tomahawks book none.
+
+| Target depth | Cost |
+|---|---|
+| Gulf littoral | 3 tracks |
+| Interior (Tehran, the nuclear sites) | 4 tracks |
+| Far northwest / Caspian | 5 tracks |
+| B-2 mission | 4 tracks |
+
+Capacity comes from the decks and from basing, which makes geography a decision every
+single turn: two targets on the littoral, or one in the far northwest.
+
+### World opinion is a permission slip
+
+It is not a scoreboard. It is what the ramps and the tanker tracks are flown off, and it
+is withdrawn in two steps — both recoverable if you get the number back up:
+
+- **At 30** — NATO and Saudi basing goes. Incirlik closes, European squadrons suspend,
+  Riyadh asks that Prince Sultan not be used offensively. −2 tanker tracks, −2 squadrons.
+- **At 15** — the Gulf states revoke access and overflight. Al Udeid and Al Dhafra are
+  hosting aircraft that are not permitted to fly. −2 more tracks, and **without the
+  northern tanker tracks there is no way to put a package over the far northwest at
+  all** — Tabriz and the Caspian come off the target list entirely.
+
+### The missile hunt
+
+Flattening a missile base does not kill the brigade. The garrison, the sheds and the
+fuel farm die on that target; the **transporter-erector-launchers that were always the
+point drive out into the country** and keep shooting. From that moment:
+
+- They cannot be planned against until ISR finds them.
+- They count toward Iranian missile strength whether or not anyone has found them — so
+  the capacity meter does not fall as far as the BDA suggests.
+- A group you find and do not service **moves again** and the fix is worth nothing.
+
+How much escapes depends on how much of the brigade was alive when the night started.
+Grind a base down over three nights and the launchers die with it; flatten it at full
+strength in one volley and the whole brigade gets clear.
+
+### Congress votes
+
+Around turn 13 the authorization the campaign has been running on lapses and the Hill
+votes. It is scored on your approval, the casualty list, whether you still have allies,
+whether you ever went on television to explain the war, and whether there is anything to
+show for it. Three outcomes: **authorized** (+8 approval and a free hand), **authorized
+with conditions** (the war continues with energy targets — and possibly everything
+outside the declared theater — barred *by law*), or **cut off**, which ends it.
+
+Each Oval Office address is worth five points on that floor. They are not just a heal.
 
 ### Theater forces and the naval transit
 
@@ -193,9 +299,12 @@ exception and always will be: no submarine has ever reached a landlocked sea.
 - **Move forces** — surge the *Ford*, deploy the B-2s forward, or shift a deck between
   the North Arabian Sea and the deep Arabian Sea. Only one deployment order can be cut per turn
   (see above); posture changes are free of it.
-- **Take one diplomatic action** — backchannel talks, UN pressure, sanctions,
-  coalition building, **coordinating with Israel**, an address to the nation, or
-  **ISR prep** for the raid below.
+- **Spend the action slot — on doing, or on knowing.** There is one slot a turn and
+  everything competes for it: backchannel talks, UN pressure, sanctions, coalition
+  building, **coordinating with Israel**, an address to the nation, **ISR prep** for the
+  raid, a **recovery push** for downed aircrew — and the four intelligence taskings:
+  reassess damaged sites, hunt dispersed launchers, reassess the enrichment timeline,
+  or assess the Iranian war plan. That contention is the point.
 - **Decide what to do about Israel** — see below. Doing nothing is also a decision.
 - **Launch the leadership raid** — a single Tier-1 SOF task force, one attempt for
   the whole game. Base odds are low; ISR prep and degraded air defenses / IRGC
@@ -245,7 +354,28 @@ step away, and the mute toggle in the status bar to silence sound effects.
   approval pays for it. Break their forces first; the Omanis will tell you when the
   pragmatists start counting launchers.
 - Watch the Strait of Hormuz indicator and the casualty count — those two clocks, plus
-  approval, are what actually beat you.
+  approval and the enrichment estimate, are what actually beat you.
+- **Buy the enrichment assessment early.** A low-confidence band five turns wide is the
+  difference between pacing the campaign correctly and discovering on turn 14 that you
+  had four turns, not nine.
+- **A wide BDA band is a wasted package waiting to happen.** If the estimate says
+  `20–60%`, you genuinely do not know whether one more package finishes the site or
+  bounces off it. Task a collection deck before you spend the ordnance.
+- **Grind missile bases down before you finish them.** What escapes into the country is
+  measured from the brigade's strength when the night began. Patience kills launchers;
+  a one-turn alpha strike lets the whole brigade drive away.
+- **A launcher fix is perishable.** Find them and service them the same turn, or you
+  will pay for the same fix twice.
+- **Mix the force.** Iran adapts to whatever you fly repeatedly. Alternating platforms
+  keeps both counters shallow.
+- **When the fleet is warned, answer it.** An anti-ship workup is announced before it is
+  rolled, and you have three outs: ride it out, pull the deck back for a day, or kill
+  the shooter tonight. Ignoring the warning is the only wrong answer.
+- **Address the nation on a schedule.** Every one is five points on the floor when the
+  War Powers vote comes up, and that vote can end the war outright.
+- Striking oil infrastructure is economic pressure with brutal diplomatic costs — and
+  Iran retaliates against shipping. What it *buys* is Iran's repair effort: refineries
+  fuel the generators, cranes and trucks that put every other site back together.
 
 ## Project Structure
 

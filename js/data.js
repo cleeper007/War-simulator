@@ -5,12 +5,16 @@
 // ---- Iranian strategic targets ----
 // world: world-opinion cost per strike
 // packages: valid strike options {asset, qty, base (success), label}
+// depth:   how far inside Iran the target sits, which is what a strike package
+//          actually costs in tanker tracks (see TANKER_COST). 1 = the Gulf
+//          littoral, reachable on a short leg; 2 = the interior; 3 = the far
+//          northwest and the Caspian, where the tanker chain is the mission.
 const TARGETS = [
   {
     id: 'ad-tehran', name: 'Tehran Air Defense Network', short: 'AD TEHRAN',
-    type: 'airdefense', x: 417, y: 130,
+    type: 'airdefense', x: 417, y: 130, depth: 2,
     desc: 'Long-range SAM belt covering the capital region. Degrading it improves survivability of all non-stealth strikes.',
-    world: -2,
+    world: -1,
     packages: [
       { asset: 'fighter', qty: 2, base: 0.70, label: 'SEAD sweep — 2 fighter sorties' },
       { asset: 'cruise', qty: 3, base: 0.85, label: 'TLAM salvo — 3 cruise missiles' },
@@ -18,9 +22,9 @@ const TARGETS = [
   },
   {
     id: 'ad-isfahan', name: 'Isfahan Air Defense Complex', short: 'AD ISFAHAN',
-    type: 'airdefense', x: 439, y: 259,
+    type: 'airdefense', x: 439, y: 259, depth: 2,
     desc: 'Central SAM network screening the nuclear sites. Degrading it improves survivability of all non-stealth strikes.',
-    world: -2,
+    world: -1,
     packages: [
       { asset: 'fighter', qty: 2, base: 0.72, label: 'SEAD sweep — 2 fighter sorties' },
       { asset: 'cruise', qty: 3, base: 0.85, label: 'TLAM salvo — 3 cruise missiles' },
@@ -28,9 +32,9 @@ const TARGETS = [
   },
   {
     id: 'ad-bandar', name: 'Bandar Abbas Coastal Defense', short: 'AD BANDAR',
-    type: 'airdefense', x: 563, y: 449,
+    type: 'airdefense', x: 563, y: 449, depth: 1,
     desc: 'Coastal radar and SAM coverage over the Strait of Hormuz approaches.',
-    world: -2,
+    world: -1,
     packages: [
       { asset: 'fighter', qty: 2, base: 0.74, label: 'SEAD sweep — 2 fighter sorties' },
       { asset: 'cruise', qty: 3, base: 0.86, label: 'TLAM salvo — 3 cruise missiles' },
@@ -38,9 +42,9 @@ const TARGETS = [
   },
   {
     id: 'natanz', name: 'Natanz Enrichment Facility', short: 'NATANZ',
-    type: 'nuclear', x: 441, y: 218,
+    type: 'nuclear', x: 441, y: 218, depth: 2,
     desc: 'Primary enrichment site. Partially buried — cruise missiles can damage surface halls but only penetrators guarantee destruction. PRIMARY OBJECTIVE.',
-    world: -5,
+    world: -3,
     packages: [
       { asset: 'stealth', qty: 1, base: 0.90, label: 'B-2 mission — GBU-57 penetrators' },
       { asset: 'cruise', qty: 5, base: 0.48, label: 'Saturation TLAM strike — limited vs buried halls' },
@@ -48,18 +52,18 @@ const TARGETS = [
   },
   {
     id: 'fordow', name: 'Fordow Enrichment Plant', short: 'FORDOW',
-    type: 'nuclear', x: 416, y: 174, hardened: true,
+    type: 'nuclear', x: 416, y: 174, depth: 2, hardened: true,
     desc: 'Enrichment halls buried under 80m of rock. ONLY a B-2 with GBU-57 penetrators has any chance. PRIMARY OBJECTIVE.',
-    world: -5,
+    world: -3,
     packages: [
       { asset: 'stealth', qty: 1, base: 0.80, label: 'B-2 mission — GBU-57 penetrators (only viable option)' },
     ],
   },
   {
     id: 'irgc-hq', name: 'IRGC Command Complex — Tehran', short: 'IRGC HQ',
-    type: 'command', x: 447, y: 157,
+    type: 'command', x: 447, y: 157, depth: 2,
     desc: 'Revolutionary Guard national command node. Striking it disrupts coordination of retaliation but is highly provocative.',
-    world: -3,
+    world: -2,
     packages: [
       { asset: 'cruise', qty: 2, base: 0.80, label: 'TLAM decapitation strike — 2 missiles' },
       { asset: 'fighter', qty: 2, base: 0.70, label: 'Precision air strike — 2 sorties' },
@@ -67,9 +71,9 @@ const TARGETS = [
   },
   {
     id: 'msl-kermanshah', name: 'Kermanshah Missile Base', short: 'MSL KERMANSHAH',
-    type: 'missile', x: 285, y: 196,
+    type: 'missile', x: 285, y: 196, depth: 2,
     desc: 'Ballistic missile brigade in range of US bases in Iraq. Destroying it reduces the weight of Iranian missile retaliation.',
-    world: -3,
+    world: -2,
     packages: [
       { asset: 'fighter', qty: 2, base: 0.70, label: 'Air strike — 2 fighter sorties' },
       { asset: 'cruise', qty: 3, base: 0.80, label: 'TLAM salvo — 3 cruise missiles' },
@@ -77,9 +81,9 @@ const TARGETS = [
   },
   {
     id: 'msl-shiraz', name: 'Shiraz Missile Base', short: 'MSL SHIRAZ',
-    type: 'missile', x: 469, y: 374,
+    type: 'missile', x: 469, y: 374, depth: 1,
     desc: 'Missile brigade covering the Gulf littoral and US bases in Qatar/UAE. Destroying it reduces Iranian retaliation weight.',
-    world: -3,
+    world: -2,
     packages: [
       { asset: 'fighter', qty: 2, base: 0.72, label: 'Air strike — 2 fighter sorties' },
       { asset: 'cruise', qty: 3, base: 0.80, label: 'TLAM salvo — 3 cruise missiles' },
@@ -87,9 +91,9 @@ const TARGETS = [
   },
   {
     id: 'naval-bandar', name: 'Bandar Abbas Naval Base', short: 'NAV BANDAR',
-    type: 'naval', x: 590, y: 467,
+    type: 'naval', x: 590, y: 467, depth: 1,
     desc: 'Home port of the fast-attack craft and midget submarines threatening Hormuz shipping. Key to keeping the Strait open.',
-    world: -3,
+    world: -2,
     packages: [
       { asset: 'fighter', qty: 2, base: 0.76, label: 'Air strike — 2 fighter sorties' },
       { asset: 'cruise', qty: 2, base: 0.82, label: 'TLAM salvo — 2 cruise missiles' },
@@ -97,9 +101,9 @@ const TARGETS = [
   },
   {
     id: 'naval-bushehr', name: 'Bushehr Naval Base', short: 'NAV BUSHEHR',
-    type: 'naval', x: 411, y: 398,
+    type: 'naval', x: 411, y: 398, depth: 1,
     desc: 'IRGC-Navy swarm-boat base in the central Gulf. Threatens the carrier strike group.',
-    world: -3,
+    world: -2,
     packages: [
       { asset: 'fighter', qty: 2, base: 0.76, label: 'Air strike — 2 fighter sorties' },
       { asset: 'cruise', qty: 2, base: 0.82, label: 'TLAM salvo — 2 cruise missiles' },
@@ -107,9 +111,9 @@ const TARGETS = [
   },
   {
     id: 'ship-mahdavi', name: 'IRIS Shahid Mahdavi — Gulf of Oman', short: 'MAHDAVI',
-    type: 'ship', x: 703, y: 586,
+    type: 'ship', x: 703, y: 586, depth: 1,
     desc: 'IRGC-Navy forward base ship operating outside the Strait, carrying anti-ship missiles and drones well past the Gulf. A hull at sea, not a pier — she moves, and she is the closest Iranian shooter to the carrier box. One weapon that finds her ends her; there is no damaging a ship into repairing itself.',
-    world: -3,
+    world: -2,
     packages: [
       { asset: 'fighter', qty: 2, base: 0.80, label: 'Air strike — 2 fighter sorties' },
       { asset: 'cruise', qty: 2, base: 0.84, label: 'TLAM salvo — 2 cruise missiles' },
@@ -121,7 +125,7 @@ const TARGETS = [
   },
   {
     id: 'ship-caspian', name: 'IRGC Caspian Flotilla — Bandar-e Anzali', short: 'CASPIAN FLOT',
-    type: 'ship', x: 392, y: 72,
+    type: 'ship', x: 392, y: 72, depth: 3,
     desc: 'Missile craft in the Caspian, 900 nm from the Gulf and beyond the fight — but a live hull all the same. The Caspian is a closed sea with Moscow on the far shore: putting American ordnance in it costs far more abroad than the tonnage is worth. No submarine has ever reached it and none ever will — this one is aircraft and cruise missiles or nothing.',
     world: -8,
     packages: [
@@ -131,9 +135,9 @@ const TARGETS = [
   },
   {
     id: 'tabriz-ab', name: 'Tabriz Air Base', short: 'TABRIZ AB',
-    type: 'airbase', x: 260, y: 54,
+    type: 'airbase', x: 260, y: 54, depth: 3,
     desc: 'Second Tactical Air Base — MiG-29 and F-5 squadrons covering the northwestern approaches, and the dispersal field aircraft are flown to when the interior is hit. Far from the Gulf: a long way in and a long way back out.',
-    world: -3,
+    world: -2,
     packages: [
       { asset: 'fighter', qty: 2, base: 0.66, label: 'Air strike — 2 fighter sorties (deep, unrefuelled leg)' },
       { asset: 'cruise', qty: 3, base: 0.80, label: 'TLAM salvo — 3 cruise missiles' },
@@ -141,7 +145,7 @@ const TARGETS = [
   },
   {
     id: 'kharg', name: 'Kharg Island Oil Terminal', short: 'KHARG OIL',
-    type: 'oil', x: 394, y: 387,
+    type: 'oil', x: 394, y: 387, depth: 1,
     desc: 'Handles ~90% of Iranian crude exports. Crippling it strangles Tehran\'s economy — and spikes global oil prices. Heavy diplomatic cost.',
     world: -12,
     packages: [
@@ -151,7 +155,7 @@ const TARGETS = [
   },
   {
     id: 'abadan', name: 'Abadan Refinery', short: 'ABADAN REF',
-    type: 'oil', x: 327, y: 346,
+    type: 'oil', x: 327, y: 346, depth: 1,
     desc: 'Iran\'s largest domestic fuel refinery. An economic pressure target with severe diplomatic blowback.',
     world: -12,
     packages: [
@@ -159,7 +163,62 @@ const TARGETS = [
       { asset: 'fighter', qty: 2, base: 0.72, label: 'Air strike — 2 fighter sorties' },
     ],
   },
+
+  // ---- dispersed missile brigades (TELs) ----
+  // These are not on the map when the war opens and they cannot be planned
+  // against. Flattening a missile base does not kill the brigade — it kills the
+  // garrison and the sheds, and the transporter-erector-launchers that were
+  // always the point drive out into the country and keep shooting. They appear
+  // only when a base is destroyed (dispersal), and they can only be struck once
+  // ISR has actually found them. Left alone, they move again and go dark.
+  //
+  // This is why killing both missile bases does not end the missile war: the
+  // strength that leaves a base mostly survives it. See DISPERSAL below.
+  {
+    id: 'tel-west', name: 'Dispersed TEL Group — Zagros Foothills', short: 'TEL WEST',
+    type: 'tel', x: 330, y: 245, depth: 2, dispersal: true,
+    desc: 'Transporter-erector-launchers operating out of culverts, road tunnels and orchard cover in the western highlands. They shoot and move inside fifteen minutes. There is nothing here to bomb twice — find them tonight and kill them tonight, or find them again next week.',
+    world: -1,
+    packages: [
+      { asset: 'fighter', qty: 2, base: 0.68, label: 'Armed reconnaissance — 2 fighter sorties' },
+      { asset: 'cruise', qty: 2, base: 0.58, label: 'TLAM salvo — 2 missiles (they will have moved)' },
+    ],
+  },
+  {
+    id: 'tel-central', name: 'Dispersed TEL Group — Central Plateau', short: 'TEL CENTRAL',
+    type: 'tel', x: 470, y: 285, depth: 2, dispersal: true,
+    desc: 'The strategic reserve, dispersed into the desert interior — hardened shelters cut into rock, and hides the IRGC prepared years ago for exactly this. The furthest inland of the launcher groups and the hardest to hold a fix on.',
+    world: -1,
+    packages: [
+      { asset: 'fighter', qty: 2, base: 0.66, label: 'Armed reconnaissance — 2 fighter sorties' },
+      { asset: 'cruise', qty: 2, base: 0.56, label: 'TLAM salvo — 2 missiles (they will have moved)' },
+    ],
+  },
+  {
+    id: 'tel-south', name: 'Dispersed TEL Group — Fars Highlands', short: 'TEL SOUTH',
+    type: 'tel', x: 432, y: 340, depth: 1, dispersal: true,
+    desc: 'Launchers scattered through the valleys north of the Gulf littoral, ranging every American base on the Arabian side. Close enough to reach quickly, mobile enough that quickly is the only way it works.',
+    world: -1,
+    packages: [
+      { asset: 'fighter', qty: 2, base: 0.70, label: 'Armed reconnaissance — 2 fighter sorties' },
+      { asset: 'cruise', qty: 2, base: 0.60, label: 'TLAM salvo — 2 missiles (they will have moved)' },
+    ],
+  },
 ];
+
+// Where a destroyed missile base's surviving launchers go, and how much of the
+// brigade drives away. A base is worth 100 points of missile strength; killing
+// it converts 55 of those into TELs rather than deleting them. The player trades
+// a fixed target they can always find for a mobile one they usually cannot —
+// which is the actual history of every missile hunt ever attempted.
+const DISPERSAL = {
+  'msl-kermanshah': [['tel-west', 30], ['tel-central', 25]],
+  'msl-shiraz': [['tel-south', 30], ['tel-central', 25]],
+};
+
+// Chance per turn that a located TEL group that was NOT struck picks up and
+// moves, going dark again. Finding them is not the same as killing them.
+const TEL_RELOCATE = 0.45;
 
 // ---- durability model ----
 // Fixed installations are worn down rather than switched off. Every target
@@ -189,6 +248,100 @@ const TARGET_REPAIR = {
 // packages finish a fixed site, and everything short of two good packages is
 // a race against the repair crews. Individual packages override with `dmg`.
 const PKG_DAMAGE = 55;
+
+// ============================================================
+// TANKER TRACKS
+// ------------------------------------------------------------
+// The binding constraint on an air campaign flown from the sea against a
+// country the size of Iran is not aircraft and it is not weapons — it is fuel
+// in the air. Every fighter package and every bomber mission books tanker
+// tracks out of a nightly theater total; Tomahawks book none, because a missile
+// does not refuel. What this buys the war is geography: Tabriz and the Caspian
+// cost most of a night's tanker plan, so the decision "two targets on the
+// littoral or one in the far northwest" is a real one every turn.
+const TANKER_COST = { fighter: (depth) => 2 + depth, stealth: () => 4, cruise: () => 0 };
+
+// theater baseline before any deck or basing is counted
+const TANKER_BASE = 4;
+
+// ============================================================
+// WORLD OPINION — WHAT IT ACTUALLY BUYS
+// ------------------------------------------------------------
+// Standing abroad is not a scoreboard. It is the permission slip for the ramps
+// and the tanker tracks the whole campaign is flown off, and it is withdrawn in
+// two steps. Losing NATO and Saudi basing costs squadrons and tankers. Losing
+// the Gulf states costs the rest of the tanker plan and the reach to touch
+// anything deep — Tabriz and the Caspian come off the target list entirely,
+// because there is no longer an airfield within range that will take the
+// mission. Both are recoverable: get the number back up and the ramps reopen.
+const BASING_TIERS = {
+  nato: { at: 30, tankers: 2, fighters: 2, name: 'NATO and Saudi basing' },
+  gulf: { at: 15, tankers: 2, fighters: 2, name: 'Gulf state basing and overflight' },
+};
+
+// ============================================================
+// IRANIAN WAR PLANS
+// ------------------------------------------------------------
+// Tehran is not a reaction table. One of these is chosen when the war opens and
+// it is not shown to the player: it has to be read off what Iran actually does,
+// or bought from the analysts with an action slot. Each one re-weights the same
+// event pool rather than adding new events, so the war stays coherent — it just
+// stops being the same war every time.
+const IRAN_POSTURES = {
+  strangler: {
+    name: 'STRAIT STRANGLER',
+    brief: 'Tehran means to win this at the gas pump. The naval arm and the mine warfare units are the main effort; the missile force is being husbanded to keep the Strait shut rather than spent on airfields.',
+    tell: 'heavy naval and mining activity, restrained missile use',
+    missile: 0.7, naval: 1.7, proxy: 0.9, ally: 0.8, hormuz: 1.9,
+  },
+  attrition: {
+    name: 'ATTRITION',
+    brief: 'Tehran has decided the American public is the weak point and is playing for the casualty count. Missile brigades and proxies are being spent freely against bases and fleet units; the Strait is a lever, not the plan.',
+    tell: 'sustained missile salvos against bases, heavy proxy activity',
+    missile: 1.35, naval: 0.8, proxy: 1.5, ally: 1.1, hormuz: 0.7,
+  },
+  sprint: {
+    name: 'NUCLEAR SPRINT',
+    brief: 'Tehran is buying time for the enrichment halls and nothing else. Air defense and the nuclear sites are being reinforced at the expense of everything else; the retaliation is deliberately measured to keep the war small enough to survive.',
+    tell: 'restrained retaliation, hardened air defense, accelerated enrichment',
+    missile: 0.75, naval: 0.75, proxy: 0.8, ally: 0.6, hormuz: 0.6,
+    // The sprint is meant to be the urgent war, not the unwinnable one: at 1.3
+    // the clock runs ~12 turns from a standing start, which is inside what two
+    // B-2 cycles against Natanz and Fordow can actually service. Pushed to 1.5
+    // it stops being a race and becomes a coin flip on the opening rolls.
+    enrich: 1.3, repair: 1.35,
+  },
+};
+
+// ============================================================
+// THE BREAKOUT CLOCK
+// ------------------------------------------------------------
+// The reason there is a war on. Iran is enriching the whole time, and the
+// campaign is a race against a number nobody in the building can see exactly.
+// `need` is randomized at the start of every war, so the estimate the player is
+// given is a genuine estimate and not a countdown with a fog filter over it.
+const BREAKOUT = {
+  needMin: 88, needMax: 118,   // progress required for a device
+  rate: 6,                     // per turn at full enrichment capability
+  // how wide the IC's estimate is, by confidence — ± this many turns
+  band: { low: 5, medium: 3, high: 1 },
+  decay: 3,                    // turns before a fresh assessment goes stale again
+};
+
+// ============================================================
+// DIFFICULTY
+// ------------------------------------------------------------
+// Three numbers do almost all the work: what the country will absorb in dead,
+// how fast Iran puts its damaged sites back together, and how well it
+// coordinates what it has left.
+const DIFFICULTY = {
+  advisor:   { name: 'NATIONAL SECURITY ADVISOR', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25,
+    desc: 'A forgiving war. The country absorbs more, Iran reconstitutes slower, and the enrichment clock runs long.' },
+  general:   { name: 'COMMANDER, CENTCOM', casualties: 250, repair: 1, coord: 1, breakout: 1,
+    desc: 'The war as designed. Everything below is scaled from here.' },
+  president: { name: 'COMMANDER IN CHIEF', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85,
+    desc: 'The country has less patience, Iran repairs faster and fights better coordinated, and the centrifuges are further along than you would like.' },
+};
 
 // ---- US assets shown on the map ----
 // sortie: can generate fixed-wing strike sorties (flight animations launch

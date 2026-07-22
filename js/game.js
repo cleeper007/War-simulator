@@ -12,8 +12,18 @@ const Game = (() => {
   // clock, and it is scaled to a war that now runs fifteen days rather than ten.
   // Both numbers are quoted to the player (objectives panel, NSA, headlines), so
   // they live here rather than being written into four files by hand.
-  const CASUALTY_LIMIT = 250;   // Congress cuts off funding past this
+  //
+  // The ceiling is no longer a constant: it is what THIS country will absorb,
+  // set by difficulty at kickoff (see DIFFICULTY). Everything that quotes it
+  // reads casualtyLimit() rather than baking a number in.
   const WEARINESS_TURN = 14;    // after this, a long war bleeds approval on its own
+
+  const diff = () => DIFFICULTY[G.difficulty] || DIFFICULTY.general;
+  const casualtyLimit = () => diff().casualties;
+
+  // The congressional clock. Somewhere in the middle of the second week the
+  // authorization the war has been running on runs out and the Hill votes.
+  const WAR_POWERS_TURN = 13;
 
   // ---- game state ----
   const G = {
@@ -63,7 +73,59 @@ const Game = (() => {
     // (see csar.js) exists only while this does
     downed: null,
     stats: { strikes: 0, destroyed: 0, aircraftLost: 0, peakOil: 84, backchannels: 0, carriersLost: 0,
-      downedCrews: 0, aircrewRescued: 0, aircrewCaptured: 0 },
+      downedCrews: 0, aircrewRescued: 0, aircrewCaptured: 0, telsKilled: 0 },
+
+    // ---- what THIS war is ----
+    // Set once at kickoff and never during. Difficulty scales the three numbers
+    // that matter (see DIFFICULTY); the Iranian war plan is chosen at random and
+    // hidden until the analysts are asked for it.
+    difficulty: 'general',
+    iranPosture: 'attrition', postureKnown: false,
+
+    // ---- the enrichment race ----
+    // The reason the war exists. `progress` climbs every turn the halls are
+    // still turning; `need` is randomized per war so the number the player is
+    // shown is a genuine estimate. See breakoutTick / breakoutEstimate.
+    breakout: { progress: 0, need: 100, conf: 'low', assessed: -99 },
+
+    // ---- what CENTCOM believes, as opposed to what is true ----
+    // targetId -> { hp, turn }: the last assessed condition and when it was
+    // assessed. Every display in the game reads this; nothing outside the
+    // simulation reads t.hp directly. Confidence decays with age.
+    intel: {},
+
+    // ---- fuel in the air ----
+    // Rebuilt every turn from the fleet and the basing picture, spent by
+    // fighter and bomber packages, never by Tomahawks.
+    tankers: 0, tankerCap: 0,
+
+    // ---- permission slips ----
+    // Withdrawn in two steps as world opinion falls (see BASING_TIERS), and
+    // handed back if it recovers.
+    basing: { nato: true, gulf: true },
+    // squadrons actually withdrawn per tier, so recovery returns exactly those
+    basingDebt: { nato: 0, gulf: 0 },
+
+    // ---- the Hill ----
+    // One vote, mid-war, on whether this campaign continues and on what terms.
+    warPowers: { done: false, result: null, noOil: false, noDeep: false },
+    addresses: 0,
+
+    // The anti-ship threat the fleet has been warned about this turn, or null.
+    // Telegraphed before it is rolled, so posture is a read and not a tax.
+    threat: null,
+
+    // Target condition as it stood when tonight's packages began arriving.
+    // Dispersal is measured against this — see endTurn.
+    turnStartHp: {},
+
+    // one line per turn, for the after-action recap on the endgame screen
+    timeline: [],
+
+    // Platforms flown, and the deepest counter Iran has been seen to develop
+    // against each. See IranAI.adaptPenalty.
+    adapt: { cruise: 0, fighter: 0, stealth: 0 },
+    adaptSeen: { cruise: 0, fighter: 0, stealth: 0 },
 
     // Is the flagship out of the anti-ship envelope? Derived rather than stored:
     // with two independently-stationed decks there is no single fleet posture,
@@ -108,6 +170,12 @@ const Game = (() => {
 
   // ---- save / continue (localStorage) ----
   const Save = (() => {
+    // v8: the war stopped being fully observable. Target condition is now
+    // something CENTCOM estimates rather than reads, Iran runs one of three
+    // hidden war plans, enrichment is a race against a hidden number, and
+    // tanker capacity, congressional authorization and dispersed launchers are
+    // all live state. A v7 save has none of it and would load into a war whose
+    // rules it was never played under.
     // v7: targets stopped being a three-state enum and became a 0–100 condition
     // track that repairs overnight, and the campaign runs to 30 turns against
     // rescaled loss thresholds. A v6 save carries neither, and dropping it into
@@ -118,7 +186,8 @@ const Game = (() => {
     // v5: downed aircrew and their recovery counters became state. A v4 save has
     // no `downed` field and a stats block missing three counters — retired
     // rather than migrated, the same as every version before it.
-    const KEY = 'cic-save-v7';   // bump the version to invalidate old saves
+    const KEY = 'cic-save-v8';   // bump the version to invalidate old saves
+    const VERSION = 8;
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -129,15 +198,22 @@ const Game = (() => {
       'regimeChaosTurns', 'regimeErratic', 'hostageCrisis', 'stats',
       'carriers', 'secondCarrierOrdered', 'secondCarrierEta', 'alliedFighters',
       'bombersOrdered', 'bomberEta', 'bombersArrived', 'deployTurn',
+      'difficulty', 'iranPosture', 'postureKnown', 'breakout', 'intel',
+      'tankers', 'tankerCap', 'basing', 'basingDebt', 'warPowers', 'addresses', 'threat',
+      'timeline', 'adapt', 'adaptSeen', 'turnStartHp',
     ];
 
     function write() {
       if (G.over) return;
       try {
-        const data = { version: 7, muted: AudioSys.isMuted(), fields: {}, targets: {} };
+        const data = { version: VERSION, muted: AudioSys.isMuted(), fields: {}, targets: {} };
         for (const f of FIELDS) data.fields[f] = G[f];
-        // condition is the source of truth; status is derived from it on load
-        for (const t of TARGETS) data.targets[t.id] = t.hp;
+        // condition is the source of truth; status is derived from it on load.
+        // Dispersal state travels with it — a launcher group that has driven out
+        // into the country, and whether anyone currently knows where it is.
+        for (const t of TARGETS) {
+          data.targets[t.id] = { hp: t.hp, dispersed: !!t.dispersed, located: !!t.located };
+        }
         localStorage.setItem(KEY, JSON.stringify(data));
       } catch (e) { /* storage unavailable — play without saves */ }
     }
@@ -145,7 +221,7 @@ const Game = (() => {
     function read() {
       try {
         const data = JSON.parse(localStorage.getItem(KEY));
-        return data && data.version === 7 ? data : null;
+        return data && data.version === VERSION ? data : null;
       } catch (e) { return null; }
     }
 
@@ -176,6 +252,268 @@ const Game = (() => {
     t.hp = clamp(t.hp - amount, 0, 100);
     syncStatus(t);
     MapView.updateTarget(t);
+  }
+
+  // ============================================================
+  // WHAT CENTCOM BELIEVES
+  // ------------------------------------------------------------
+  // t.hp is the truth and nothing outside this simulation is allowed to read
+  // it. What the player sees is an ASSESSMENT: the last number battle damage
+  // assessment produced, how old it is, and how far it could have drifted since
+  // — because the site has been repairing the whole time and nobody has looked.
+  //
+  // Two states are never in doubt, because they are not judgement calls: a
+  // target nobody has touched is intact, and a hall that has visibly collapsed
+  // is destroyed. Everything between those is an estimate with a band on it,
+  // and the band is where the decision lives — "somewhere between 20 and 45"
+  // is a genuinely different problem than "37".
+  // ============================================================
+  const FRESH_SPREAD = 8;    // ± on a brand-new assessment
+  const SHARP_SPREAD = 3;    // ± when ISR has been tasked onto it
+  const AGE_SPREAD = 6;      // ± added per turn since anyone last looked
+
+  // Record an assessment. `sharp` is a deliberate ISR tasking rather than the
+  // incidental look a strike package gets on its way through.
+  function observe(t, sharp) {
+    if (!wearsDown(t) && t.type !== 'tel') return;   // step-damage sites read true
+    const spread = sharp ? SHARP_SPREAD : FRESH_SPREAD;
+    G.intel[t.id] = {
+      hp: clamp(Math.round(t.hp + rand(-spread, spread)), 0, 100),
+      turn: G.turn, sharp: !!sharp,
+    };
+  }
+
+  // The band the player is shown. Widens with age, and widens UPWARD faster
+  // than down, because the thing that happens to an unobserved site is repair.
+  function estimate(t) {
+    if (t.hp <= 0) return { lo: 0, hi: 0, mid: 0, known: true, age: 0 };
+    if (!wearsDown(t) && t.type !== 'tel') return { lo: t.hp, hi: t.hp, mid: t.hp, known: true, age: 0 };
+    const rec = G.intel[t.id];
+    if (!rec) return { lo: 100, hi: 100, mid: 100, known: true, age: 0 };  // never touched
+    const age = Math.max(0, G.turn - rec.turn);
+    const spread = (rec.sharp ? SHARP_SPREAD : FRESH_SPREAD) + AGE_SPREAD * age;
+    const growth = (TARGET_REPAIR[t.type] || 0) * age;
+    return {
+      lo: clamp(Math.round(rec.hp - spread), 0, 100),
+      hi: clamp(Math.round(rec.hp + spread + growth), 0, 100),
+      mid: clamp(Math.round(rec.hp + growth / 2), 0, 100),
+      known: false, age,
+    };
+  }
+
+  // one-line condition string for tooltips, panels and advisor text
+  function condition(t) {
+    if (t.hp <= 0) return 'destroyed';
+    const e = estimate(t);
+    if (e.known) return `${Math.round(e.mid)}% operational`;
+    if (e.lo === e.hi) return `${e.lo}% operational`;
+    return `${e.lo}–${e.hi}% operational`;
+  }
+
+  // ============================================================
+  // THE ENRICHMENT RACE
+  // ------------------------------------------------------------
+  // Iran is not waiting for this war to end. The halls run every turn they are
+  // standing, and `need` is rolled fresh for every war, so the estimate the
+  // player is handed is an actual estimate — narrow it by spending an action
+  // slot on it, or fly the campaign on a number that could be five turns wrong.
+  // ============================================================
+  function enrichRate() {
+    const natanz = TARGETS.find(t => t.id === 'natanz');
+    const fordow = TARGETS.find(t => t.id === 'fordow');
+    // Fordow is the survivable half of the program: buried, and worth more of
+    // the remaining capability than the surface halls at Natanz.
+    const cap = (natanz.hp / 100) * 0.4 + (fordow.hp / 100) * 0.6;
+    return BREAKOUT.rate * cap * (IranAI.posture().enrich || 1) / diff().breakout;
+  }
+
+  function breakoutTick() {
+    const rate = enrichRate();
+    if (rate <= 0) return null;
+    G.breakout.progress += rate;
+    return null;
+  }
+
+  // Turns remaining, as the IC would brief it: a band, not a number.
+  function breakoutEstimate() {
+    const rate = enrichRate();
+    const left = G.breakout.need - G.breakout.progress;
+    if (rate <= 0) return { halted: true };
+    const turns = Math.max(0, left / rate);
+    const age = G.turn - G.breakout.assessed;
+    const conf = age <= BREAKOUT.decay ? G.breakout.conf : 'low';
+    const band = BREAKOUT.band[conf];
+    return {
+      halted: false, conf,
+      lo: Math.max(1, Math.floor(turns - band)),
+      hi: Math.ceil(turns + band),
+    };
+  }
+
+  // ============================================================
+  // TANKER TRACKS
+  // ------------------------------------------------------------
+  // Rebuilt every turn. Decks generate their own tanking; the basing tiers add
+  // the land-based tanker wings, which is why losing a ramp costs reach and not
+  // just sorties. Tomahawks book nothing — a missile does not refuel.
+  // ============================================================
+  function tankerCapacity() {
+    let n = TANKER_BASE;
+    for (const cv of G.carriers) {
+      if (cv.lost || !cv.arrived) continue;
+      n += (cv.moving || cv.posture === 'back') ? 1 : 2;
+    }
+    if (G.basing.nato) n += BASING_TIERS.nato.tankers;
+    if (G.basing.gulf) n += BASING_TIERS.gulf.tankers;
+    if (G.coalition) n += 1;
+    return n;
+  }
+
+  const tankerCost = (t, pkg) => (TANKER_COST[pkg.asset] || (() => 0))(t.depth || 2);
+
+  // Can this package physically be flown tonight? Separate from whether the
+  // magazine holds it — the two run out at different times and the player needs
+  // to be told which one is the problem.
+  function tankersFor(t, pkg) {
+    const cost = tankerCost(t, pkg);
+    return { cost, ok: cost <= G.tankers };
+  }
+
+  // ============================================================
+  // BASING — WHAT WORLD OPINION ACTUALLY BUYS
+  // ------------------------------------------------------------
+  // Two thresholds, both recoverable. Crossing one costs squadrons, tanker
+  // tracks, and — at the bottom — the reach to touch anything deep at all.
+  // ============================================================
+  function syncBasing() {
+    const events = [];
+    for (const [key, tier] of Object.entries(BASING_TIERS)) {
+      const should = G.world > tier.at;
+      if (should === G.basing[key]) continue;
+      G.basing[key] = should;
+      if (!should) {
+        // Give back exactly what was taken, and no more. Squadrons that were
+        // never in theater cannot be lost — without recording the actual
+        // deduction, a player could tank world opinion and then recover it to
+        // conjure allied fighters out of nothing, repeatedly.
+        const taken = Math.min(G.alliedFighters, tier.fighters);
+        G.basingDebt[key] = taken;
+        G.alliedFighters -= taken;
+        events.push(key === 'nato' ? {
+          cls: 'world', title: 'NATO AND SAUDI BASING WITHDRAWN',
+          text: 'With world opinion at ' + Math.round(G.world) + ', the political cover is gone. Ankara has ' +
+            'closed Incirlik to strike operations, two European governments have suspended their squadrons ' +
+            'rather than fall with them, and Riyadh has quietly asked that Prince Sultan not be used for ' +
+            'offensive sorties. The aircraft are still ours. The runways are not.',
+          dTanker: -tier.tankers,
+        } : {
+          cls: 'world', title: 'GULF STATES REVOKE ACCESS AND OVERFLIGHT',
+          text: 'Doha, Abu Dhabi and Manama have jointly suspended American offensive operations from their ' +
+            'territory and closed their airspace to strike packages. Al Udeid and Al Dhafra are hosting ' +
+            'aircraft that are not permitted to fly. Without the northern tanker tracks there is no longer ' +
+            'a way to put a manned package over the far northwest of Iran at all — Tabriz and the Caspian ' +
+            'are off the target list until this is repaired.',
+          dTanker: -tier.tankers,
+        });
+      } else {
+        G.alliedFighters += (G.basingDebt[key] || 0);
+        G.basingDebt[key] = 0;
+        events.push({
+          cls: 'friendly', title: key === 'nato' ? 'NATO AND SAUDI BASING RESTORED' : 'GULF ACCESS RESTORED',
+          text: 'With American standing recovering, ' + tier.name + ' has been quietly restored. The ramps ' +
+            'are open again and the tanker plan can be written the way CENTCOM wanted it written.',
+          dTanker: tier.tankers,
+        });
+      }
+    }
+    if (events.length) syncFleetCaps();
+    return events;
+  }
+
+  // Deep strike needs the northern tracks, and those come with the Gulf ramps.
+  const canReach = (t) => G.basing.gulf || (t.depth || 2) < 3;
+
+  // ============================================================
+  // DISPERSAL — THE MISSILE HUNT
+  // ------------------------------------------------------------
+  // Killing a missile base does not kill the brigade. The launchers that were
+  // always the point drive out into the country, and from that moment the
+  // missile war is a hunt: they cannot be planned against until ISR finds them,
+  // they move again if they are found and not serviced, and the whole time they
+  // are still shooting.
+  // ============================================================
+  // `frac` is how much of the brigade was still alive when the killing blow
+  // landed. This matters: the launchers that drive away are the ones that were
+  // still there to drive, so a base ground down to 20% over three nights leaks
+  // a fifth of what a base flattened at full strength does. Without this the
+  // arithmetic runs backwards and destroying a worn-down base RAISES Iranian
+  // missile strength, which is both wrong and the opposite of a reward.
+  function disperseFrom(baseId, frac) {
+    const plan = DISPERSAL[baseId];
+    if (!plan) return null;
+    const moved = [];
+    let total = 0;
+    for (const [telId, hp] of plan) {
+      const tel = TARGETS.find(t => t.id === telId);
+      if (!tel) continue;
+      const escaped = Math.round(hp * clamp(frac, 0, 1));
+      if (escaped <= 0) continue;
+      tel.dispersed = true;
+      tel.hp = clamp(tel.hp + escaped, 0, 100);
+      tel.located = false;
+      total += escaped;
+      syncStatus(tel);
+      MapView.updateTarget(tel);
+      moved.push(tel.short);
+    }
+    if (!moved.length) {
+      return {
+        cls: 'friendly', title: 'BRIGADE DESTROYED IN PLACE — NOTHING GOT OUT',
+        text: 'The base had been worked over so thoroughly before the final package that there was no ' +
+          'longer a brigade to disperse. Overhead shows burned revetments and launchers that never ' +
+          'moved. This is what grinding a site down before finishing it buys: the launchers die with ' +
+          'the base instead of driving out of it.',
+      };
+    }
+    return {
+      cls: 'iran', title: 'BRIGADE SURVIVORS DISPERSE — LAUNCHERS IN THE OPEN COUNTRY',
+      text: 'The base is gone and the brigade is not. Overhead caught transporter-erector-launchers ' +
+        'leaving the wire under the smoke — the garrison, the sheds and the fuel farm died on that ' +
+        'target, and the launchers, which were always the thing that mattered, drove out into the ' +
+        `country. Roughly ${total} launchers' worth got clear, into the ` +
+        `${moved.length > 1 ? 'interior' : 'hills'}. They are still shooting, and they cannot be ` +
+        'planned against until ISR finds them. Missile strength did not fall as far as the battle ' +
+        'damage assessment suggests — and the more of this brigade you had already destroyed before ' +
+        'tonight, the less of it got away.',
+    };
+  }
+
+  // ISR sweep for dispersed launchers — the standing use of the action slot
+  // once the fixed bases are gone.
+  function huntTels() {
+    const hidden = IranAI.liveTels().filter(t => !t.located);
+    if (!hidden.length) return null;
+    // a sweep is worth more when there is less country left to search
+    const p = clamp(0.55 - 0.08 * (hidden.length - 1) + (G.coalition ? 0.05 : 0), 0.2, 0.7);
+    if (Math.random() >= p) {
+      return {
+        cls: 'iran', title: 'LAUNCHER SWEEP — NO FIX',
+        text: 'Twelve hours of Reaper and Global Hawk time, every signals platform in the theater, and ' +
+          'the sweep came up with culverts, decoys and cold engines. They are moving at night, shooting ' +
+          'from prepared hides and going dark inside fifteen minutes. The country is very large.',
+      };
+    }
+    const found = hidden[Math.floor(Math.random() * hidden.length)];
+    found.located = true;
+    observe(found, true);
+    MapView.updateTarget(found);
+    return {
+      cls: 'friendly', title: `LAUNCHER GROUP LOCATED — ${found.short}`,
+      text: `A pattern-of-life fix has finally closed on ${found.name}. Thermal signatures off the ` +
+        'launchers at last light, a resupply convoy tracked back to the hide, and a signals cut that ' +
+        'confirms the unit. The group is on the plot and can be serviced — tonight. Left alone it will ' +
+        'move, and the fix will be worth nothing by morning.',
+    };
   }
 
   // ---- strike math ----
@@ -415,22 +753,93 @@ const Game = (() => {
     };
   }
 
-  // ---- Iranian anti-ship fires ----
+  // ============================================================
+  // IRANIAN ANTI-SHIP FIRES — TELEGRAPHED, THEN ROLLED
+  // ------------------------------------------------------------
   // The reason a carrier forward in the North Arabian Sea is a decision and not
-  // scenery — she is a long way out, but not out of reach of Iran's best. The
-  // threat is Iran's navy: kill the naval bases and the risk goes with them.
+  // scenery. It used to be a silent tax on the correct posture, which made the
+  // posture not a decision at all: the expected cost of standing forward was
+  // always smaller than the sorties it bought, so nobody ever pulled back.
+  //
+  // Now the threat is announced before it is rolled. Somewhere on the coast a
+  // brigade works up a firing solution, national assets see it happen, and the
+  // player is told — which turns one silent die into three real options: ride
+  // it out, spend a turn withdrawing, or go kill the brigade that is holding
+  // the solution. The odds are much higher than they were, because they are now
+  // avoidable.
+  // ============================================================
+  const THREAT_SOURCES = ['naval-bandar', 'naval-bushehr', 'ship-mahdavi'];
+
+  // Warn for NEXT turn's fires, at the end of this one. Stored on G so the
+  // sidebar, the map and the fires themselves all read the same object.
+  function raiseThreat() {
+    const naval = IranAI.navalStrength();
+    const exposed = G.carriers.filter(cv => carrierExposure(cv) > 0 && !cv.lost);
+    if (naval <= 0 || !exposed.length) { G.threat = null; return null; }
+    // a workup needs a shooter: the surviving bases and the hull at sea
+    const live = THREAT_SOURCES
+      .map(id => TARGETS.find(t => t.id === id))
+      .filter(t => t && t.hp > 0);
+    if (!live.length) { G.threat = null; return null; }
+    // A workup on roughly three nights in five at full Iranian naval strength,
+    // and a shot on a little under half of those. Ignore every warning at full
+    // strength and a deck is lost about one turn in twenty — enough that the
+    // decision is real, not so much that standing forward is a slow suicide.
+    if (Math.random() >= 0.30 * naval) { G.threat = null; return null; }
+
+    const src = live[Math.floor(Math.random() * live.length)];
+    const cv = exposed[Math.floor(Math.random() * exposed.length)];
+    G.threat = { srcId: src.id, cvId: cv.id, p: clamp(0.22 * naval, 0.1, 0.5) };
+    return {
+      cls: 'iran', title: `ANTI-SHIP WORKUP DETECTED — ${cvShort(cv)} HELD AT RISK`,
+      text: `National assets have watched an anti-ship brigade at ${src.name.split(' — ')[0]} come up on ` +
+        `the air, run a targeting cycle and go quiet holding a firing solution on ${cvName(cv)}. They have ` +
+        'her. Fifth Fleet assesses roughly ' + Math.round(G.threat.p * 100) + '% that they shoot before the ' +
+        'next report. There are three answers and all of them cost something: leave her forward and accept ' +
+        'it, pull her back and lose a day of her air wing, or kill the shooter tonight.',
+    };
+  }
+
+  // Resolve the warned threat. Nothing fires that was not announced first.
   function carrierRisk() {
     const events = [];
-    const naval = IranAI.navalStrength(); // 0..2
-    if (naval <= 0) return events;        // nothing left to shoot at her
-    for (const cv of G.carriers) {
-      const exposure = carrierExposure(cv);
-      if (!exposure) continue;
-      // 10% a turn at full Iranian naval strength, forward — halved in transit,
-      // and falling to nothing as their naval bases burn
-      if (Math.random() >= 0.05 * naval * exposure) continue;
-      events.push(strikeCarrier(cv, naval));
+    const th = G.threat;
+    if (!th) return events;
+    G.threat = null;
+    const src = TARGETS.find(t => t.id === th.srcId);
+    const cv = carrierById(th.cvId);
+    if (!cv || cv.lost) return events;
+
+    // killing or hurting the shooter is the whole point of telegraphing it
+    const surviving = src ? src.hp / 100 : 0;
+    if (surviving <= 0) {
+      events.push({
+        cls: 'friendly', title: 'ANTI-SHIP THREAT REMOVED BEFORE IT FIRED',
+        text: `The brigade holding the firing solution on ${cvName(cv)} was destroyed with the solution ` +
+          'still in the system. Nothing left the coast. This is what the warning was for.',
+      });
+      return events;
     }
+    // and so is moving her: exposure is read fresh, at the moment of the shot
+    const exposure = carrierExposure(cv);
+    if (!exposure) {
+      events.push({
+        cls: 'friendly', title: `${cvShort(cv)} CLEAR OF THE ENGAGEMENT ENVELOPE`,
+        text: `The salvo was launched against ${cvName(cv)}'s last known position and found empty water — ` +
+          'she was already south and outside the envelope when the weapons arrived. The day of reduced ' +
+          'sortie generation bought exactly this.',
+      });
+      return events;
+    }
+    if (Math.random() >= th.p * surviving * exposure) {
+      events.push({
+        cls: 'friendly', title: `ANTI-SHIP SALVO DEFEATED — ${cvShort(cv)} UNHARMED`,
+        text: `The brigade shot. The screen's SM-6s and the ship's own defenses took the salvo apart well ` +
+          `short of ${cvName(cv)} and she is undamaged. It will not go that way every night.`,
+      });
+      return events;
+    }
+    events.push(strikeCarrier(cv, IranAI.navalStrength()));
     return events;
   }
 
@@ -531,7 +940,10 @@ const Game = (() => {
     // Its misses come from weather, targeting, or launch faults, not the threat.
     const adPenalty = pkg.asset === 'cruise' ? 0 : AD_PENALTY[pkg.asset] * ad;
     const dmgBonus = target.hp < 100 ? 0.15 : 0;
-    const success = clamp(pkg.base - adPenalty + dmgBonus, 0.05, 0.95);
+    // What Iran has learned about the way this campaign is being flown. Fly one
+    // platform into the ground and this is the bill for it (see IranAI.adaptStep).
+    const adaptPenalty = IranAI.adaptPenalty(pkg.asset);
+    const success = clamp(pkg.base - adPenalty - adaptPenalty + dmgBonus, 0.05, 0.95);
     const lossRisk = pkg.asset === 'fighter' ? clamp(0.05 * ad, 0, 0.35) : 0;
     // What the player is buying: full effects on the good half of the success
     // band, half effects on the rest of it. Sites that wear down lose condition;
@@ -544,9 +956,10 @@ const Game = (() => {
     const gradual = wearsDown(target);
     const oneShot = target.type === 'ship';
     return {
-      success, adPenalty, lossRisk, gradual, oneShot,
+      success, adPenalty, adaptPenalty, lossRisk, gradual, oneShot,
       fullOdds: success * (oneShot ? 1 : gradual ? 0.5 : 0.6),
       damage: gradual ? pkgDamage(pkg) : 50,
+      tanker: tankerCost(target, pkg),
     };
   }
 
@@ -560,11 +973,21 @@ const Game = (() => {
     if (G.over || busy()) return;
     const key = resKey(pkg.asset);
     if (G.res[key] < pkg.qty) return;
+    // a launcher group nobody has found is not a target, and a deep target is
+    // not reachable without the northern tanker tracks
+    if (target.type === 'tel' && (!target.dispersed || !target.located)) return;
+    if (!canReach(target)) return;
+    // fuel in the air is booked before anything leaves the deck
+    const { cost, ok } = tankersFor(target, pkg);
+    if (!ok) return;
     G.res[key] -= pkg.qty;
+    G.tankers -= cost;
 
     // the joint option is one-shot: committing it against either site spends it
     if (pkg.joint) { G.israelJointAvailable = false; syncJointPackages(); }
 
+    // every package is logged by platform: this is what Iran adapts to
+    G.adapt[pkg.asset] = (G.adapt[pkg.asset] || 0) + 1;
     G.strikesThisTurn++;
     G.stats.strikes++;
     G.missions.push({ targetId: target.id, pkg: { ...pkg }, eta: pkg.eta || MISSION_ETA[pkg.asset] });
@@ -599,8 +1022,13 @@ const Game = (() => {
       : roll < est.success ? (est.gradual ? est.damage * 0.5 : 50)
       : 0;
 
-    const before = target.hp;
+    const beforeBand = condition(target);
+    const beforeHp = target.hp;   // what was left to disperse, if this kills it
     damageTarget(target, dmg);
+    // the package looked at what it hit on the way through — a fresh assessment,
+    // not a good one. It is the strike that produces the number, and the number
+    // has a band on it from the moment it is written down.
+    observe(target, false);
     const outcome = target.hp <= 0 ? 'destroyed' : dmg > 0 ? 'damaged' : 'miss';
 
     const ev = { cls: 'friendly', title: `BDA: ${target.name}`, dWorld: worldCost };
@@ -608,21 +1036,35 @@ const Game = (() => {
 
     if (outcome === 'destroyed') {
       G.stats.destroyed++;
+      if (target.type === 'tel') G.stats.telsKilled++;
       G.approval = clamp(G.approval + 3, 0, 100);
       ev.dApproval = 3;
       text = est.oneShot
         ? `Battle damage assessment confirms ${target.name.split(' — ')[0]} is sunk. She broke up and went down inside ` +
           'twenty minutes; the P-8 on station counted survivors in the water and Iranian craft recovering them. ' +
           'There is nothing here to follow up and nothing to repair.'
-        : 'Battle damage assessment confirms the target is destroyed. Functional capability eliminated.';
+        : target.type === 'tel'
+          ? 'Battle damage assessment confirms the launcher group is destroyed — vehicles burning in the ' +
+            'hide and secondary explosions off the reload rounds. That is a piece of the missile force that ' +
+            'does not come back and does not move again.'
+          : 'Battle damage assessment confirms the target is destroyed. Functional capability eliminated.';
       if (target.type === 'oil') { G.oil += 10; ev.dOil = 10; }
+      // The sheds die, and whatever was still alive when the night started
+      // drives away. Measured from the turn-start snapshot rather than from
+      // beforeHp, so packing three packages onto one base in a single turn
+      // does not quietly delete the brigade along with the buildings.
+      if (target.type === 'missile') {
+        ev.disperse = target.id;
+        const atDusk = (G.turnStartHp && G.turnStartHp[target.id]);
+        ev.disperseFrac = (typeof atDusk === 'number' ? atDusk : beforeHp) / 100;
+      }
     } else if (outcome === 'damaged') {
       G.approval = clamp(G.approval + 1, 0, 100);
       ev.dApproval = 1;
       text = est.gradual
-        ? `Partial effects on target. BDA assesses the site at ${Math.round(target.hp)}% of its operational ` +
-          `capability, down from ${Math.round(before)}% — it is damaged, not finished, and it is still fighting. ` +
-          'Every night it is left alone, crews put some of that back.'
+        ? `Partial effects on target. BDA assesses the site at ${condition(target)} — down from ` +
+          `${beforeBand}, and both of those are estimates with real error in them. It is damaged, not ` +
+          'finished, and it is still fighting. Every night it is left alone, crews put some of that back.'
         : 'Partial effects on target. Significant damage, but the site retains residual capability. A follow-up strike would likely finish it.';
     } else {
       G.approval = clamp(G.approval - 2, 0, 100);
@@ -723,7 +1165,13 @@ const Game = (() => {
     // a decapitated command chain cannot organize a national repair effort:
     // parts, crews and priorities all come down the same wire you just cut
     const hq = TARGETS.find(t => t.id === 'irgc-hq');
-    const eff = 0.4 + 0.6 * (hq.hp / 100);
+    let eff = (0.4 + 0.6 * (hq.hp / 100)) * diff().repair * (IranAI.posture().repair || 1);
+    // A repair effort runs on diesel. Wrecking the refining and export
+    // infrastructure does not win the war on its own — what it does is starve
+    // the generators, the cranes and the truck fleet that put everything else
+    // back together, which is the reason to accept the diplomatic bill for it.
+    const oilLeft = TARGETS.filter(t => t.type === 'oil').reduce((n, t) => n + t.hp / 100, 0) / 2;
+    eff *= 0.55 + 0.45 * oilLeft;
 
     const back = [];
     for (const t of TARGETS) {
@@ -733,7 +1181,11 @@ const Game = (() => {
       t.hp = Math.min(100, t.hp + rate);
       syncStatus(t);
       MapView.updateTarget(t);
-      back.push(`${t.short} ${Math.round(t.hp)}%`);
+      // Note what is happening, not by how much: nobody is standing over these
+      // sites with a clipboard. The player knows the crews are working and can
+      // see their own estimate widen — the exact number is the thing they are
+      // being asked to buy with an ISR tasking.
+      back.push(t.short);
     }
     if (!back.length) return null;
 
@@ -741,8 +1193,9 @@ const Game = (() => {
       cls: 'iran', title: 'DAMAGED SITES RECONSTITUTING OVERNIGHT',
       text: 'Overhead imagery shows work parties at every site CENTCOM did not revisit — craters filled, ' +
         'spare radars trucked out of the dispersal revetments, generators and crews moved in from the ' +
-        `interior. Reassessed capability: ${back.join(' · ')}. Damage that is not followed up is damage ` +
-        'that does not stay done.',
+        `interior. Work assessed under way at: ${back.join(' · ')}. How much of it they got back is a ` +
+        'question for the analysts, and the longer nobody looks, the wider that answer gets. Damage that ' +
+        'is not followed up is damage that does not stay done.',
     };
   }
 
@@ -752,6 +1205,89 @@ const Game = (() => {
     Save.write();
     const result = checkEnd();
     if (result) finish(result);
+  }
+
+  // ============================================================
+  // THE WAR POWERS VOTE
+  // ------------------------------------------------------------
+  // Approval used to be a meter that drifted until it killed you. This is the
+  // turn it becomes an actor: the authorization the campaign has been running
+  // on lapses, the Hill votes, and the vote is scored on everything the player
+  // has actually been doing — how the country feels, how many are dead, whether
+  // the war has any friends left abroad, whether the president ever bothered to
+  // explain it, and whether there is anything to show for it.
+  //
+  // Three outcomes. The middle one is the interesting one: the war continues
+  // with the target list legally shortened.
+  // ============================================================
+  function warPowersVote() {
+    if (G.warPowers.done || G.turn < WAR_POWERS_TURN) return null;
+    G.warPowers.done = true;
+
+    const score = G.approval
+      + G.world * 0.35
+      - (G.casualties.us / casualtyLimit()) * 45
+      + G.addresses * 5
+      + G.nukeDegraded() * 0.12
+      + (G.hostageCrisis ? -8 : 0)
+      + (G.coalition ? 5 : 0);
+
+    // Calibration. A strong war (approval 60, allies, few dead, the case made
+    // on television) scores in the 80s and is authorized outright. An ugly but
+    // recognisable war — approval 40, a hundred dead, one address — scores in
+    // the high 30s and survives with a shortened target list, which is the
+    // interesting outcome and therefore the one that should be common. Only a
+    // genuinely collapsed position scores under 28. Losing the war outright on
+    // this roll would be redundant: approval at or below 20 is already its own
+    // defeat, and two ways to lose to the same number is one too many.
+    if (score >= 62) {
+      G.warPowers.result = 'authorized';
+      G.approval = clamp(G.approval + 8, 0, 100);
+      return {
+        cls: 'friendly', title: 'CONGRESS AUTHORIZES THE USE OF FORCE',
+        text: 'The joint resolution passed both chambers with votes to spare. The campaign has a legal ' +
+          'mandate through its conclusion, the supplemental is attached, and the leadership of both ' +
+          'parties stood behind the podium to say so. Members who spent last week briefing against this ' +
+          'war spent this morning explaining that they always supported it. Whatever happens now, it is ' +
+          'the country\'s war and not just yours.',
+        dApproval: 8,
+      };
+    }
+
+    if (score >= 28) {
+      // what gets restricted is what the Hill is angriest about
+      G.warPowers.result = 'restricted';
+      G.warPowers.noOil = true;
+      G.warPowers.noDeep = G.world < 45;
+      G.approval = clamp(G.approval - 3, 0, 100);
+      return {
+        cls: 'world', title: 'CONGRESS AUTHORIZES — WITH CONDITIONS',
+        text: 'The resolution passed, narrowly, with the amendments that were the price of passage. ' +
+          'Strikes on Iranian energy infrastructure are prohibited outright — the argument that won the ' +
+          'floor was that the president has been raising the price of gasoline to punish Tehran and ' +
+          'charging it to American drivers.' +
+          (G.warPowers.noDeep
+            ? ' A second amendment bars strikes outside the declared theater, which the conference report ' +
+              'defines narrowly enough to put the far northwest of Iran and the Caspian off the list.'
+            : '') +
+          ' The war continues. The target list is now shorter than CENTCOM would like, and it is shorter ' +
+          'by law rather than by choice.',
+        dApproval: -3,
+      };
+    }
+
+    G.warPowers.result = 'cutoff';
+    return { cutoff: true };
+  }
+
+  // What the Hill has taken off the table. Checked in the strike path and shown
+  // in the planning modal, so a barred target reads as barred rather than broken.
+  function barred(t) {
+    if (G.warPowers.noOil && t.type === 'oil') return 'Prohibited by the War Powers resolution — no strikes on Iranian energy infrastructure.';
+    if (G.warPowers.noDeep && (t.depth || 2) >= 3) return 'Prohibited by the War Powers resolution — outside the declared theater.';
+    if (!canReach(t)) return 'Unreachable: with Gulf basing and overflight revoked there is no tanker track that puts a package this deep.';
+    if (t.type === 'tel' && !t.located) return 'No fix. Dispersed launchers cannot be planned against until ISR finds them.';
+    return null;
   }
 
   // ---- diplomacy ----
@@ -852,11 +1388,87 @@ const Game = (() => {
       case 'address': {
         if (G.addressCooldown > 0) return;
         G.addressCooldown = 3;
+        G.addresses++;
         G.approval = clamp(G.approval + 6, 0, 100);
         events.push({
           cls: 'friendly', title: 'Oval Office address',
-          text: 'You lay out the stakes to the American people: the attack, the objectives, and what victory requires. The rally effect is real, for now.',
+          text: 'You lay out the stakes to the American people: the attack, the objectives, and what victory ' +
+            'requires. The rally effect is real, for now — and every one of these is a vote on the floor ' +
+            'when the authorization comes up.',
           dApproval: 6,
+        });
+        break;
+      }
+
+      // ---- intelligence taskings ----
+      // These compete for the same single action slot as diplomacy, the raid's
+      // ISR prep and a recovery push. That contention is the point: knowing
+      // what is happening costs exactly as much as doing something about it.
+      case 'bda': {
+        // sharpen the picture on whatever the analysts are least sure about
+        const stale = TARGETS
+          .filter(t => (wearsDown(t) || t.type === 'tel') && t.hp > 0 && G.intel[t.id])
+          .map(t => ({ t, e: estimate(t) }))
+          .filter(x => x.e.hi - x.e.lo > 6)
+          .sort((a, b) => (b.e.hi - b.e.lo) - (a.e.hi - a.e.lo))
+          .slice(0, 3);
+        if (!stale.length) {
+          events.push({
+            cls: 'friendly', title: 'BDA tasking — nothing worth the sortie',
+            text: 'The analysts report the current picture is as good as overhead can make it. There is ' +
+              'nothing on the list stale enough to be worth a collection deck tonight.',
+          });
+          break;
+        }
+        for (const { t } of stale) observe(t, true);
+        events.push({
+          cls: 'friendly', title: 'BATTLE DAMAGE REASSESSMENT COMPLETE',
+          text: 'A full collection deck — overhead passes, a Global Hawk orbit and the signals picture — ' +
+            `has been worked against the sites the analysts were least sure of. Reassessed: ` +
+            stale.map(({ t }) => `${t.short} at ${condition(t)}`).join(' · ') + '. Those numbers are as ' +
+            'firm as this war gets, and they start going stale again tonight.',
+        });
+        break;
+      }
+      case 'hunt': {
+        const ev = huntTels();
+        if (!ev) {
+          events.push({
+            cls: 'friendly', title: 'No dispersed launchers to hunt',
+            text: 'Every launcher group known to have left a base is either on the plot or destroyed. ' +
+              'There is nothing out there for the sweep to find.',
+          });
+          break;
+        }
+        events.push(ev);
+        break;
+      }
+      case 'assess-nuclear': {
+        G.breakout.conf = G.breakout.conf === 'low' ? 'medium' : 'high';
+        G.breakout.assessed = G.turn;
+        const est = breakoutEstimate();
+        events.push({
+          cls: 'friendly', title: 'ENRICHMENT ASSESSMENT UPDATED',
+          text: est.halted
+            ? 'The IC has worked the problem with everything it has. The judgement is unanimous and it is ' +
+              'the one you wanted: enrichment capability is destroyed. There is no breakout timeline ' +
+              'because there is no longer a program to time.'
+            : `Centrifuge counts off the last overhead pass, the procurement picture, and two human ` +
+              `sources the Agency will not discuss. Revised judgement: Iran is ${est.lo}–${est.hi} turns ` +
+              `from a device, ${est.conf} confidence. The Director was careful to say that the band is ` +
+              `the honest part of the answer.`,
+        });
+        break;
+      }
+      case 'assess-intent': {
+        if (G.postureKnown) return;
+        G.postureKnown = true;
+        const P = IranAI.posture();
+        events.push({
+          cls: 'friendly', title: `IRANIAN WAR PLAN ASSESSED — ${P.name}`,
+          text: `${P.brief} The tell the analysts built this on: ${P.tell}. Knowing it does not make any ` +
+            'of it stop — what it does is tell you which of their arms is the one worth spending the ' +
+            'campaign on.',
         });
         break;
       }
@@ -958,6 +1570,15 @@ const Game = (() => {
     if (G.over || busy()) return;
     setResolving(true);
 
+    // How much of each brigade was alive when tonight's packages started
+    // arriving. Dispersal is measured against THIS, not against what the third
+    // package in the same volley found: launchers scatter when the base becomes
+    // untenable, not between two Tomahawks ninety seconds apart. Without the
+    // snapshot, concentrating three packages on one base in one turn deletes
+    // the brigade outright and the whole launcher hunt can simply be skipped.
+    G.turnStartHp = {};
+    for (const t of TARGETS) G.turnStartHp[t.id] = t.hp;
+
     // strike packages arrive first — BDA lands, then Iran answers with
     // whatever the volley left standing
     resolveMissions((bda) => {
@@ -983,6 +1604,14 @@ const Game = (() => {
         const repairs = repairTargets();
         for (const ev of events) applyEvent(ev);
 
+        // launchers scatter out of the bases the BDA just confirmed destroyed
+        const dispersals = [];
+        for (const ev of bda) {
+          if (!ev.disperse) continue;
+          const d = disperseFrom(ev.disperse, ev.disperseFrac);
+          if (d) dispersals.push(d);
+        }
+
         // economy: oil carries a war premium set by Iran's remaining ability
         // to threaten the Gulf, plus the state of the strait
         const warPremium = IranAI.missileStrength() + IranAI.navalStrength() > 1 ? 14 : 4;
@@ -999,6 +1628,28 @@ const Game = (() => {
         else if (G.oil >= 115) G.approval = clamp(G.approval - 1, 0, 100);
         if (G.turn > WEARINESS_TURN) G.approval = clamp(G.approval - 0.5, 0, 100);
 
+        // the centrifuges ran again tonight, whatever else happened
+        breakoutTick();
+
+        // ---- the news cycle moves on ----
+        // Standing abroad has to recover on its own or it is not a resource, it
+        // is a ratchet: every strike costs a point or two, so without drift the
+        // basing tiers are not consequences a player can manage, they are a
+        // schedule. Recovery is real but slow, it pulls toward a baseline rather
+        // than toward full, and it stops entirely while Israel is in the war on
+        // its own account — that is the one thing the world does not get over.
+        if (G.israelPosture !== 'unilateral') {
+          const baseline = G.coalition ? 58 : 50;
+          if (G.world < baseline) G.world = Math.min(baseline, G.world + 2.5);
+        }
+
+        // standing abroad is a permission slip, and it is checked nightly
+        const basing = syncBasing();
+
+        // the Hill votes once, in the middle of the second week
+        const vote = warPowersVote();
+        const cutoff = vote && vote.cutoff;
+
         // fleet movement closes the turn: decks that spent it repositioning are
         // on their new stations, and the second carrier is one leg closer
         const fleet = checkCarrierTransit();
@@ -1007,10 +1658,16 @@ const Game = (() => {
         const bombers = checkBomberArrival();
         if (bombers) fleet.push(bombers);
 
+        // and the coast works up tomorrow night's shot, in the open, on purpose
+        const threat = raiseThreat();
+        if (threat) fleet.push(threat);
+
         const day = Math.ceil(G.turn / 2);
-        const all = [...bda, ...events, ...(repairs ? [repairs] : []), ...fleet];
+        const all = [...bda, ...events, ...dispersals, ...(repairs ? [repairs] : []),
+          ...basing, ...(vote && !cutoff ? [vote] : []), ...fleet];
         UI.setTicker(IranAI.headlines(G, all));
-        const result = checkEnd();
+        recordTurn(all);
+        const result = cutoff ? buildResult('defeat', 'cutoff') : checkEnd();
 
         // hold the battle report until every strike clip has finished playing
         MapView.whenFootageDone(() => {
@@ -1049,6 +1706,10 @@ const Game = (() => {
       G.res.stealth = Math.min(G.res.stealth + 1, G.caps.stealth);
     }
 
+    // tonight's tanker plan is written fresh: fuel in the air does not bank
+    G.tankerCap = tankerCapacity();
+    G.tankers = G.tankerCap;
+
     if (G.addressCooldown > 0) G.addressCooldown--;
     if (G.regimeChaosTurns > 0) G.regimeChaosTurns--;
     G.diploUsed = false;
@@ -1060,13 +1721,32 @@ const Game = (() => {
     Save.write();
   }
 
+  // ---- the after-action record ----
+  // One line a turn, written as the turn closes, so the endgame screen can show
+  // the shape of the whole campaign rather than just its final numbers.
+  function recordTurn(events) {
+    const notable = events.find(e => e.casualties >= 10) ||
+      events.find(e => e.hormuz) ||
+      events.find(e => /DESTROYED|SUNK|LOST|CAPTURED|AUTHORIZ|REVOKED|DISPERSE/i.test(e.title)) ||
+      events.find(e => e.cls === 'iran');
+    G.timeline.push({
+      turn: G.turn,
+      approval: Math.round(G.approval),
+      dead: G.casualties.us,
+      deg: G.nukeDegraded(),
+      text: notable ? notable.title : 'No significant developments.',
+    });
+  }
+
   // ---- endings ----
   function checkEnd() {
     if (G.over) return null;
     // primary win: the nuclear program is gone and Iran can no longer fight
     if (G.nukeDegraded() >= 100 && G.iranBroken()) return buildResult('victory', 'military');
+    // the race the whole war was against: they got there first
+    if (G.breakout.progress >= G.breakout.need) return buildResult('defeat', 'breakout');
     // the losses are military and political:
-    if (G.casualties.us >= CASUALTY_LIMIT) return buildResult('defeat', 'casualties');
+    if (G.casualties.us >= casualtyLimit()) return buildResult('defeat', 'casualties');
     if (G.approval <= 20) return buildResult('defeat', 'impeachment');
     if (G.hormuzClosedTurns >= 5 || G.oil >= 240) return buildResult('defeat', 'economy');
     return null;
@@ -1083,7 +1763,10 @@ const Game = (() => {
     const deg = G.nukeDegraded();
     const milGrade = deg >= 100 && G.stats.destroyed >= 5 ? 'A'
       : deg >= 100 ? 'B' : deg >= 50 ? 'C' : deg >= 25 ? 'D' : 'F';
-    const livesGrade = gradeFor(G.casualties.us, [25, 50, 100, 200]);
+    // graded against what THIS country would bear, so the letter means the same
+    // thing on every difficulty
+    const lim = casualtyLimit();
+    const livesGrade = gradeFor(G.casualties.us, [lim * 0.1, lim * 0.2, lim * 0.4, lim * 0.8]);
     const worldGrade = G.world >= 60 ? 'A' : G.world >= 48 ? 'B' : G.world >= 36 ? 'C' : G.world >= 25 ? 'D' : 'F';
     const econGrade = gradeFor(G.stats.peakOil, [100, 125, 155, 190]);
 
@@ -1095,6 +1778,8 @@ const Game = (() => {
       economy: 'DEFEAT — ECONOMIC COLLAPSE',
       exhaustion: 'DEFEAT — CAMPAIGN CULMINATED',
       time: 'WAR FROZEN — OBJECTIVES INCOMPLETE',
+      breakout: 'DEFEAT — IRAN GOES NUCLEAR',
+      cutoff: 'DEFEAT — CONGRESS CUTS OFF THE WAR',
     };
     const verdicts = {
       military: 'VICTORY. The nuclear program is destroyed and Iran\'s ability to wage war — its missile force, its navy, its command structure — has been dismantled. The objectives are achieved by force of arms.',
@@ -1104,6 +1789,8 @@ const Game = (() => {
       economy: 'The prolonged closure of Hormuz broke the global economy. Fuel rationing, a market crash, and allied governments falling — the war was lost at the gas pump.',
       exhaustion: 'The force culminated with the objectives nowhere in sight. Magazines empty, crews exhausted, and Iran\'s program still standing — the campaign simply ran out of ammunition and time.',
       time: 'Fifteen days of war ended in an armed standoff. Real damage was done, but Iran\'s capacity to fight survives; the problem is handed to the next news cycle, and perhaps the next president.',
+      breakout: 'The war was fought to prevent exactly one thing, and it did not prevent it. Seismic sensors registered a test in the eastern desert while American aircraft were still flying. Every other number on this page is now a footnote.',
+      cutoff: 'The authorization lapsed and the Hill declined to renew it. With funding cut off mid-campaign the force is being recovered rather than employed, and the war ends by act of Congress with its objectives unmet.',
     };
     const narratives = {
       military: `CENTCOM's assessment is unambiguous: enrichment halted, missile brigades combat-ineffective, the IRGC command chain severed.` +
@@ -1117,6 +1804,13 @@ const Game = (() => {
       economy: 'Military dominance meant little once the strait stayed shut.',
       exhaustion: 'Historians will note the sorties flown and the little they changed.',
       time: `The nuclear program stands at ${deg}% degraded. The fleet remains on station. Nothing is settled.`,
+      breakout: `The program stood at ${deg}% degraded when the device was tested — close enough that the ` +
+        `argument about which turn lost this war will run for a generation. It took ${G.turn} turns and ` +
+        `${G.casualties.us} American lives to not quite get there.`,
+      cutoff: `The vote was ${G.approval < 35 ? 'not close' : 'close, and it went the wrong way'}. ` +
+        `${G.casualties.us} dead, an ally count in single figures, and ${G.addresses === 0
+          ? 'a president who never once went on television to explain what any of it was for'
+          : 'a case the country had stopped listening to'}.`,
     };
 
     const grades = [
@@ -1153,9 +1847,15 @@ const Game = (() => {
     return {
       kind, title: titles[reason], verdict: verdicts[reason], narrative: narratives[reason],
       grades,
+      timeline: G.timeline,
+      // the war plan Tehran was actually running, revealed at the end whether or
+      // not the player ever paid to find out during it
+      posture: IranAI.posture(),
+      postureKnown: G.postureKnown,
       stats: {
         approval: G.approval, oil: G.oil,
         casualties: G.casualties.us, destroyed: G.stats.destroyed, turns: G.turn,
+        limit: casualtyLimit(), difficulty: diff().name,
       },
     };
   }
@@ -1196,7 +1896,10 @@ const Game = (() => {
   function restoreAndStart(data) {
     for (const [f, v] of Object.entries(data.fields)) G[f] = v;
     for (const t of TARGETS) {
-      t.hp = typeof data.targets[t.id] === 'number' ? data.targets[t.id] : 100;
+      const rec = data.targets[t.id] || {};
+      t.hp = typeof rec.hp === 'number' ? rec.hp : (t.dispersal ? 0 : 100);
+      t.dispersed = !!rec.dispersed;
+      t.located = !!rec.located;
       syncStatus(t);
     }
     syncJointPackages(); // packages live on static TARGETS — rebuild from saved state
@@ -1204,14 +1907,67 @@ const Game = (() => {
     start(true);
   }
 
+  // ============================================================
+  // KICKOFF
+  // ------------------------------------------------------------
+  // What is randomized, and why. A war that opens identically every time is a
+  // war with an opening book, and an opening book is the death of a strategy
+  // game — so the enrichment head start, Tehran's war plan, Israel's patience
+  // and the state of the coastal SAM belt are all rolled here. None of it is
+  // shown to the player; all of it is discoverable.
+  // ============================================================
+  function newWar(difficulty) {
+    G.difficulty = DIFFICULTY[difficulty] ? difficulty : 'general';
+
+    // launcher groups start off the board entirely
+    for (const t of TARGETS) {
+      t.hp = t.dispersal ? 0 : 100;
+      t.dispersed = false;
+      t.located = false;
+      syncStatus(t);
+    }
+
+    // Tehran's war plan, and how far along the centrifuges already are
+    const plans = Object.keys(IRAN_POSTURES);
+    G.iranPosture = plans[Math.floor(Math.random() * plans.length)];
+    G.postureKnown = false;
+    G.breakout = {
+      progress: rand(0, 18),   // the program did not start the day the war did
+      need: rand(BREAKOUT.needMin, BREAKOUT.needMax),
+      conf: 'low', assessed: -99,
+    };
+
+    // Jerusalem's patience is not a constant either
+    G.israelPatience = rand(3, 6);
+
+    // the coastal SAM belt is not always found at full strength — sometimes an
+    // opening-night sweep has already been flown, sometimes it hasn't
+    const opener = TARGETS.find(t => t.id === 'ad-bandar');
+    if (Math.random() < 0.5) {
+      opener.hp = rand(55, 85);
+      syncStatus(opener);
+      G.intel[opener.id] = { hp: opener.hp, turn: 1, sharp: true };
+    }
+
+    // and the Strait does not always open quiet
+    if (Math.random() < 0.25) G.hormuz = 'CONTESTED';
+
+    G.tankerCap = tankerCapacity();
+    G.tankers = G.tankerCap;
+  }
+
   function init() {
-    for (const t of TARGETS) { t.hp = 100; syncStatus(t); }
+    for (const t of TARGETS) { t.hp = t.dispersal ? 0 : 100; syncStatus(t); }
     AudioSys.init();
     UI.init();
     SpecOps.init();
     CSAR.init();
 
-    document.getElementById('btn-start').addEventListener('click', () => start(false));
+    document.getElementById('btn-start').addEventListener('click', () => {
+      const sel = document.querySelector('input[name="difficulty"]:checked');
+      newWar(sel ? sel.value : 'general');
+      start(false);
+    });
     document.getElementById('btn-end-turn').addEventListener('click', endTurn);
     document.getElementById('btn-skip-turn').addEventListener('click', skipToResults);
 
@@ -1239,5 +1995,8 @@ const Game = (() => {
   return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, israelStatus,
     airDefenseWeight, orderCarrier, toggleCarrierPosture, carrierFactor, carrierExposure,
     orderBombers, transitCommitted, wearsDown,
-    FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, CASUALTY_LIMIT, G };
+    // the uncertainty layer: everything the player sees goes through these
+    estimate, condition, breakoutEstimate, barred, canReach, tankersFor, tankerCapacity,
+    casualtyLimit, difficulty: diff,
+    FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, WAR_POWERS_TURN, G };
 })();

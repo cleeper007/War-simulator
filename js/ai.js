@@ -11,14 +11,26 @@ const IranAI = (() => {
   // Read off each base's condition track, so a brigade worn down to 30% throws
   // 30% of the salvo — the weight of what comes back at you falls in step with
   // the damage you do, rather than in two big steps.
+  //
+  // Dispersed launchers count exactly as much as the bases they drove out of,
+  // whether or not anyone has found them. That is the point of the hunt: the
+  // salvos do not get lighter because you destroyed the sheds, and a player who
+  // stops at the fixed sites is fighting a missile force that is still there.
   function missileStrength() {
     let s = 0;
     for (const t of TARGETS) {
-      if (t.type !== 'missile') continue;
+      if (t.type !== 'missile' && t.type !== 'tel') continue;
       s += t.hp / 100;
     }
-    return s; // 0..2
+    return Math.min(2, s); // 0..2
   }
+
+  // The launcher groups actually in play — dispersed and not yet destroyed.
+  // Undetected ones are in here too; they are shooting either way.
+  const liveTels = () => TARGETS.filter(t => t.type === 'tel' && t.dispersed && t.hp > 0);
+
+  // the war plan Tehran is actually running (see IRAN_POSTURES)
+  const posture = () => IRAN_POSTURES[Game.G.iranPosture] || IRAN_POSTURES.attrition;
 
   // Iran's navy: the bases and the hulls that sail from them. Everything
   // downstream — carrier risk, the Hormuz reopening, the capacity meter, the
@@ -145,6 +157,64 @@ const IranAI = (() => {
     }),
   };
 
+  // ============================================================
+  // ADAPTATION
+  // ------------------------------------------------------------
+  // Every strike package flown is logged by platform. Past a threshold Iran
+  // starts working the specific counter — hardened dispersal and decoy fields
+  // against cruise missiles, massed mobile SAMs and fighter dispersal against
+  // manned packages — and the base success rate of that platform drops. The
+  // counter to the counter is variety, which is the whole point: a player who
+  // finds one efficient package and flies it thirty times should meet an enemy
+  // who noticed.
+  const ADAPT_EVERY = 6;    // packages of one platform before the counter deepens
+  const ADAPT_MAX = 3;      // and it stops deepening here — never impossible
+  const ADAPT_PER_LEVEL = 0.05;
+
+  const adaptLevel = (asset) => Math.min(ADAPT_MAX,
+    Math.floor((Game.G.adapt[asset] || 0) / ADAPT_EVERY));
+
+  // what computeStrike subtracts from a package's base odds
+  const adaptPenalty = (asset) => adaptLevel(asset) * ADAPT_PER_LEVEL;
+
+  const ADAPT_TEXT = {
+    cruise: ['Overhead imagery shows the pattern CENTCOM has been flying being answered: inflatable decoys ' +
+      'and corner reflectors going up around every site still standing, aimpoints shuffled inside the ' +
+      'perimeters, and the high-value equipment moved out from under the roofs the targeting folders were ' +
+      'built on. Tomahawk effectiveness is assessed down against everything on the list.',
+      'Cruise-missile corridors are being seeded with barrage balloons and cabling, and the sites are ' +
+      'running their generators from dispersed positions well off the surveyed coordinates. The salvos ' +
+      'are still arriving. They are arriving on emptier ground.'],
+    fighter: ['Iranian air defense has stopped defending places and started hunting packages: the ' +
+      'surviving batteries are shooting and moving, the engagement radars come up late, and the fighter ' +
+      'regiments have dispersed to highway strips. Manned strike packages are assessed to face a harder ' +
+      'problem on every profile.',
+      'The SAM belt is being run as an ambush rather than a barrier — emissions discipline, mobile ' +
+      'launchers, and acquisition handed off from passive sensors. Our packages are flying into a threat ' +
+      'that no longer sits where the last mission found it.'],
+    stealth: ['Tehran has bought low-frequency early-warning radars into the approach corridors. They ' +
+      'cannot generate a firing solution on a B-2 and they know it — what they can do is know a mission ' +
+      'is coming and get the crews underground before it arrives.'],
+  };
+
+  // Returns an event on the turn a platform's counter deepens, else null.
+  function adaptStep(G) {
+    for (const asset of ['cruise', 'fighter', 'stealth']) {
+      const lvl = adaptLevel(asset);
+      if (lvl <= (G.adaptSeen[asset] || 0)) continue;
+      G.adaptSeen[asset] = lvl;
+      const pool = ADAPT_TEXT[asset];
+      const label = { cruise: 'CRUISE MISSILE', fighter: 'MANNED STRIKE', stealth: 'PENETRATOR' }[asset];
+      return {
+        cls: 'iran', title: `IRAN ADAPTS — ${label} EFFECTIVENESS DEGRADED`,
+        text: pool[Math.min(lvl - 1, pool.length - 1)] +
+          ` Assessed penalty to ${asset === 'fighter' ? 'manned strike' : asset} packages is now ` +
+          `−${Math.round(lvl * ADAPT_PER_LEVEL * 100)}%. Mixing the force is what keeps this shallow.`,
+      };
+    }
+    return null;
+  }
+
   // Decide Iran's response this turn. There is no abstract escalation ladder:
   // what Iran does is a function of what it has left (capacity), how far the
   // war machine has spun up (spool), and whether anyone is coordinating it.
@@ -159,7 +229,7 @@ const IranAI = (() => {
 
     // coordination: killing command degrades the response machine
     const irgc = TARGETS.find(t => t.id === 'irgc-hq');
-    let coord = 0.6 + 0.4 * (irgc.hp / 100);
+    let coord = (0.6 + 0.4 * (irgc.hp / 100)) * (DIFFICULTY[G.difficulty] || DIFFICULTY.general).coord;
     if (G.regimeChaosTurns > 0) coord *= 0.55;                      // decapitated: paralysis
     else if (G.regimeErratic) coord = Math.min(1.15, coord + 0.25); // erratic remnant: lashing out
     // the war machine spins up over the first days, faster when provoked
@@ -168,6 +238,9 @@ const IranAI = (() => {
     // regime has left, more of it gets thrown, and some of it goes west
     const israelInPlay = G.israelPosture !== 'sidelined';
     const w = Math.min(1.3, coord * spool * (israelInPlay ? 1.2 : 1));
+    // Tehran's war plan, which the player cannot see until they buy it: the
+    // same event pool, weighted toward the arm this regime has decided matters
+    const P = posture();
 
     // Revenge logic: hitting oil draws shipping/economic retaliation
     if (struckOil && nStr > 0) events.push(chance(0.6) ? EV.shipping() : EV.mineScare());
@@ -178,28 +251,52 @@ const IranAI = (() => {
       if (chance(0.25)) events.push(EV.proxyRockets());
     } else {
       // the missile arm throws what it has — while it exists, it is lethal
-      if (mStr > 0 && chance(0.95 * w)) {
-        events.push(mStr >= 1.5 && chance(0.6 * w) ? EV.massBarrage(mStr) : EV.missileBase(mStr));
+      if (mStr > 0 && chance(0.95 * w * P.missile)) {
+        events.push(mStr >= 1.5 && chance(0.6 * w * P.missile) ? EV.massBarrage(mStr) : EV.missileBase(mStr));
       } else {
         events.push(pick([EV.proxyAttack, EV.proxyRockets, EV.cyber, EV.harass])());
       }
-      if (chance(0.35 * w)) events.push(EV.proxyAttack());
+      if (chance(0.35 * w * P.proxy)) events.push(EV.proxyAttack());
       // hitting the nuclear program draws a dedicated reprisal salvo
       if (struckNuclear && mStr > 0 && chance(0.5)) events.push(EV.missileBase(mStr));
       // the naval arm contests the strait
       if (nStr > 0) {
-        if (G.hormuz === 'OPEN' && nStr >= 1.5 && chance(0.2 * w)) events.push(EV.hormuzClose());
-        else if (G.hormuz === 'OPEN' && chance(0.3 * w)) events.push(EV.mineScare());
-        else if (G.hormuz === 'CONTESTED' && chance(0.35 * w)) events.push(EV.hormuzClose());
+        if (G.hormuz === 'OPEN' && nStr >= 1.5 && chance(0.2 * w * P.hormuz)) events.push(EV.hormuzClose());
+        else if (G.hormuz === 'OPEN' && chance(0.3 * w * P.naval)) events.push(EV.mineScare());
+        else if (G.hormuz === 'CONTESTED' && chance(0.35 * w * P.hormuz)) events.push(EV.hormuzClose());
       }
-      if (chance((israelInPlay ? 0.5 : 0.3) * w)) events.push(EV.allyStrike(israelInPlay));
+      if (chance((israelInPlay ? 0.5 : 0.3) * w * P.ally)) events.push(EV.allyStrike(israelInPlay));
       // a sustained two-front fight needs a missile force that still exists
       if (israelInPlay && mStr > 0 && chance(0.4 * w)) events.push(EV.israelExchange());
     }
 
+    // ---- adaptation ----
+    // An enemy that is hit the same way every night stops standing still for
+    // it. Lean on one platform and Iran works the counter to that platform:
+    // dispersal and decoys against the Tomahawk, massed and mobile SAMs against
+    // the strike packages. It never becomes impossible, it becomes expensive —
+    // and mixing the force keeps both counters shallow.
+    const step = adaptStep(G);
+    if (step) events.push(step);
+
     // Tehran only sues for peace when its ability to fight is actually shattered
     if (cap <= 1 && G.nukeDegraded() >= 75 && chance(0.35)) {
       events.push(EV.backchannelFeeler());
+    }
+
+    // A dispersal that has been located and then left alone does not wait to be
+    // serviced. Finding them is not killing them.
+    for (const t of liveTels()) {
+      if (!t.located || G.struckThisTurn.includes(t.id)) continue;
+      if (!chance(TEL_RELOCATE)) continue;
+      t.located = false;
+      MapView.updateTarget(t);
+      events.push({
+        cls: 'iran', title: `${t.short} HAS MOVED — TRACK LOST`,
+        text: `The launcher group in the ${t.name.split(' — ')[1] || 'interior'} broke hide overnight and ` +
+          'is no longer where the targeting folder says it is. Nothing was struck there, so nothing held ' +
+          'them. The fix is stale and the group is off the plot until ISR finds it again.',
+      });
     }
 
     // Captured raid personnel are a recurring propaganda drumbeat — a standing
@@ -226,10 +323,22 @@ const IranAI = (() => {
   function advise(G) {
     const nukeDeg = G.nukeDegraded();
     const adLeft = TARGETS.filter(t => t.type === 'airdefense' && t.status !== 'destroyed').length;
-    // sites hit but not finished, worst first — the ones the repair crews own
+    // sites hit but not finished, worst first — the ones the repair crews own.
+    // Sorted on the ASSESSED figure, because that is all anyone in this room
+    // actually has; the true number is not available to the people talking.
     const reconstituting = TARGETS
       .filter(t => Game.wearsDown(t) && t.hp > 0 && t.hp < 100)
-      .sort((a, b) => a.hp - b.hp);
+      .map(t => ({ t, e: Game.estimate(t) }))
+      .sort((a, b) => a.e.mid - b.e.mid)
+      .map(x => x.t);
+    // how stale the picture has got — the argument for spending a slot on ISR
+    const blind = TARGETS
+      .filter(t => (Game.wearsDown(t) || t.type === 'tel') && t.hp > 0)
+      .map(t => Game.estimate(t))
+      .filter(e => !e.known && e.hi - e.lo >= 30).length;
+    const hiddenTels = liveTels().filter(t => !t.located).length;
+    const foundTels = liveTels().filter(t => t.located).length;
+    const brk = Game.breakoutEstimate();
 
     const secdef = { name: 'SecDef Whitfield', cls: 'hawk', text: '' };
     const secstate = { name: 'SecState Okafor', cls: 'dove', text: '' };
@@ -238,8 +347,21 @@ const IranAI = (() => {
 
     const warStr = missileStrength() + navalStrength();
 
+    // Launchers loose in the country outrank everything else SecDef has to say:
+    // it is the one situation where the battle damage assessment is actively
+    // lying to the player about how the war is going.
+    if (foundTels > 0) {
+      secdef.text = `We have a fix on ${foundTels === 1 ? 'a launcher group' : `${foundTels} launcher groups`} ` +
+        'and fixes on those do not keep. They shoot and move — service them tonight or spend another ' +
+        'week of ISR earning the same fix twice. This is the part of the missile force that is still ' +
+        'killing Americans, and it is the part that is not on any of the imagery you have been shown.';
+    } else if (hiddenTels > 0) {
+      secdef.text = `Understand what the battle damage assessment is not telling you: the bases are rubble ` +
+        `and the brigade is not dead. ${hiddenTels === 1 ? 'A launcher group is' : `${hiddenTels} launcher groups are`} ` +
+        'out in the country, they are still shooting, and the capacity meter is counting them whether ' +
+        'we can see them or not. Put the collection assets on the hunt or accept the salvos indefinitely.';
     // early on, the force-flow decision outranks everything else SecDef has to say
-    if (!G.bombersOrdered && !G.secondCarrierOrdered && G.turn <= 3 && nukeDeg < 100) {
+    } else if (!G.bombersOrdered && !G.secondCarrierOrdered && G.turn <= 3 && nukeDeg < 100) {
       secdef.text = 'Two things are outside this theater and Fifth Fleet cuts one transit plan a night to move them: the Ford, five turns out and worth double what one deck gives you, and the 509th, one turn out and the only thing that opens Fordow. One goes tonight, the other tomorrow. My advice is to decide which rather than discover in a week that you needed the one you left at home.';
     } else if (nukeDeg >= 100 && warStr <= 1.5) {
       secdef.text = 'They\'re beaten and they know it. Finish the missile force, the navy, and the IRGC command node — end this on our terms, not theirs.';
@@ -276,6 +398,22 @@ const IranAI = (() => {
         `decision that will define the news cycle either way, and it does not keep. Recovered, it is the ` +
         `best night of this war. Captured, it is a flight suit on their television for as long as they ` +
         `want it there, and every deal you ever sign runs through that cell.`;
+    // The clock the entire war is against. It outranks everything except
+    // Americans on the ground.
+    } else if (!brk.halted && brk.hi <= 6) {
+      nsa.text = `This is the number that matters tonight: the Agency puts Iran ${brk.lo}–${brk.hi} turns ` +
+        `from a device, ${brk.conf} confidence. ${brk.conf === 'low'
+          ? 'That band is wide enough that the low end may already have passed. I would spend a slot ' +
+            'narrowing it before I spent another one on anything else.'
+          : 'That is inside the time it takes to do anything else on this list.'} ` +
+        'Everything that is not enrichment is a distraction from here.';
+    } else if (!G.warPowers.done && G.turn >= Game.WAR_POWERS_TURN - 3) {
+      const t = Game.WAR_POWERS_TURN - G.turn;
+      nsa.text = `The authorization lapses in ${t <= 0 ? 'a matter of hours' : `${t} turn${t === 1 ? '' : 's'}`} ` +
+        'and the Hill will vote on whether this campaign continues. They will be voting on your approval ' +
+        `number, the casualty list, whether we still have allies, and whether you ever went on television ` +
+        `to explain it — you have addressed the nation ${G.addresses} time${G.addresses === 1 ? '' : 's'}. ` +
+        'A no vote ends the war where it stands. There is still time to change the arithmetic.';
     } else if (israelUrgent) {
       nsa.text = `Israeli readiness indicators are unambiguous — tanker movements, reserve call-ups, the whole signature. They are going, with or without you, in roughly ${G.israelPatience} turn${G.israelPatience === 1 ? '' : 's'}. If it happens on their timetable you get the blame and none of the targeting.`;
     } else if (G.israelPosture === 'unilateral') {
@@ -291,14 +429,30 @@ const IranAI = (() => {
     } else if (G.approval < 35) {
       nsa.text = 'Your political capital is nearly spent. Congress smells blood. We need visible wins or visible peace — drift is fatal.';
     } else if (G.casualties.us >= 170) {
-      nsa.text = `${G.casualties.us} dead and the country is counting. The home front will not fund this war past ${Game.CASUALTY_LIMIT} — win it before the arithmetic wins it for them.`;
+      nsa.text = `${G.casualties.us} dead and the country is counting. The home front will not fund this war past ${Game.casualtyLimit()} — win it before the arithmetic wins it for them.`;
     } else if (warStr >= 3) {
       nsa.text = 'Their war machine is still near full strength and they will throw everything they have. What matters is the exchange rate: their launchers and hulls have to die faster than our people do.';
     } else {
       nsa.text = 'The clock and the casualty count are the real enemies. Every turn their war machine survives is a turn it spends killing Americans — tempo is mercy.';
     }
 
-    if (!G.bombersArrived && nukeDeg < 100) {
+    if (!G.basing.gulf) {
+      cjcs.text = 'We have lost the Gulf ramps and with them the northern tanker tracks. Al Udeid and Al ' +
+        'Dhafra are parking lots for aircraft that are not allowed to fly, the nightly tanker plan is down ' +
+        `to ${Game.tankerCapacity()} tracks, and anything past the interior — Tabriz, the Caspian — is ` +
+        'simply not reachable. This is not a targeting problem, Mr. President, it is a diplomatic one. ' +
+        'Get the number up and I get the runways back.';
+    } else if (!G.basing.nato) {
+      cjcs.text = `Incirlik is closed to us and Riyadh has asked that Prince Sultan not be used offensively. ` +
+        `That is two squadrons and two tanker tracks off tonight's plan — we are down to ${Game.tankerCapacity()} ` +
+        'tracks a night, and the tanker plan is what caps the deep targets. It gets worse below fifteen.';
+    } else if (blind >= 3) {
+      cjcs.text = `We are flying on a stale picture. ${blind} sites on the list have assessments wide ` +
+        'enough to be useless — anywhere from "nearly finished" to "back at full" — and every package ' +
+        'planned against a number that soft is a package we may be wasting on rubble or throwing at a ' +
+        'target that needs three more. Buy a collection deck. Knowing costs a night; not knowing costs ' +
+        'the ordnance.';
+    } else if (!G.bombersArrived && nukeDeg < 100) {
       cjcs.text = G.bombersOrdered
         ? `The 509th is airborne out of Whiteman with the tanker train strung out behind it — ${G.bomberEta} turn(s) to Diego Garcia. Until those aircraft are on that ramp, Fordow is a target we can photograph and not one we can service.`
         : 'Be clear on what you do not have: there is not a B-2 within eight thousand miles of this war. They are parked at Whiteman. One turn on the tankers puts them at Diego Garcia and puts the GBU-57 in play, and nothing else in the inventory touches Fordow — not a Tomahawk, not a fighter, nothing. The bill is one night of the naval transit: the turn they move, nothing else does.';
@@ -306,7 +460,7 @@ const IranAI = (() => {
       cjcs.text = `Their air defense network is largely intact — ${adLeft} SAM complexes active. Non-stealth strikes carry real attrition risk. Recommend SEAD first${G.bombersArrived ? ', or lean on the B-2s' : ''}.`;
     } else if (reconstituting.length >= 2) {
       cjcs.text = `We are renting damage instead of buying it, Mr. President. ${reconstituting.length} sites we have already ` +
-        `hit are working through the night — ${reconstituting.slice(0, 3).map(t => `${t.short} at ${Math.round(t.hp)}%`).join(', ')} — ` +
+        `hit are working through the night — ${reconstituting.slice(0, 3).map(t => `${t.short} at ${Game.condition(t)}`).join(', ')} — ` +
         `and every one of them climbs back toward full while we service something else. Concentrate the ` +
         `packages: two on target in the same turn finishes a site, one a turn just keeps it wounded.`;
     } else if (nukeDeg < 100) {
@@ -334,9 +488,23 @@ const IranAI = (() => {
     if (G.hostageCrisis) h.push('VIGILS HELD FOR AMERICANS IN IRANIAN CUSTODY');
     if (G.israelPosture === 'unilateral') h.push('ARAB CAPITALS DEMAND ANSWERS: DID WASHINGTON GREEN-LIGHT THE ISRAELI STRIKE?');
     else if (G.israelPosture === 'coordinated') h.push('IAF SQUADRONS FLYING WITH CENTCOM AS ISRAEL JOINS THE CAMPAIGN OPENLY');
+    if (!G.basing.gulf) h.push('GULF STATES CLOSE AIRSPACE TO US STRIKE OPERATIONS — "NOT FROM OUR SOIL"');
+    else if (!G.basing.nato) h.push('ANKARA CLOSES INCIRLIK AS EUROPEAN ALLIES SUSPEND PARTICIPATION');
+    if (!G.warPowers.done && G.turn >= Game.WAR_POWERS_TURN - 2) {
+      h.push('WAR POWERS VOTE LOOMS: CONGRESS TO DECIDE WHETHER THE CAMPAIGN CONTINUES');
+    } else if (G.warPowers.result === 'restricted') {
+      h.push('CONGRESS BARS STRIKES ON IRANIAN ENERGY INFRASTRUCTURE IN NARROW AUTHORIZATION VOTE');
+    }
+    const brk = Game.breakoutEstimate();
+    if (brk.halted) h.push('IAEA: IRANIAN ENRICHMENT CAPABILITY ASSESSED DESTROYED');
+    else if (brk.hi <= 6) h.push('INTELLIGENCE LEAK: "WEEKS, NOT MONTHS" — ANALYSTS WARN BREAKOUT IS CLOSE');
+    if (liveTels().some(t => !t.located)) {
+      h.push('PENTAGON CONCEDES IRANIAN MOBILE LAUNCHERS REMAIN "UNLOCATED AND ACTIVE"');
+    }
     const fillers = [...FILLER_HEADLINES].sort(() => Math.random() - 0.5).slice(0, 3);
     return [...h, ...fillers];
   }
 
-  return { respond, advise, headlines, missileStrength, navalStrength };
+  return { respond, advise, headlines, missileStrength, navalStrength,
+    adaptPenalty, adaptLevel, liveTels, posture };
 })();

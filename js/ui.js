@@ -59,14 +59,33 @@ const UI = (() => {
   // ---- sidebar ----
   function renderObjectives(G) {
     const deg = G.nukeDegraded();
+    const brk = Game.breakoutEstimate();
     const items = [
       { text: `Destroy nuclear program (${deg}% / 100%)`, done: deg >= 100 },
       { text: 'Break Iran\'s war machine (missiles · navy · IRGC command)', done: G.iranBroken() },
-      { text: `Limit US casualties (${G.casualties.us} / ${Game.CASUALTY_LIMIT} tolerated)`, done: null },
+      { text: `Limit US casualties (${G.casualties.us} / ${Game.casualtyLimit()} tolerated)`, done: null },
       { text: `Keep Strait of Hormuz open`, done: null },
     ];
     $('objectives-list').innerHTML = items.map(i =>
       `<li class="${i.done === true ? 'done' : 'pending'}">${i.text}</li>`).join('');
+
+    // ---- the breakout clock ----
+    // The one number in this game the player is never given exactly. It reads
+    // as a band, and the band is the whole point: it is narrow because someone
+    // paid an action slot for it to be, or it is wide because nobody did.
+    const box = $('breakout-line');
+    if (!box) return;
+    if (brk.halted) {
+      box.className = 'breakout halted';
+      box.innerHTML = '<span class="bo-label">ENRICHMENT</span>' +
+        '<span class="bo-value">HALTED — no capability remaining</span>';
+      return;
+    }
+    const urgent = brk.hi <= 6 ? ' urgent' : brk.hi <= 12 ? ' warn' : '';
+    box.className = 'breakout' + urgent;
+    box.innerHTML = '<span class="bo-label">EST. TIME TO A DEVICE</span>' +
+      `<span class="bo-value">${brk.lo}–${brk.hi} turns</span>` +
+      `<span class="bo-conf">${brk.conf} confidence</span>`;
   }
 
   function renderResources(G) {
@@ -81,6 +100,18 @@ const UI = (() => {
     ];
     let html = rows.map(([n, v]) =>
       `<div class="res-row"><span>${n}</span><span class="res-count">${v}</span></div>`).join('');
+    // Tanker tracks are the other magazine, and the one that actually runs out.
+    // Shown with the reach it buys, because "6 tracks" means nothing on its own
+    // and "6 tracks — one deep package" means everything.
+    const tk = G.tankers, cap = G.tankerCap || Game.tankerCapacity();
+    const tkCls = tk <= 2 ? 'crit' : tk <= 5 ? 'warn' : '';
+    html += `<div class="res-row tanker-row"><span>Tanker tracks tonight</span>` +
+      `<span class="res-count ${tkCls}">${tk} / ${cap}</span></div>`;
+    html += `<div class="res-note dim">Littoral package 3 · interior 4 · deep 5 · B-2 mission 4 · ` +
+      `Tomahawks fly unrefuelled.` +
+      (!G.basing.gulf ? ' <span class="crit">Gulf ramps closed — nothing deep is reachable.</span>'
+        : !G.basing.nato ? ' <span class="warn">NATO and Saudi tracks withdrawn.</span>' : '') +
+      `</div>`;
     if (G.missions.length) {
       html += `<div class="res-row" style="margin-top:6px"><span style="color:var(--amber)">MISSIONS IN FLIGHT</span></div>`;
       html += G.missions.map(m => {
@@ -275,14 +306,57 @@ const UI = (() => {
       },
       {
         id: 'address', name: 'Address the nation',
-        desc: G.addressCooldown > 0 ? `Available in ${G.addressCooldown} turn(s).` : 'Rally the public. Approval +.',
+        desc: G.addressCooldown > 0
+          ? `Available in ${G.addressCooldown} turn(s).`
+          : `Rally the public. Approval +6 — and it is counted when the War Powers vote comes up ` +
+            `(${G.addresses} so far).`,
         disabled: G.addressCooldown > 0,
       },
     ];
-    $('diplo-buttons').innerHTML = actions.map(a =>
+
+    // ---- intelligence taskings ----
+    // Same slot, different currency: these buy knowing instead of doing.
+    const hidden = IranAI.liveTels().filter(t => !t.located).length;
+    const brk = Game.breakoutEstimate();
+    const intel = [
+      {
+        id: 'bda', name: 'Task a collection deck — reassess damaged sites',
+        desc: 'Overhead, a Global Hawk orbit and the signals picture against the three sites the ' +
+          'analysts are least sure of. Narrows their estimates to ±3 — which is the difference between ' +
+          'knowing a site needs one more package and guessing.',
+      },
+      {
+        id: 'hunt', name: 'Hunt dispersed launchers',
+        desc: hidden
+          ? `${hidden} launcher group${hidden === 1 ? '' : 's'} loose in the country and shooting. A sweep ` +
+            'may find one. Found is not killed — they move again if they are not serviced the same turn.'
+          : 'No dispersed launchers unaccounted for.',
+        disabled: !hidden,
+      },
+      {
+        id: 'assess-nuclear', name: 'Reassess the enrichment timeline',
+        desc: brk.halted
+          ? 'Enrichment capability is destroyed. There is no timeline left to assess.'
+          : `Current judgement: ${brk.lo}–${brk.hi} turns, ${brk.conf} confidence. Narrows the band — ` +
+            'the estimate is what the whole campaign is being paced against.',
+        disabled: brk.halted,
+      },
+      {
+        id: 'assess-intent', name: 'Assess Iranian war plan',
+        desc: G.postureKnown
+          ? `Assessed: ${IranAI.posture().name}. ${IranAI.posture().brief}`
+          : 'The Agency can tell you which arm Tehran has decided to fight this war with — and therefore ' +
+            'which one is worth spending the campaign destroying. One tasking, permanent answer.',
+        disabled: G.postureKnown,
+      },
+    ];
+    const render = (list) => list.map(a =>
       `<button data-diplo="${a.id}" ${used || a.disabled ? 'disabled' : ''}>` +
       `${a.name}<span class="diplo-desc">${a.desc}</span></button>`).join('');
-    for (const btn of $('diplo-buttons').querySelectorAll('button')) {
+    $('diplo-buttons').innerHTML = render(actions);
+    $('intel-buttons').innerHTML = render(intel);
+    $('intel-status').textContent = used ? '— SLOT SPENT THIS TURN' : '';
+    for (const btn of document.querySelectorAll('#diplo-buttons button, #intel-buttons button')) {
       btn.addEventListener('click', () => Game.doDiplo(btn.dataset.diplo));
     }
   }
@@ -318,13 +392,31 @@ const UI = (() => {
 
     const box = $('strike-packages');
     box.innerHTML = '';
-    target.packages.forEach((pkg, i) => {
+
+    // Congress, the tanker plan and the search for the target itself can all
+    // take a target off the board without it being destroyed. Say which.
+    const block = Game.barred(target);
+    if (block) {
+      box.innerHTML = `<div class="pkg-blocked">${block}</div>`;
+      $('strike-modal').classList.remove('hidden');
+      return;
+    }
+
+    target.packages.forEach((pkg) => {
       const have = G.res[pkg.asset === 'fighter' ? 'fighters' : pkg.asset] ?? 0;
-      const ok = have >= pkg.qty;
+      const { cost, ok: fuelOk } = Game.tankersFor(target, pkg);
+      const stockOk = have >= pkg.qty;
+      const ok = stockOk && fuelOk;
       const div = document.createElement('div');
       div.className = 'pkg-option' + (ok ? '' : ' unavailable');
+      // when a package can't fly, the reason matters: an empty magazine and an
+      // empty tanker plan are different problems with different answers
+      const why = stockOk ? '' : ' — MAGAZINE SHORT';
+      const fuelWhy = !fuelOk ? ' — NO TANKER TRACKS' : '';
       div.innerHTML = `<span class="pkg-name">${pkg.label}</span>` +
-        `<span class="pkg-detail">Requires ${pkg.qty}× ${ASSET_NAMES[pkg.asset].toLowerCase()} — available: ${have}</span>`;
+        `<span class="pkg-detail">Requires ${pkg.qty}× ${ASSET_NAMES[pkg.asset].toLowerCase()} ` +
+        `(available: ${have})${why} · ${cost ? `${cost} tanker track${cost === 1 ? '' : 's'} ` +
+        `of ${G.tankers} left${fuelWhy}` : 'no tanker requirement'}</span>`;
       if (ok) {
         div.addEventListener('click', () => {
           box.querySelectorAll('.pkg-option').forEach(el => el.classList.remove('selected'));
@@ -348,7 +440,14 @@ const UI = (() => {
     // down: the roll decides whether the package achieves effects, and what the
     // effects are worth is the bite it takes out of the condition track. Both
     // numbers go in front of the player, plus what it takes to finish the job.
-    const hits = est.gradual ? Math.ceil(target.hp / est.damage) : 0;
+    // How many more packages it takes is now a RANGE, because the condition it
+    // is computed from is a range. This is the number the whole uncertainty
+    // layer exists to make interesting: "one, probably — maybe two" is a
+    // decision, and "two" is arithmetic.
+    const band = Game.estimate(target);
+    const hitsLo = est.gradual ? Math.max(1, Math.ceil(band.lo / est.damage)) : 0;
+    const hitsHi = est.gradual ? Math.max(1, Math.ceil(band.hi / est.damage)) : 0;
+    const hits = hitsLo === hitsHi ? `${hitsLo}` : `${hitsLo}–${hitsHi}`;
     const eta = pkg.eta || (pkg.asset === 'stealth' ? 2 : 1);
     const totWhy = pkg.joint ? 'joint mission planning and transit'
       : pkg.sub ? 'the boat has to close the range submerged before she shoots'
@@ -365,17 +464,27 @@ const UI = (() => {
         ? `<span class="est-good">One weapon on target sinks her — no partial damage, and a sunk hull ` +
           `never comes back.</span><br>` : '') +
       (est.gradual
-        ? `TARGET CONDITION: <span class="${target.hp >= 100 ? 'est-bad' : 'est-warn'}">` +
-          `${Math.round(target.hp)}% operational</span><br>` +
+        ? `ASSESSED CONDITION: <span class="${band.lo >= 100 ? 'est-bad' : 'est-warn'}">` +
+          `${Game.condition(target)}</span>` +
+          (band.age > 0
+            ? ` <span class="dim">(last looked at ${band.age} turn${band.age === 1 ? '' : 's'} ago — ` +
+              `it has been repairing since)</span>` : '') + `<br>` +
           `PACKAGE WEIGHT: <span class="est-good">−${est.damage} condition</span> on full effects, ` +
-          `<span class="dim">half that on partial — ${hits} more package${hits === 1 ? '' : 's'} ` +
-          `on target to finish it</span><br>`
+          `<span class="dim">half that on partial — an estimated ${hits} more package` +
+          `${hits === '1' ? '' : 's'} on target to finish it</span><br>`
         : '') +
+      `TANKER COST: <span class="${est.tanker > G.tankers ? 'est-bad' : 'est-good'}">` +
+      `${est.tanker || 'none'}${est.tanker ? ` of ${G.tankers} tracks left tonight` : ' — flies unrefuelled'}` +
+      `</span><br>` +
       `${tot}<br>` +
       `WORLD OPINION: <span class="est-warn">${worldCost}</span>` +
       (pkg.extraWorld ? ` <span class="dim">(${target.world} target, ${pkg.extraWorld} for flying it with Israel)</span>` : '') + `<br>`;
     if (est.adPenalty > 0.01) {
       html += `<span class="est-warn">Air defenses degrade this package (−${Math.round(est.adPenalty * 100)}%).</span> `;
+    }
+    if (est.adaptPenalty > 0.01) {
+      html += `<span class="est-warn">Iran has adapted to this platform (−${Math.round(est.adaptPenalty * 100)}%) ` +
+        `— mixing the force is what walks this back.</span> `;
     }
     if (est.lossRisk > 0.01) {
       html += `<span class="est-bad">Aircrew loss risk: ${Math.round(est.lossRisk * 100)}%.</span>`;
@@ -401,6 +510,7 @@ const UI = (() => {
       if (ev.dApproval) effects.push(`Approval ${ev.dApproval > 0 ? '+' : ''}${ev.dApproval}`);
       if (ev.dOil) effects.push(`Oil ${ev.dOil > 0 ? '+' : ''}$${ev.dOil}`);
       if (ev.dWorld) effects.push(`World opinion ${ev.dWorld > 0 ? '+' : ''}${ev.dWorld}`);
+      if (ev.dTanker) effects.push(`Tanker tracks ${ev.dTanker > 0 ? '+' : ''}${ev.dTanker}/turn`);
       if (ev.hormuz) effects.push(`Hormuz → ${ev.hormuz}`);
       return `<div class="report-event ${ev.cls || ''}">` +
         `<div class="ev-title">${ev.title}</div>` +
@@ -427,10 +537,35 @@ const UI = (() => {
         `<td class="grade-${grade}">${grade}</td></tr>`;
     }
     html += '</table>';
+
+    // What Tehran was actually doing the whole time. Shown at the end whether
+    // or not the player ever spent a slot finding out — and if they didn't, the
+    // reveal is the lesson.
+    if (result.posture) {
+      html += `<div class="end-reveal"><span class="er-label">IRANIAN WAR PLAN</span> ` +
+        `<strong>${result.posture.name}</strong>` +
+        (result.postureKnown ? ' <span class="dim">(assessed during the war)</span>'
+          : ' <span class="warn">(never assessed — you fought this campaign without knowing it)</span>') +
+        `<div class="dim">${result.posture.brief}</div></div>`;
+    }
+
+    // The campaign, one line a turn. The numbers are the shape of the war: you
+    // can see the night it went wrong.
+    if (result.timeline && result.timeline.length) {
+      html += '<div class="end-section">AFTER-ACTION — THE CAMPAIGN, TURN BY TURN</div>';
+      html += '<table class="timeline-table"><tr><th>T</th><th>APPR</th><th>KIA</th><th>NUKE</th><th>DEVELOPMENT</th></tr>';
+      for (const r of result.timeline) {
+        html += `<tr><td>${r.turn}</td><td>${r.approval}%</td><td>${r.dead}</td>` +
+          `<td>${r.deg}%</td><td class="tl-text">${r.text}</td></tr>`;
+      }
+      html += '</table>';
+    }
+
     html += `<p class="dim">Final: ` +
       `approval ${Math.round(result.stats.approval)}% · oil $${Math.round(result.stats.oil)} · ` +
-      `${result.stats.casualties} US dead · ${result.stats.destroyed} targets destroyed · ` +
-      `${result.stats.turns} turns</p>`;
+      `${result.stats.casualties} of ${result.stats.limit} tolerated US dead · ` +
+      `${result.stats.destroyed} targets destroyed · ${result.stats.turns} turns · ` +
+      `${result.stats.difficulty}</p>`;
     $('end-body').innerHTML = html;
     $('end-modal').classList.remove('hidden');
   }

@@ -679,3 +679,77 @@ button { font-family: var(--mono); }
   fill: var(--amber); font-size: 7px; letter-spacing: 1.2px;
   text-anchor: middle; font-family: var(--mono);
 }
+
+/* ============ difficulty selection (title screen) ============ */
+#difficulty-select { margin: 18px 0 14px; text-align: left; }
+.diff-label {
+  font-size: 10px; letter-spacing: 1.4px; color: var(--dim); margin-bottom: 7px;
+}
+.diff-option {
+  display: block; border: 1px solid var(--line); padding: 8px 10px; margin-bottom: 6px;
+  cursor: pointer; transition: border-color .12s, background .12s;
+}
+.diff-option:hover { border-color: var(--blue); background: rgba(90,150,220,.06); }
+.diff-option input { margin-right: 7px; accent-color: var(--blue); }
+.diff-name { font-size: 11.5px; letter-spacing: .8px; color: var(--fg); }
+.diff-desc { display: block; font-size: 10.5px; color: var(--dim); margin: 3px 0 0 20px; }
+.diff-option:has(input:checked) { border-color: var(--blue); background: rgba(90,150,220,.1); }
+
+/* ============ the breakout clock ============ */
+/* Deliberately the loudest thing in the objectives panel: it is the only clock
+   in the game the player cannot read exactly, and the band is the message. */
+#breakout-line.breakout {
+  margin-top: 9px; padding: 7px 9px; border: 1px solid var(--line);
+  border-left: 3px solid var(--dim); display: flex; flex-wrap: wrap; gap: 4px 10px;
+  align-items: baseline;
+}
+.breakout .bo-label { font-size: 9.5px; letter-spacing: 1.1px; color: var(--dim); }
+.breakout .bo-value { font-size: 13px; color: var(--fg); font-weight: 600; }
+.breakout .bo-conf { font-size: 10px; color: var(--dim); font-style: italic; }
+#breakout-line.warn { border-left-color: var(--amber); }
+#breakout-line.warn .bo-value { color: var(--amber); }
+#breakout-line.urgent { border-left-color: var(--red); background: rgba(200,60,60,.08); }
+#breakout-line.urgent .bo-value { color: var(--red); }
+#breakout-line.halted { border-left-color: var(--green); }
+#breakout-line.halted .bo-value { color: var(--green); font-size: 11.5px; }
+
+/* ============ tanker tracks ============ */
+.res-row.tanker-row { margin-top: 5px; border-top: 1px solid var(--line); padding-top: 5px; }
+.res-note { font-size: 10px; line-height: 1.45; margin-top: 3px; }
+.res-count.warn { color: var(--amber); }
+.res-count.crit { color: var(--red); }
+.res-note .warn { color: var(--amber); }
+.res-note .crit { color: var(--red); }
+
+/* ============ a target that cannot be struck ============ */
+.pkg-blocked {
+  border: 1px solid var(--red); border-left-width: 3px; padding: 10px;
+  color: var(--red); font-size: 11.5px; line-height: 1.5;
+}
+
+/* ============ located launcher groups ============ */
+/* A perishable fix pulses, because it is about to stop being true. */
+.target.tel-fix .tgt-ring { stroke: var(--amber); stroke-width: 2; }
+.target.tel-fix { animation: tel-pulse 1.8s ease-in-out infinite; }
+@keyframes tel-pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
+/* ============ endgame: reveal + after-action timeline ============ */
+.end-reveal {
+  margin: 14px 0; padding: 10px 12px; border: 1px solid var(--line);
+  border-left: 3px solid var(--amber); font-size: 12px; line-height: 1.55;
+}
+.end-reveal .er-label { font-size: 9.5px; letter-spacing: 1.2px; color: var(--dim); }
+.end-reveal .warn { color: var(--amber); }
+.end-reveal .dim { display: block; margin-top: 4px; }
+.end-section {
+  margin: 18px 0 7px; font-size: 10px; letter-spacing: 1.4px; color: var(--dim);
+  border-bottom: 1px solid var(--line); padding-bottom: 5px;
+}
+.timeline-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.timeline-table th {
+  text-align: left; color: var(--dim); font-weight: 400; font-size: 9.5px;
+  letter-spacing: 1px; padding: 3px 6px; border-bottom: 1px solid var(--line);
+}
+.timeline-table td { padding: 3px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.timeline-table td:not(.tl-text) { color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.timeline-table .tl-text { color: var(--fg); width: 100%; }

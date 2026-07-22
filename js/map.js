@@ -127,8 +127,13 @@ const MapView = (() => {
     }
   }
 
+  // A dispersal site is not on the plot until launchers have driven into it AND
+  // ISR has found them. Everything else about it is an ordinary target.
+  const telVisible = (t) => !t.dispersal || (t.dispersed && t.located && t.hp > 0);
+
   function targetIcon(t) {
-    const g = el('g', { class: `target intact`, id: `tgt-${t.id}`, transform: `translate(${t.x},${t.y})` });
+    const g = el('g', { class: `target ${t.status || 'intact'}`,
+      id: `tgt-${t.id}`, transform: `translate(${t.x},${t.y})` });
     // invisible filled circle so the whole icon (not just strokes) is clickable
     g.appendChild(el('circle', { r: 13, fill: 'transparent' }));
     g.appendChild(el('circle', { class: 'tgt-ring', r: 9 }));
@@ -287,21 +292,49 @@ const MapView = (() => {
 
     // targets
     for (const t of TARGETS) {
+      // A dispersal site is not merely invisible before it is found — it is not
+      // in the document at all. Hiding it with a class would leave its name and
+      // position sitting in the DOM for anyone who opened the inspector, and
+      // the whole point of the launcher hunt is that the player does not know
+      // where they are. buildTarget appends it the moment ISR earns it.
+      if (t.dispersal) continue;
+      buildTarget(t);
+    }
+
+    initPanZoom();
+    applyView();
+  }
+
+  // Construct one target's icon, tooltip and click handler, and put it on the
+  // plot. Called for the fixed target list at render time, and for a launcher
+  // group at the moment it is located.
+  function buildTarget(t) {
+    if (document.getElementById(`tgt-${t.id}`)) return;
+    {
       const g = targetIcon(t);
       attachTooltip(g, () => {
         const st = t.status || 'intact';
         const stColor = st === 'intact' ? 'var(--red)' : st === 'damaged' ? 'var(--amber)' : 'var(--dim)';
-        // the condition track is the whole strike decision now, so it reads on
-        // the tooltip — and a site that repairs says so, because that is what
-        // makes leaving it at 30% a different choice than finishing it
-        const pct = Math.round(t.hp ?? 100);
-        const cond = st === 'destroyed' ? 'STATUS: destroyed'
-          : `STATUS: ${st} — ${pct}% operational`;
+        // The condition track is the whole strike decision, and it is an
+        // ESTIMATE — the tooltip shows the band CENTCOM is working from and how
+        // old it is, never the true number. Game.condition owns that judgement.
+        const band = Game.estimate(t);
+        const cond = st === 'destroyed' ? 'ASSESSED: destroyed'
+          : `ASSESSED: ${st} — ${Game.condition(t)}`;
+        const stale = !band.known && band.age > 0
+          ? `<br><span style="color:var(--dim)">Last assessed ${band.age} turn(s) ago — the estimate ` +
+            `widens every night nobody looks.</span>` : '';
+        const barred = Game.barred(t);
         return `<span class="tt-name">${t.name}</span><br>` +
-          `<span class="tt-status" style="color:${stColor}">${cond}</span><br>${t.desc}` +
+          `<span class="tt-status" style="color:${stColor}">${cond}</span><br>${t.desc}${stale}` +
           (st === 'damaged' && Game.wearsDown(t)
             ? `<br><span style="color:var(--amber)">Repairs overnight unless struck again.</span>` : '') +
-          (st !== 'destroyed' ? `<br><em style="color:var(--blue)">Click to plan strike</em>` : '');
+          (t.dispersal && t.located
+            ? `<br><span style="color:var(--amber)">FIX IS PERISHABLE — this group moves again if it is ` +
+              `not struck this turn.</span>` : '') +
+          (st === 'destroyed' ? ''
+            : barred ? `<br><em style="color:var(--red)">${barred}</em>`
+            : `<br><em style="color:var(--blue)">Click to plan strike</em>`);
       });
       g.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -309,9 +342,6 @@ const MapView = (() => {
       });
       world.appendChild(g);
     }
-
-    initPanZoom();
-    applyView();
   }
 
   // callback set by game.js
@@ -399,9 +429,19 @@ const MapView = (() => {
 
   // ---- visual state updates ----
   function updateTarget(t) {
+    // a launcher group joins the plot when it is found and leaves it when the
+    // track is lost again — it is never a hidden element sitting in the DOM
+    if (t.dispersal) {
+      const existing = document.getElementById(`tgt-${t.id}`);
+      if (!telVisible(t)) { if (existing) existing.remove(); return; }
+      if (!existing) buildTarget(t);
+    }
     const g = document.getElementById(`tgt-${t.id}`);
     if (!g) return;
-    g.setAttribute('class', `target ${t.status || 'intact'}`);
+    // a located launcher group is drawn amber-urgent: the fix is perishable and
+    // the icon should read that way
+    const fix = t.dispersal && t.located ? ' tel-fix' : '';
+    g.setAttribute('class', `target ${t.status || 'intact'}${fix}`);
   }
 
   function setHormuz(status) {

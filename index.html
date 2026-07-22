@@ -25,6 +25,26 @@
       home front, or the global economy breaks you first. Tehran may eventually sue for
       peace, but only from its knees: no one is coming to save you at the table.</p>
     </div>
+    <div id="difficulty-select">
+      <div class="diff-label">COMMAND LEVEL</div>
+      <label class="diff-option">
+        <input type="radio" name="difficulty" value="advisor">
+        <span class="diff-name">NATIONAL SECURITY ADVISOR</span>
+        <span class="diff-desc">A forgiving war. The country absorbs more, Iran reconstitutes slower,
+        and the enrichment clock runs long.</span>
+      </label>
+      <label class="diff-option">
+        <input type="radio" name="difficulty" value="general" checked>
+        <span class="diff-name">COMMANDER, CENTCOM</span>
+        <span class="diff-desc">The war as designed.</span>
+      </label>
+      <label class="diff-option">
+        <input type="radio" name="difficulty" value="president">
+        <span class="diff-name">COMMANDER IN CHIEF</span>
+        <span class="diff-desc">Less patience at home, faster Iranian repair and better coordination,
+        and the centrifuges are further along than you would like.</span>
+      </label>
+    </div>
     <button id="btn-start" class="btn-primary">ENTER THE SITUATION ROOM</button>
     <button id="btn-continue" class="btn-secondary" disabled>CONTINUE SAVED WAR</button>
     <div class="disclaimer">
@@ -76,6 +96,10 @@
       <div class="panel" id="objectives-panel">
         <div class="panel-title">MISSION OBJECTIVES</div>
         <ul id="objectives-list"></ul>
+        <!-- The race the whole war is against. Never an exact number: the band
+             is what the player is actually being given, and narrowing it costs
+             the same action slot as everything else. -->
+        <div id="breakout-line" class="breakout"></div>
       </div>
 
       <div class="panel" id="resources-panel">
@@ -97,6 +121,13 @@
       <div class="panel" id="diplo-panel">
         <div class="panel-title">DIPLOMATIC ACTIONS <span id="diplo-status"></span></div>
         <div id="diplo-buttons"></div>
+      </div>
+
+      <!-- Intelligence taskings spend the SAME action slot as diplomacy, the
+           raid's ISR prep and a recovery push. Knowing costs what doing costs. -->
+      <div class="panel" id="intel-panel">
+        <div class="panel-title">INTELLIGENCE TASKING <span id="intel-status"></span></div>
+        <div id="intel-buttons"></div>
       </div>
 
       <div class="panel" id="specops-panel">
