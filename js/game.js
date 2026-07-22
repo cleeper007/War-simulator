@@ -516,6 +516,15 @@ const Game = (() => {
   // how much condition one package takes off a site that wears down
   const pkgDamage = (pkg) => pkg.dmg || PKG_DAMAGE;
 
+  // Why a shot at a hull comes up dry. A ship is a small thing on a big ocean
+  // that does not stay where you last saw it — the misses are about the target
+  // moving, not about the weapon failing.
+  const SHIP_MISS_REASONS = [
+    'The weapon ran out to the datum and found empty water. She had moved off the last known position before it arrived — a hull at sea is a target with a shelf life measured in minutes.',
+    'Terminal seeker acquired the wrong return and went after a merchant transiting nearby. The shot was broken off; she is still afloat and now she knows she is being hunted.',
+    'Hard maneuver and a full decoy spread — chaff and corner reflectors in the air — and the weapon took the false picture. No damage assessed.',
+  ];
+
   function computeStrike(target, pkg) {
     const ad = airDefenseWeight();
     // TLAMs fly under the SAM belt — air defense doesn't degrade a Tomahawk.
@@ -526,11 +535,17 @@ const Game = (() => {
     const lossRisk = pkg.asset === 'fighter' ? clamp(0.05 * ad, 0, 0.35) : 0;
     // What the player is buying: full effects on the good half of the success
     // band, half effects on the rest of it. Sites that wear down lose condition;
-    // ships and the buried sites take a whole step.
+    // the buried nuclear sites take a whole step.
+    //
+    // Ships are neither. A warship that takes a weapon is not "damaged" in any
+    // sense the war cares about — she is on the bottom, or she is still shooting
+    // at you. So the whole success band kills, there is no partial result to
+    // follow up, and nothing about a sunk hull ever comes back.
     const gradual = wearsDown(target);
+    const oneShot = target.type === 'ship';
     return {
-      success, adPenalty, lossRisk, gradual,
-      fullOdds: success * (gradual ? 0.5 : 0.6),
+      success, adPenalty, lossRisk, gradual, oneShot,
+      fullOdds: success * (oneShot ? 1 : gradual ? 0.5 : 0.6),
       damage: gradual ? pkgDamage(pkg) : 50,
     };
   }
@@ -577,8 +592,9 @@ const Game = (() => {
     let text;
 
     // One roll, three bands: full effects, half effects, nothing. A site that
-    // wears down loses condition off its track; a hull or a buried hall takes a
-    // whole step, and the top band takes it out outright the way it always has.
+    // wears down loses condition off its track; a buried hall takes a whole
+    // step. For a ship the middle band does not exist — est.fullOdds is the
+    // whole success band, so the roll either sinks her or it doesn't.
     const dmg = roll < est.fullOdds ? (est.gradual ? est.damage : 100)
       : roll < est.success ? (est.gradual ? est.damage * 0.5 : 50)
       : 0;
@@ -594,7 +610,11 @@ const Game = (() => {
       G.stats.destroyed++;
       G.approval = clamp(G.approval + 3, 0, 100);
       ev.dApproval = 3;
-      text = 'Battle damage assessment confirms the target is destroyed. Functional capability eliminated.';
+      text = est.oneShot
+        ? `Battle damage assessment confirms ${target.name.split(' — ')[0]} is sunk. She broke up and went down inside ` +
+          'twenty minutes; the P-8 on station counted survivors in the water and Iranian craft recovering them. ' +
+          'There is nothing here to follow up and nothing to repair.'
+        : 'Battle damage assessment confirms the target is destroyed. Functional capability eliminated.';
       if (target.type === 'oil') { G.oil += 10; ev.dOil = 10; }
     } else if (outcome === 'damaged') {
       G.approval = clamp(G.approval + 1, 0, 100);
@@ -607,9 +627,11 @@ const Game = (() => {
     } else {
       G.approval = clamp(G.approval - 2, 0, 100);
       ev.dApproval = -2;
-      text = pkg.asset === 'cruise'
-        ? TLAM_MISS_REASONS[Math.floor(Math.random() * TLAM_MISS_REASONS.length)]
-        : 'Strike failed to achieve desired effects. Weather, decoys, and hardening are assessed as contributing factors.';
+      text = est.oneShot
+        ? SHIP_MISS_REASONS[Math.floor(Math.random() * SHIP_MISS_REASONS.length)]
+        : pkg.asset === 'cruise'
+          ? TLAM_MISS_REASONS[Math.floor(Math.random() * TLAM_MISS_REASONS.length)]
+          : 'Strike failed to achieve desired effects. Weather, decoys, and hardening are assessed as contributing factors.';
     }
 
     // Aircrew attrition vs the SAMs still standing at time-on-target. Losing the
@@ -655,7 +677,10 @@ const Game = (() => {
       // resolves per-mission — the batching is purely an animation grouping.
       const head = due.shift();
       const batch = [head];
-      while (due.length && due[0].targetId === head.targetId && due[0].pkg.asset === head.pkg.asset) {
+      // same target, same asset AND the same shooter — a submarine shot flies
+      // its own card, or it would be drawn coming off the carrier with the salvo
+      while (due.length && due[0].targetId === head.targetId &&
+             due[0].pkg.asset === head.pkg.asset && !!due[0].pkg.sub === !!head.pkg.sub) {
         batch.push(due.shift());
       }
       const target = TARGETS.find(t => t.id === head.targetId);
@@ -674,7 +699,7 @@ const Game = (() => {
         UI.renderAll(G);
         next();
       };
-      MapView.animateStrike(head.pkg.asset, target, finishBatch, count);
+      MapView.animateStrike(head.pkg.asset, target, finishBatch, count, head.pkg);
       // watchdog window must clear the whole run; a launch clip plays before the
       // flight (TLAMs always, carrier fighter sorties sometimes), so allow extra
       // time before force-resolving. Fighters can't be told apart here, so the

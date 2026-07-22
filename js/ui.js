@@ -350,12 +350,20 @@ const UI = (() => {
     // numbers go in front of the player, plus what it takes to finish the job.
     const hits = est.gradual ? Math.ceil(target.hp / est.damage) : 0;
     const eta = pkg.eta || (pkg.asset === 'stealth' ? 2 : 1);
+    const totWhy = pkg.joint ? 'joint mission planning and transit'
+      : pkg.sub ? 'the boat has to close the range submerged before she shoots'
+      : 'transit from Diego Garcia';
     const tot = eta > 1
-      ? `TIME ON TARGET: <span class="est-warn">${eta} turns — ${pkg.joint ? 'joint mission planning and transit' : 'transit from Diego Garcia'}</span>`
+      ? `TIME ON TARGET: <span class="est-warn">${eta} turns — ${totWhy}</span>`
       : 'TIME ON TARGET: <span class="est-good">end of this turn — BDA with the battle report</span>';
     const worldCost = target.world + (pkg.extraWorld || 0);
     let html =
-      `EST. PROBABILITY OF EFFECTS: <span class="${sCls}">${pct}%</span><br>` +
+      // against a hull there is no partial result to report, so the number means
+      // what it says: this is the chance she goes down
+      `EST. PROBABILITY OF ${est.oneShot ? 'KILL' : 'EFFECTS'}: <span class="${sCls}">${pct}%</span><br>` +
+      (est.oneShot
+        ? `<span class="est-good">One weapon on target sinks her — no partial damage, and a sunk hull ` +
+          `never comes back.</span><br>` : '') +
       (est.gradual
         ? `TARGET CONDITION: <span class="${target.hp >= 100 ? 'est-bad' : 'est-warn'}">` +
           `${Math.round(target.hp)}% operational</span><br>` +

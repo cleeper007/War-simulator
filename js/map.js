@@ -191,6 +191,11 @@ const MapView = (() => {
       icon = el('path', { class: 'asset-icon', d: 'M-4.5,-4.5 L4.5,-4.5 L4.5,4.5 L-4.5,4.5 Z M-4.5,-1 L4.5,-1 L4.5,1 L-4.5,1 Z' });
     } else if (a.kind === 'naval') {
       icon = el('path', { class: 'asset-icon', d: 'M0,-5.5 L4.5,0 L0,5.5 L-4.5,0 Z' });
+    } else if (a.kind === 'submarine') {
+      // hull in profile with a sail — drawn dashed, because her plotted position
+      // is the last one Fifth Fleet had and not where she actually is
+      icon = el('path', { class: 'asset-icon asset-submerged',
+        d: 'M-8,0 C-8,-2.4 -4,-3.4 0,-3.4 C5,-3.4 8,-2 8,0 C8,2 5,3.4 0,3.4 C-4,3.4 -8,2.4 -8,0 Z M-1.5,-3.2 L-1.5,-6.2 L2,-6.2 L2,-3.3 Z' });
     } else {
       icon = el('path', { class: 'asset-icon', d: 'M-5,4 L0,-5 L5,4 Z M-7,4 L7,4 L7,5.5 L-7,5.5 Z' });
     }
@@ -673,17 +678,22 @@ const MapView = (() => {
   }
 
   // ---- the terminal attack run, flown inside the scope ----
-  function animateScope(assetType, target, done, count) {
+  function animateScope(assetType, target, done, count, pkg) {
     const stealth = assetType === 'stealth';
     const cruise = assetType === 'cruise';
+    // a submarine shot is the cruise magazine fired from a different hull: same
+    // weapon on the scope, different designation and a bearing off the boat
+    const sub = !!(pkg && pkg.sub);
     // Half of all fighter sorties are flown off the carrier strike groups:
     // pick the carrier/land group at 50/50, then a random airframe within it.
     const fromGroup = (Math.random() < 0.5 && carriersOnStation()) ? 'carrier' : 'land';
     const ft = stealth ? { type: 'B-2', cs: 'SPIRIT' }
+      : sub ? { type: 'UGM-109 TLAM', cs: 'MAKO' }
       : cruise ? { type: 'RGM-109 TLAM', cs: 'ARSENAL' }
       : pick(FIGHTER_TYPES.filter(f => f.from === fromGroup));
     // TLAMs come off whichever strike group is actually in the water
     const origin = stealth ? US_ASSETS.find(a => a.id === 'diego')
+      : sub ? US_ASSETS.find(a => a.id === STRIKE_ORIGINS.sub)
       : cruise ? (US_ASSETS.find(a => a.id === STRIKE_ORIGINS.cruise && a.active !== false)
           || nearestSortieBase(target, true))
       : nearestSortieBase(target, ft.from === 'carrier');
@@ -747,7 +757,7 @@ const MapView = (() => {
     // status lines
     const subs = { '{cs}': callsign, '{base}': baseName, '{tgt}': target.short };
     const fill = (s) => s.replace(/\{cs\}|\{base\}|\{tgt\}/g, (m) => subs[m]);
-    const evs = (cruise ? CRUISE_EVENTS : FLIGHT_EVENTS)
+    const evs = (sub ? SUB_EVENTS : cruise ? CRUISE_EVENTS : FLIGHT_EVENTS)
       .filter(e => !e.only || e.only === (stealth ? 'stealth' : 'fighter'))
       .sort((a, b) => a.at - b.at);
     let evIdx = 0;
@@ -969,11 +979,11 @@ const MapView = (() => {
   // Contract with game.js: `done` fires exactly once, at impact. game.js also
   // runs a watchdog that may call its own finishOne first, so the guard here is
   // about never double-resolving from this side.
-  function animateStrike(assetType, target, done, count) {
+  function animateStrike(assetType, target, done, count, pkg) {
     let called = false;
     const once = () => { if (called) return; called = true; if (done) done(); };
     try {
-      animateScope(assetType, target, once, count);
+      animateScope(assetType, target, once, count, pkg);
     } catch (e) {
       // a broken animation must never hold up the war
       console.error('scope animation failed', e);

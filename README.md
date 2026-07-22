@@ -163,9 +163,19 @@ permanent**: nobody reconstitutes rubble mid-war. The practical consequence is t
 concentration beats spread — two packages on one target in the same turn kills it,
 one package a turn just keeps it wounded while you pay for it.
 
-Two kinds of target sit outside this and take damage in whole steps the way they
-always did: **ships**, because a hull is afloat or it is on the bottom and it never
-comes back up, and the **nuclear sites**, which are all-or-nothing by design.
+Two kinds of target sit outside this. The **nuclear sites** take damage in whole steps
+— 100 → 50 → 0 — because the buried halls are all-or-nothing by design.
+
+**Ships are one-hit kills.** A warship that takes a weapon is not "damaged" in any
+sense the war cares about; she is on the bottom, or she is still shooting at you. Any
+package that achieves effects sinks her outright, there is no partial result to follow
+up, and nothing about a sunk hull ever comes back. Which makes the **submarine attack**
+the cheapest shot in the game: USS *Toledo* is on patrol in the Gulf of Oman, and one
+maritime-strike Tomahawk out of her tubes kills a hull as dead as a two-missile salvo
+does. It costs a single TLAM out of the same theater magazine everything else draws on,
+puts no aircrew at risk, and gives Iran no warning — paid for with **two turns**, because
+the boat has to close the range submerged before she shoots. The Caspian flotilla is the
+exception and always will be: no submarine has ever reached a landlocked sea.
 
 ### Each turn you can
 

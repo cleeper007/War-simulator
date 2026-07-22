@@ -108,17 +108,21 @@ const TARGETS = [
   {
     id: 'ship-mahdavi', name: 'IRIS Shahid Mahdavi — Gulf of Oman', short: 'MAHDAVI',
     type: 'ship', x: 703, y: 586,
-    desc: 'IRGC-Navy forward base ship operating outside the Strait, carrying anti-ship missiles and drones well past the Gulf. A hull at sea, not a pier — she moves, and she is the closest Iranian shooter to the carrier box.',
+    desc: 'IRGC-Navy forward base ship operating outside the Strait, carrying anti-ship missiles and drones well past the Gulf. A hull at sea, not a pier — she moves, and she is the closest Iranian shooter to the carrier box. One weapon that finds her ends her; there is no damaging a ship into repairing itself.',
     world: -3,
     packages: [
       { asset: 'fighter', qty: 2, base: 0.80, label: 'Air strike — 2 fighter sorties' },
       { asset: 'cruise', qty: 2, base: 0.84, label: 'TLAM salvo — 2 cruise missiles' },
+      // The cheapest shot in the game and the slowest: one weapon, no aircrew,
+      // nothing on anyone's radar — but the boat has to close the range first.
+      { asset: 'cruise', qty: 1, base: 0.88, eta: 2, sub: true,
+        label: 'SUBMARINE ATTACK — 1 maritime-strike Tomahawk (2 turns to get on station)' },
     ],
   },
   {
     id: 'ship-caspian', name: 'IRGC Caspian Flotilla — Bandar-e Anzali', short: 'CASPIAN FLOT',
     type: 'ship', x: 392, y: 72,
-    desc: 'Missile craft in the Caspian, 900 nm from the Gulf and beyond the fight — but a live hull all the same. The Caspian is a closed sea with Moscow on the far shore: putting American ordnance in it costs far more abroad than the tonnage is worth.',
+    desc: 'Missile craft in the Caspian, 900 nm from the Gulf and beyond the fight — but a live hull all the same. The Caspian is a closed sea with Moscow on the far shore: putting American ordnance in it costs far more abroad than the tonnage is worth. No submarine has ever reached it and none ever will — this one is aircraft and cruise missiles or nothing.',
     world: -8,
     packages: [
       { asset: 'fighter', qty: 2, base: 0.62, label: 'Air strike — 2 fighter sorties (deep, unrefuelled leg)' },
@@ -210,6 +214,12 @@ const US_ASSETS = [
   // atoll actually is
   { id: 'diego', name: 'Diego Garcia (B-2 staging)', short: 'B-2 // DIEGO GARCIA ↓', x: 660, y: 730, kind: 'bomber', active: false,
     desc: 'Staging field 2,900 nm south. Empty until the 509th Bomb Wing is deployed forward from Whiteman AFB, Missouri — and the B-2 is the only platform that can kill Fordow.' },
+  // The one American shooter Iran cannot see, plotted where Fifth Fleet last had
+  // her rather than where she is. She takes her Tomahawks out of the same
+  // theater magazine everything else does — a submarine shot is not a free shot,
+  // it is the same missile fired from somewhere nobody is looking.
+  { id: 'ssn-toledo', name: 'USS Toledo — Gulf of Oman', short: 'TOLEDO (SSN)', x: 655, y: 545, kind: 'submarine',
+    desc: 'Los Angeles-class attack submarine on patrol in the Gulf of Oman. She carries maritime-strike Tomahawks and nothing on the Iranian side has ever held her on sonar. Against a hull at sea she is the cheapest weapon in the theater — one missile, no aircrew, no warning — and the slowest, because she has to close the range submerged before she shoots.' },
 
   // -- forward basing layer (projected from real coordinates; toggle in map header) --
   { id: 'arifjan', name: 'Camp Arifjan — Kuwait', short: 'ARIFJAN', x: 322, y: 401, kind: 'logistics',
@@ -275,8 +285,11 @@ const CARRIER_STATIONS = {
 // turn until she's on station.
 const FORD_INGRESS = { x: 1120, y: 790 };
 
-// map from asset type to launch origin on the map
-const STRIKE_ORIGINS = { fighter: 'csg-lincoln', cruise: 'csg-lincoln', stealth: 'diego' };
+// map from asset type to launch origin on the map. `sub` is not an asset type —
+// it is the cruise magazine fired from a different hull (see the `sub` flag on
+// strike packages), and it needs its own origin so the inbound bearing on the
+// scope comes from where the boat is rather than from where the carrier is.
+const STRIKE_ORIGINS = { fighter: 'csg-lincoln', cruise: 'csg-lincoln', stealth: 'diego', sub: 'ssn-toledo' };
 
 const ASSET_NAMES = {
   fighter: 'Fighter sorties',
@@ -370,6 +383,25 @@ const CRUISE_EVENTS = [
     'Weather over the target — cloud deck degrading the terminal seeker',
     'One bird lost to a booster fault after launch — remainder pressing',
     'Targeting package flagged stale — running on last-good coordinates',
+  ] },
+  { at: 0.99, kind: 'status', msgs: ['TERMINAL — {tgt} impact'] },
+];
+
+// A submarine shot is a different kind of quiet. There is no tanker, no
+// formation and nothing for Iran to see coming — the whole event is a boat
+// holding a firing solution long enough to take the shot and then going deep.
+const SUB_EVENTS = [
+  { at: 0.02, kind: 'status', msgs: [
+    '{base} at launch depth — {cs} away, one weapon',
+    'Firing solution good — {cs} clear of the tube out of {base}',
+  ] },
+  { at: 0.3, kind: 'status', msgs: [
+    'Breach and boost — {cs} on the deck, running to the datum',
+    '{cs} sea-skimming inbound — nothing radiating, nothing to warn her',
+  ] },
+  { at: 0.68, kind: 'problem', chance: 0.25, msgs: [
+    'Target maneuvered off the firing solution — weapon re-attacking on its own seeker',
+    'Merchant traffic in the terminal basket — discrimination is on the seeker now',
   ] },
   { at: 0.99, kind: 'status', msgs: ['TERMINAL — {tgt} impact'] },
 ];

@@ -382,6 +382,16 @@ button { font-family: var(--mono); }
 .us-asset.under-attack .carrier-hull,
 .us-asset.under-attack .escort-ship { fill: var(--red); }
 
+/* the attack submarine — hollow and dashed, because the plot is her last
+   reported position and not where she is. Nothing else on the map is uncertain
+   about where it is, so nothing else is drawn this way. */
+.us-asset .asset-submerged {
+  fill: none; stroke: var(--blue); stroke-width: 1.1;
+  stroke-dasharray: 2.6 1.8; opacity: 0.85;
+}
+.us-asset .asset-submerged + text,
+.us-asset:has(.asset-submerged) text { opacity: 0.8; }
+
 /* allied bases that are not under US command (Israel) — amber, hollow */
 .us-asset.ally .asset-icon { fill: none; stroke: var(--amber); stroke-width: 1.4; }
 .us-asset.ally text { fill: var(--amber); opacity: 0.85; }
