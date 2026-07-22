@@ -777,11 +777,52 @@ button { font-family: var(--mono); }
 .res-note .warn { color: var(--amber); }
 .res-note .crit { color: var(--red); }
 
+/* ============ air superiority ============ */
+/* The ladder the whole force structure hangs off. The two ticks are the
+   release thresholds, so the bar reads as "how much further" rather than as a
+   percentage nobody can interpret. */
+.airsup {
+  border-left: 3px solid var(--dim); padding: 6px 8px; margin-bottom: 8px;
+  background: rgba(255,255,255,.02);
+}
+.airsup .as-head { display: flex; justify-content: space-between; align-items: baseline; }
+.airsup .as-label { font-size: 9.5px; letter-spacing: 1.1px; color: var(--dim); }
+.airsup .as-value { font-size: 13px; font-weight: 600; color: var(--fg); }
+.airsup .as-bar {
+  position: relative; height: 5px; margin: 5px 0 4px;
+  background: rgba(255,255,255,.08); overflow: hidden;
+}
+.airsup .as-fill { position: absolute; inset: 0 auto 0 0; background: var(--dim); }
+.airsup .as-tick {
+  position: absolute; top: -2px; bottom: -2px; width: 1px;
+  background: var(--fg); opacity: .55;
+}
+.airsup .as-note { font-size: 10px; line-height: 1.45; }
+.airsup.ap-con { border-left-color: var(--red); }
+.airsup.ap-con .as-value, .airsup.ap-con .as-label { color: var(--red); }
+.airsup.ap-con .as-fill { background: var(--red); }
+.airsup.ap-deg { border-left-color: var(--amber); }
+.airsup.ap-deg .as-value, .airsup.ap-deg .as-label { color: var(--amber); }
+.airsup.ap-deg .as-fill { background: var(--amber); }
+.airsup.ap-sup { border-left-color: var(--green); }
+.airsup.ap-sup .as-value, .airsup.ap-sup .as-label { color: var(--green); }
+.airsup.ap-sup .as-fill { background: var(--green); }
+
+/* a tier that is present but not released — the label has to say so */
+.res-gate { font-size: 8.5px; letter-spacing: .8px; margin-left: 4px; }
+.res-gate.warn { color: var(--amber); }
+.res-gate.crit { color: var(--red); }
+
 /* ============ a target that cannot be struck ============ */
 .pkg-blocked {
   border: 1px solid var(--red); border-left-width: 3px; padding: 10px;
   color: var(--red); font-size: 11.5px; line-height: 1.5;
 }
+
+/* a package the ladder has not released yet: dimmed like any unavailable
+   option, but the reason is the loudest thing in the row */
+.pkg-option.pkg-gated { border-left: 3px solid var(--red); }
+.pkg-detail.pkg-gate { color: var(--red); display: block; margin: 3px 0; }
 
 /* ============ located launcher groups ============ */
 /* A perishable fix pulses, because it is about to stop being true. */

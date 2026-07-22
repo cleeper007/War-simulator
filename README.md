@@ -101,21 +101,55 @@ Iran also **adapts**. Every package is logged by platform; lean on one and Tehra
 the counter to that one — decoys and dispersal against Tomahawks, mobile ambush SAMs
 against manned packages. It caps out at −15%, and mixing the force keeps it shallow.
 
-### Fuel in the air
+### The air campaign is three campaigns, in order
+
+An American air war is not one force applied evenly for thirty nights. It is three
+forces applied in sequence, and the sequence is the doctrine. **Air superiority** — a
+0–100% number built from what is left of the SAM belt and the Iranian fighter bases —
+is what releases each one.
+
+| Phase | At | What flies | Package weight |
+|---|---|---|---|
+| **Airspace contested** | opening | F-35/F-22 and Tomahawks only | 45 · 55 |
+| **Air defenses degraded** | 40% | the 4th-gen force releases — F-15E, F-16, Super Hornet | 62 |
+| **Air superiority** | 80% | heavy bombers release — B-1B, B-52H | 92 |
+
+The 5th-gen force is small, expensive per aimpoint, and almost impossible to shoot
+down. What it is *for* is not damage — it is buying the next phase. The 4th-gen force
+is three times the volume and carries far more, and it dies in defended airspace. The
+heavies do the work of two nights of fighters and are the most helpless thing in the
+inventory the moment the belt comes back up.
+
+**None of it is a ratchet.** Air defense sites repair overnight like everything else,
+so a phase bought in week one is gone by week two if nobody goes back. The heavy force
+is not something you unlock; it is a condition you maintain.
+
+On **hard**, the gate is advice rather than law: the staff will fly any package you
+order, and a Strike Eagle package into an intact SAM belt runs about 17% odds with a
+54% chance of losing the aircrew. You may. You shouldn't.
+
+### Fuel in the air, and the machine spinning up
 
 The binding constraint on an air campaign flown from the sea is not aircraft and not
-weapons — it is tankers. Every fighter package and every bomber mission books **tanker
-tracks** out of a nightly theater total; Tomahawks book none.
+weapons — it is tankers. Every manned package books **tanker tracks** out of a nightly
+theater total; Tomahawks book none.
 
-| Target depth | Cost |
-|---|---|
-| Gulf littoral | 3 tracks |
-| Interior (Tehran, the nuclear sites) | 4 tracks |
-| Far northwest / Caspian | 5 tracks |
-| B-2 mission | 4 tracks |
+| Target depth | Fighter | Heavy |
+|---|---|---|
+| Gulf littoral | 3 tracks | 4 tracks |
+| Interior (Tehran, the nuclear sites) | 4 tracks | 5 tracks |
+| Far northwest / Caspian | 5 tracks | 6 tracks |
+| B-2 mission | 4 tracks | — |
 
-Capacity comes from the decks and from basing, which makes geography a decision every
-single turn: two targets on the littoral, or one in the far northwest.
+Capacity comes from the decks, from basing, and — increasingly — from the **theater
+force flow**. The carriers are what is there on night one. Everything else is a machine
+that takes weeks to spin up and then does not stop: squadrons out of CONUS and USAFE,
+the tanker wings with them, six waves across the campaign. By week three there is
+simply more of everything, and a night that opened with two packages can carry five.
+
+Every wave needs a ramp to land on, and ramps are what world opinion buys. Lose the
+basing tier a wave needs and it holds at its staging field until the politics are
+repaired — the buildup stalls exactly when you have spent the standing that pays for it.
 
 ### World opinion is a permission slip
 

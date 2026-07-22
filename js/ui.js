@@ -159,18 +159,56 @@ const UI = (() => {
       `<span class="bo-conf">${brk.conf} confidence</span>`;
   }
 
+  // ---- the air-superiority ladder ----
+  // The single most important number on the screen after the enrichment clock,
+  // because it decides which two thirds of the force are allowed to fly. Shown
+  // as a bar with the two release thresholds marked on it, so the player can
+  // see how much more of the SAM belt has to come down — and can watch it slide
+  // back the other way on the nights nobody goes back.
+  function renderAirPhase(G) {
+    const s = Game.airSuperiority();
+    const phase = Game.airPhase();
+    const cls = phase === 'superiority' ? 'ap-sup' : phase === 'degraded' ? 'ap-deg' : 'ap-con';
+    const gated = !Game.difficulty().softGate;
+    const next = phase === 'contested'
+      ? (gated ? 'Fourth-generation squadrons release at 40%.'
+               : 'Fourth-generation squadrons release at 40% — until then they fly into an intact belt.')
+      : phase === 'degraded'
+        ? 'Heavy bombers release at 80%. Air defense repairs overnight — this number falls if you look away.'
+        : 'The heavy force is released. Every night the SAM belt is left alone, this number falls.';
+    return `<div class="airsup ${cls}">` +
+      `<div class="as-head"><span class="as-label">${Game.PHASE_LABEL[phase]}</span>` +
+      `<span class="as-value">${Math.round(s * 100)}%</span></div>` +
+      `<div class="as-bar"><span class="as-fill" style="width:${Math.round(s * 100)}%"></span>` +
+      `<span class="as-tick" style="left:${AIR_PHASE.degraded * 100}%"></span>` +
+      `<span class="as-tick" style="left:${AIR_PHASE.superiority * 100}%"></span></div>` +
+      `<div class="as-note dim">${next}</div></div>`;
+  }
+
   function renderResources(G) {
-    // the bomber line reads as a deployment status until there is a force to count
+    // the bomber lines read as a deployment status until there is a force to count
     const b2 = G.bombersArrived ? `${G.res.stealth} / ${G.caps.stealth}`
-      : G.bombersOrdered ? `EN ROUTE — ${G.bomberEta}T` : 'NOT IN THEATER';
+      : G.bombersOrdered ? `EN ROUTE ${G.bomberEta}T` : 'NOT DEPLOYED';
+    const hv = G.heaviesArrived ? `${G.res.heavy} / ${G.caps.heavy}`
+      : G.heaviesOrdered ? `EN ROUTE ${G.heavyEta}T` : 'NOT DEPLOYED';
+    // A tier that is present but not released is not the same as a tier that is
+    // empty, and the panel has to say which — the whole early campaign is a
+    // player looking at fifteen Strike Eagles they are not allowed to use.
+    // A force that isn't in theater at all needs no badge: the count says it.
+    const held = (need, present) => !present || Game.phaseAtLeast(need) ? ''
+      : Game.difficulty().softGate ? ' <span class="res-gate warn">UNSUPPRESSED</span>'
+      : ' <span class="res-gate crit">HELD</span>';
     const rows = [
-      ['Fighter sorties', `${G.res.fighters} / ${G.caps.fighters}`],
-      ['Cruise missiles (TLAM)', `${G.res.cruise} / ${G.caps.cruise}`],
-      ['B-2 missions (GBU-57)', b2],
-      ['SOF task force (Tier 1)', `${G.res.specops} / ${G.caps.specops}`],
+      ['5th-gen sorties (F-35/F-22)', `${G.res.f35} / ${G.caps.f35}`, ''],
+      ['4th-gen sorties (F-15E/F-16)', `${G.res.fighters} / ${G.caps.fighters}`, held('degraded', true)],
+      ['Cruise missiles (TLAM)', `${G.res.cruise} / ${G.caps.cruise}`, ''],
+      ['B-2 missions (GBU-57)', b2, ''],
+      ['Heavy bombers (B-1/B-52)', hv, held('superiority', G.heaviesArrived)],
+      ['SOF task force (Tier 1)', `${G.res.specops} / ${G.caps.specops}`, ''],
     ];
-    let html = rows.map(([n, v]) =>
-      `<div class="res-row"><span>${n}</span><span class="res-count">${v}</span></div>`).join('');
+    let html = renderAirPhase(G);
+    html += rows.map(([n, v, gate]) =>
+      `<div class="res-row"><span>${n}${gate}</span><span class="res-count">${v}</span></div>`).join('');
     // Tanker tracks are the other magazine, and the one that actually runs out.
     // Shown with the reach it buys, because "6 tracks" means nothing on its own
     // and "6 tracks — one deep package" means everything.
@@ -178,8 +216,8 @@ const UI = (() => {
     const tkCls = tk <= 2 ? 'crit' : tk <= 5 ? 'warn' : '';
     html += `<div class="res-row tanker-row"><span>Tanker tracks tonight</span>` +
       `<span class="res-count ${tkCls}">${tk} / ${cap}</span></div>`;
-    html += `<div class="res-note dim">Littoral package 3 · interior 4 · deep 5 · B-2 mission 4 · ` +
-      `Tomahawks fly unrefuelled.` +
+    html += `<div class="res-note dim">Fighter package: littoral 3 · interior 4 · deep 5 · ` +
+      `heavies one more apiece · B-2 mission 4 · Tomahawks fly unrefuelled.` +
       (!G.basing.gulf ? ' <span class="crit">Gulf ramps closed — nothing deep is reachable.</span>'
         : !G.basing.nato ? ' <span class="warn">NATO and Saudi tracks withdrawn.</span>' : '') +
       `</div>`;
@@ -248,6 +286,35 @@ const UI = (() => {
     };
   }
 
+  // ---- the heavy bomber force ----
+  // The last piece of the deployment picture and the only one with a
+  // precondition attached: the sky has to be at least breaking before anyone
+  // will move it, and taken before anyone will fly it.
+  function heavyLine(G) {
+    if (G.heaviesArrived) {
+      const released = Game.phaseAtLeast('superiority');
+      return {
+        label: released ? 'ON THE RAMP — RELEASED' : 'ON THE RAMP — NOT RELEASED',
+        cls: released ? 'cv-forward' : 'cv-back',
+        note: `${G.res.heavy} of ${G.caps.heavy} mission(s) generated. ` + (released
+          ? 'Air superiority holds and the cells are on tonight\'s tasking order.'
+          : 'They will not be tasked until the SAM belt is back down. Until then they are the most expensive parked aircraft in the world.'),
+      };
+    }
+    if (G.heaviesOrdered) {
+      return {
+        label: 'EN ROUTE — CONUS → DIEGO GARCIA', cls: 'cv-moving',
+        note: `Crossing on tankers — ${G.heavyEta} turn(s) out.`,
+      };
+    }
+    return {
+      label: 'NOT IN THEATER', cls: 'cv-away',
+      note: Game.phaseAtLeast('degraded')
+        ? 'B-1s at Dyess and B-52s at Barksdale. Two turns to Diego Garcia — and the heaviest conventional weight in the inventory.'
+        : 'B-1s at Dyess and B-52s at Barksdale. They will not be moved into a theater whose air defenses are still intact.',
+    };
+  }
+
   function renderFleet(G) {
     const box = $('fleet-list');
     if (!box) return;
@@ -275,6 +342,13 @@ const UI = (() => {
       `<div class="cv-head"><span class="cv-hull">B-2</span>` +
       `<span class="cv-state ${bl.cls}">${bl.label}</span></div>` +
       `<div class="cv-note dim">${bl.note}</div></div>`;
+
+    const hl = heavyLine(G);
+    box.innerHTML +=
+      `<div class="cv-row"><div class="cv-name dim">Heavy Bomber Force — B-1B / B-52H</div>` +
+      `<div class="cv-head"><span class="cv-hull">HEAVY</span>` +
+      `<span class="cv-state ${hl.cls}">${hl.label}</span></div>` +
+      `<div class="cv-note dim">${hl.note}</div></div>`;
 
     // one force flow a night: whichever deployment was ordered this turn holds
     // tonight's transit plan, and the other one goes out on tomorrow's
@@ -328,10 +402,33 @@ const UI = (() => {
       }
     }
 
-    $('fleet-buttons').innerHTML = buttons + bomberBtn;
+    // the heavies want the sky to be breaking before anyone will move them, and
+    // they take a transit slot like everything else
+    let heavyBtn = '';
+    if (!G.heaviesArrived) {
+      if (G.heaviesOrdered) {
+        heavyBtn = `<button disabled>HEAVY BOMBER FORCE EN ROUTE<span class="diplo-desc">` +
+          `ETA ${G.heavyEta} turn(s) to Diego Garcia.</span></button>`;
+      } else if (!Game.phaseAtLeast('degraded')) {
+        heavyBtn = `<button disabled>HEAVY BOMBERS — AIRSPACE STILL CONTESTED<span class="diplo-desc">` +
+          `Air Combat Command will not flow B-1s and B-52s into a theater with an intact SAM belt. ` +
+          `Degrade the air defense network and the force becomes available to call forward.</span></button>`;
+      } else if (planCut) {
+        heavyBtn = `<button disabled>TRANSIT COMMITTED — ANOTHER FORCE IS MOVING` +
+          `<span class="diplo-desc">One force flow a night. The heavies go out on tomorrow's plan.</span></button>`;
+      } else {
+        heavyBtn = `<button data-heavy-order="1">DEPLOY HEAVY BOMBER FORCE — CONUS → DIEGO GARCIA` +
+          `<span class="diplo-desc">Moves the B-1 and B-52 force into theater. ${Game.HEAVY_TRANSIT_TURNS} turns out. ` +
+          `Each package takes roughly half again what a fighter package takes off a target — but they will not be ` +
+          `tasked until air superiority is declared, so calling them early is a bet on the campaign going well.</span></button>`;
+      }
+    }
+
+    $('fleet-buttons').innerHTML = buttons + bomberBtn + heavyBtn;
     for (const btn of $('fleet-buttons').querySelectorAll('button')) {
       if (btn.dataset.carrierOrder) btn.addEventListener('click', () => Game.orderCarrier());
       else if (btn.dataset.bomberOrder) btn.addEventListener('click', () => Game.orderBombers());
+      else if (btn.dataset.heavyOrder) btn.addEventListener('click', () => Game.orderHeavies());
       else if (btn.dataset.carrierToggle) {
         btn.addEventListener('click', () => Game.toggleCarrierPosture(btn.dataset.carrierToggle));
       }
@@ -507,6 +604,10 @@ const UI = (() => {
   }
 
   // ---- strike modal ----
+  // Asset names carry aircraft designations now, so they cannot be blanket
+  // lowercased to sit mid-sentence — only the first letter comes down.
+  const lcFirst = (s) => s.charAt(0).toLowerCase() + s.slice(1);
+
   function openStrikeModal(G, target) {
     currentTarget = target;
     selectedPkg = null;
@@ -531,15 +632,20 @@ const UI = (() => {
       const have = G.res[pkg.asset === 'fighter' ? 'fighters' : pkg.asset] ?? 0;
       const { cost, ok: fuelOk } = Game.tankersFor(target, pkg);
       const stockOk = have >= pkg.qty;
-      const ok = stockOk && fuelOk;
+      // the air-superiority ladder outranks both magazines: a tier that has not
+      // been released is not short of anything, it is simply not flying tonight
+      const gate = Game.pkgBlock(target, pkg);
+      const ok = stockOk && fuelOk && !gate;
       const div = document.createElement('div');
-      div.className = 'pkg-option' + (ok ? '' : ' unavailable');
-      // when a package can't fly, the reason matters: an empty magazine and an
-      // empty tanker plan are different problems with different answers
+      div.className = 'pkg-option' + (ok ? '' : ' unavailable') + (gate ? ' pkg-gated' : '');
+      // when a package can't fly, the reason matters: an empty magazine, an
+      // empty tanker plan and an intact SAM belt are three different problems
+      // with three different answers
       const why = stockOk ? '' : ' — MAGAZINE SHORT';
       const fuelWhy = !fuelOk ? ' — NO TANKER TRACKS' : '';
       div.innerHTML = `<span class="pkg-name">${pkg.label}</span>` +
-        `<span class="pkg-detail">Requires ${pkg.qty}× ${ASSET_NAMES[pkg.asset].toLowerCase()} ` +
+        (gate ? `<span class="pkg-detail pkg-gate">${gate}</span>` : '') +
+        `<span class="pkg-detail">Requires ${pkg.qty}× ${lcFirst(ASSET_NAMES[pkg.asset])} ` +
         `(available: ${have})${why} · ${cost ? `${cost} tanker track${cost === 1 ? '' : 's'} ` +
         `of ${G.tankers} left${fuelWhy}` : 'no tanker requirement'}</span>`;
       if (ok) {
@@ -573,7 +679,8 @@ const UI = (() => {
     const hitsLo = est.gradual ? Math.max(1, Math.ceil(band.lo / est.damage)) : 0;
     const hitsHi = est.gradual ? Math.max(1, Math.ceil(band.hi / est.damage)) : 0;
     const hits = hitsLo === hitsHi ? `${hitsLo}` : `${hitsLo}–${hitsHi}`;
-    const eta = pkg.eta || (pkg.asset === 'stealth' ? 2 : 1);
+    const ramp = pkg.asset === 'stealth' || pkg.asset === 'heavy';
+    const eta = pkg.eta || (ramp ? 2 : 1);
     const totWhy = pkg.joint ? 'joint mission planning and transit'
       : pkg.sub ? 'the boat has to close the range submerged before she shoots'
       : 'transit from Diego Garcia';
@@ -604,6 +711,14 @@ const UI = (() => {
       `${tot}<br>` +
       `WORLD OPINION: <span class="est-warn">${worldCost}</span>` +
       (pkg.extraWorld ? ` <span class="dim">(${target.world} target, ${pkg.extraWorld} for flying it with Israel)</span>` : '') + `<br>`;
+    // flying a tier outside its phase — only reachable on hard, and the player
+    // is told in as many words what they are ordering
+    if (est.raw) {
+      html += `<span class="est-bad">FLYING INTO AN UNSUPPRESSED THREAT. ` +
+        `${pkg.asset === 'heavy' ? 'Heavy bombers have no business over a live SAM belt'
+          : 'These are fourth-generation airframes and the belt is still up'} — ` +
+        `the staff has written this plan because it was ordered to.</span><br>`;
+    }
     if (est.adPenalty > 0.01) {
       html += `<span class="est-warn">Air defenses degrade this package (−${Math.round(est.adPenalty * 100)}%).</span> `;
     }

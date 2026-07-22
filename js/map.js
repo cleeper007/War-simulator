@@ -599,6 +599,12 @@ const MapView = (() => {
              'L-1.4,5.4 L-1.6,3.8 L-6.8,5.8 L-6.8,4.4 L-1.5,0.4 L-1.1,-3.4 Z',
     // flying wing — no tails, one continuous sawtooth trailing edge
     stealth: 'M0,-6.5 L9,4.2 L5.2,3.4 L2.8,6.4 L0,4.8 L-2.8,6.4 L-5.2,3.4 L-9,4.2 Z',
+    // heavy bomber — long fuselage, high-aspect swept wings, big tailplane.
+    // Reads as "large and slow" next to the fighter, which is the whole point
+    // of putting one on the scope.
+    heavy: 'M0,-9 L1.3,-5.2 L1.3,-1.4 L9.5,3.2 L9.5,4.6 L1.3,2.4 L1.3,5.6 ' +
+           'L4.2,8 L4.2,9 L0,7.8 L-4.2,9 L-4.2,8 L-1.3,5.6 L-1.3,2.4 ' +
+           'L-9.5,4.6 L-9.5,3.2 L-1.3,-1.4 L-1.3,-5.2 Z',
     // TLAM: a body and two stub fins, deliberately not a jet
     cruise: 'M0,-7 L1.2,-3.5 L1.2,3.2 L2.9,6.2 L1.2,5.6 L1.2,7 L-1.2,7 L-1.2,5.6 ' +
             'L-2.9,6.2 L-1.2,3.2 L-1.2,-3.5 Z',
@@ -727,19 +733,27 @@ const MapView = (() => {
   // ---- the terminal attack run, flown inside the scope ----
   function animateScope(assetType, target, done, count, pkg) {
     const stealth = assetType === 'stealth';
+    const heavy = assetType === 'heavy';
     const cruise = assetType === 'cruise';
+    // both bomber tiers stage off the Diego Garcia ramp and neither of them is
+    // a fighter, so they share the origin and most of the presentation
+    const fromRamp = stealth || heavy;
     // a submarine shot is the cruise magazine fired from a different hull: same
     // weapon on the scope, different designation and a bearing off the boat
     const sub = !!(pkg && pkg.sub);
     // Half of all fighter sorties are flown off the carrier strike groups:
     // pick the carrier/land group at 50/50, then a random airframe within it.
+    // Which pool it comes from is the tier — a 5th-gen package is never a
+    // Viper and a 4th-gen package is never a Raptor.
     const fromGroup = (Math.random() < 0.5 && carriersOnStation()) ? 'carrier' : 'land';
+    const pool = assetType === 'f35' ? F35_TYPES : FIGHTER_TYPES;
     const ft = stealth ? { type: 'B-2', cs: 'SPIRIT' }
+      : heavy ? pick(HEAVY_TYPES)
       : sub ? { type: 'UGM-109 TLAM', cs: 'MAKO' }
       : cruise ? { type: 'RGM-109 TLAM', cs: 'ARSENAL' }
-      : pick(FIGHTER_TYPES.filter(f => f.from === fromGroup));
+      : pick(pool.filter(f => f.from === fromGroup));
     // TLAMs come off whichever strike group is actually in the water
-    const origin = stealth ? US_ASSETS.find(a => a.id === 'diego')
+    const origin = fromRamp ? US_ASSETS.find(a => a.id === 'diego')
       : sub ? US_ASSETS.find(a => a.id === STRIKE_ORIGINS.sub)
       : cruise ? (US_ASSETS.find(a => a.id === STRIKE_ORIGINS.cruise && a.active !== false)
           || nearestSortieBase(target, true))
@@ -791,7 +805,8 @@ const MapView = (() => {
         burner = el('path', { class: 'scope-burner', d: BURNER, opacity: 0 });
         g.appendChild(burner);
       }
-      g.appendChild(el('path', { class: 'scope-jet', d: cruise ? SIL.cruise : stealth ? SIL.stealth : SIL.fighter }));
+      g.appendChild(el('path', { class: 'scope-jet',
+        d: cruise ? SIL.cruise : stealth ? SIL.stealth : heavy ? SIL.heavy : SIL.fighter }));
       view.fx.appendChild(g);
       acs.push({ g, burner, perpOff, alongOff, pos: { x: 0, y: 0 } });
     }
@@ -804,8 +819,12 @@ const MapView = (() => {
     // status lines
     const subs = { '{cs}': callsign, '{base}': baseName, '{tgt}': target.short };
     const fill = (s) => s.replace(/\{cs\}|\{base\}|\{tgt\}/g, (m) => subs[m]);
+    // `only` matches either the exact tier or the family it belongs to, so a
+    // line written for "fighter" plays for both manned fighter tiers and a line
+    // written for "heavy" plays only for the bomber cells
+    const family = fromRamp ? 'stealth' : 'fighter';
     const evs = (sub ? SUB_EVENTS : cruise ? CRUISE_EVENTS : FLIGHT_EVENTS)
-      .filter(e => !e.only || e.only === (stealth ? 'stealth' : 'fighter'))
+      .filter(e => !e.only || e.only === assetType || e.only === family)
       .sort((a, b) => a.at - b.at);
     let evIdx = 0;
     const fireUpTo = (prog) => {
@@ -970,22 +989,24 @@ const MapView = (() => {
     }
   }
 
-  // ---- B-2 transit cards: the Diego Garcia leg, kept visible ----
-  // Stealth packages are ETA 2. While one is still in transit it gets a compact
-  // card — no radar, no attack view — so the distance reads as time.
+  // ---- bomber transit cards: the Diego Garcia leg, kept visible ----
+  // Everything staging off the atoll is ETA 2. While one is still in transit it
+  // gets a compact card — no radar, no attack view — so the distance reads as
+  // time. Both bomber tiers fly the same leg and both get one.
   const NM_PER_MAP = 1 / KM_TO_MAP / 1.852;
+  const RAMP_ASSETS = ['stealth', 'heavy'];
 
   // Deterministic per-target so the callsign survives re-renders without being
   // written into the mission (and therefore into the save).
-  function transitCallsign(id) {
+  function transitCallsign(id, asset) {
     let h = 0;
     for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-    return `SPIRIT ${11 + (h % 89)}`;
+    return `${asset === 'heavy' ? 'HAMMER' : 'SPIRIT'} ${11 + (h % 89)}`;
   }
 
   function updateTransit(missions) {
     const { transit } = fsStacks();
-    const inbound = (missions || []).filter(m => m.pkg && m.pkg.asset === 'stealth' && m.eta > 1);
+    const inbound = (missions || []).filter(m => m.pkg && RAMP_ASSETS.includes(m.pkg.asset) && m.eta > 1);
     transit.innerHTML = '';
     const diego = US_ASSETS.find(a => a.id === 'diego');
     for (const m of inbound) {
@@ -993,12 +1014,17 @@ const MapView = (() => {
       if (!t || !diego) continue;
       const nm = Math.round(Math.hypot(diego.x - t.x, diego.y - t.y) * NM_PER_MAP / 50) * 50;
       const turns = m.eta - 1;
+      // the cell's actual airframe is picked when it goes on the scope, so the
+      // transit card stays generic rather than promising a type it may not fly
+      const isHeavy = m.pkg.asset === 'heavy';
+      const type = isHeavy ? 'HEAVY CELL' : 'B-2';
+      const tag = isHeavy ? 'B-1B / B-52H' : 'B-2 // SPIRIT';
       const card = document.createElement('div');
       card.className = 'flight-entry transit-card';
       card.innerHTML =
-        `<div class="fs-head">${transitCallsign(t.id)} · B-2 — DIEGO GARCIA → ${t.short}</div>` +
+        `<div class="fs-head">${transitCallsign(t.id, m.pkg.asset)} · ${type} — DIEGO GARCIA → ${t.short}</div>` +
         `<div class="transit-strip"><span class="transit-dot"></span></div>` +
-        `<div class="fs-lines"><div class="fs-line">> B-2 // SPIRIT — ` +
+        `<div class="fs-lines"><div class="fs-line">> ${tag} — ` +
         `${nm.toLocaleString()} NM — ${turns} TURN${turns === 1 ? '' : 'S'} TO TOT</div></div>`;
       transit.appendChild(card);
     }

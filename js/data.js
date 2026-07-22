@@ -16,7 +16,8 @@ const TARGETS = [
     desc: 'Long-range SAM belt covering the capital region. Degrading it improves survivability of all non-stealth strikes.',
     world: -1,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.70, label: 'SEAD sweep — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.75, label: 'F-35 SEAD package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.70, label: 'Wild Weasel sweep — 3 F-16CM sorties' },
       { asset: 'cruise', qty: 3, base: 0.85, label: 'TLAM salvo — 3 cruise missiles' },
     ],
   },
@@ -26,7 +27,8 @@ const TARGETS = [
     desc: 'Central SAM network screening the nuclear sites. Degrading it improves survivability of all non-stealth strikes.',
     world: -1,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.72, label: 'SEAD sweep — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.77, label: 'F-35 SEAD package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.72, label: 'Wild Weasel sweep — 3 F-16CM sorties' },
       { asset: 'cruise', qty: 3, base: 0.85, label: 'TLAM salvo — 3 cruise missiles' },
     ],
   },
@@ -36,7 +38,8 @@ const TARGETS = [
     desc: 'Coastal radar and SAM coverage over the Strait of Hormuz approaches.',
     world: -1,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.74, label: 'SEAD sweep — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.79, label: 'F-35 SEAD package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.74, label: 'Wild Weasel sweep — 3 F-16CM sorties' },
       { asset: 'cruise', qty: 3, base: 0.86, label: 'TLAM salvo — 3 cruise missiles' },
     ],
   },
@@ -66,7 +69,9 @@ const TARGETS = [
     world: -2,
     packages: [
       { asset: 'cruise', qty: 2, base: 0.80, label: 'TLAM decapitation strike — 2 missiles' },
-      { asset: 'fighter', qty: 2, base: 0.70, label: 'Precision air strike — 2 sorties' },
+      { asset: 'f35', qty: 2, base: 0.75, label: 'F-35 precision strike — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.70, label: 'Precision air strike — 3 F-15E sorties' },
+      { asset: 'heavy', qty: 2, base: 0.74, label: 'HEAVY BOMBER STRIKE — 2 B-1B sorties, JASSM' },
     ],
   },
   {
@@ -75,8 +80,10 @@ const TARGETS = [
     desc: 'Ballistic missile brigade in range of US bases in Iraq. Destroying it reduces the weight of Iranian missile retaliation.',
     world: -2,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.70, label: 'Air strike — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.75, label: 'F-35 strike package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.70, label: 'Air strike — 3 F-15E sorties' },
       { asset: 'cruise', qty: 3, base: 0.80, label: 'TLAM salvo — 3 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.74, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, JDAM' },
     ],
   },
   {
@@ -85,8 +92,10 @@ const TARGETS = [
     desc: 'Missile brigade covering the Gulf littoral and US bases in Qatar/UAE. Destroying it reduces Iranian retaliation weight.',
     world: -2,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.72, label: 'Air strike — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.77, label: 'F-35 strike package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.72, label: 'Air strike — 3 F-15E sorties' },
       { asset: 'cruise', qty: 3, base: 0.80, label: 'TLAM salvo — 3 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.76, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, JDAM' },
     ],
   },
   {
@@ -95,8 +104,10 @@ const TARGETS = [
     desc: 'Home port of the fast-attack craft and midget submarines threatening Hormuz shipping. Key to keeping the Strait open.',
     world: -2,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.76, label: 'Air strike — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.81, label: 'F-35 strike package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.76, label: 'Air strike — 3 F/A-18E sorties' },
       { asset: 'cruise', qty: 2, base: 0.82, label: 'TLAM salvo — 2 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.80, label: 'HEAVY BOMBER STRIKE — 2 B-1B sorties, naval mining and JDAM' },
     ],
   },
   {
@@ -105,8 +116,10 @@ const TARGETS = [
     desc: 'IRGC-Navy swarm-boat base in the central Gulf. Threatens the carrier strike group.',
     world: -2,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.76, label: 'Air strike — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.81, label: 'F-35 strike package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.76, label: 'Air strike — 3 F/A-18E sorties' },
       { asset: 'cruise', qty: 2, base: 0.82, label: 'TLAM salvo — 2 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.80, label: 'HEAVY BOMBER STRIKE — 2 B-1B sorties, naval mining and JDAM' },
     ],
   },
   {
@@ -115,7 +128,8 @@ const TARGETS = [
     desc: 'IRGC-Navy forward base ship operating outside the Strait, carrying anti-ship missiles and drones well past the Gulf. A hull at sea, not a pier — she moves, and she is the closest Iranian shooter to the carrier box. One weapon that finds her ends her; there is no damaging a ship into repairing itself.',
     world: -2,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.80, label: 'Air strike — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.85, label: 'F-35 maritime strike — 2 sorties' },
+      { asset: 'fighter', qty: 2, base: 0.80, label: 'Air strike — 2 F/A-18E sorties' },
       { asset: 'cruise', qty: 2, base: 0.84, label: 'TLAM salvo — 2 cruise missiles' },
       // The cheapest shot in the game and the slowest: one weapon, no aircrew,
       // nothing on anyone's radar — but the boat has to close the range first.
@@ -129,7 +143,8 @@ const TARGETS = [
     desc: 'Missile craft in the Caspian, 900 nm from the Gulf and beyond the fight — but a live hull all the same. The Caspian is a closed sea with Moscow on the far shore: putting American ordnance in it costs far more abroad than the tonnage is worth. No submarine has ever reached it and none ever will — this one is aircraft and cruise missiles or nothing.',
     world: -8,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.62, label: 'Air strike — 2 fighter sorties (deep, unrefuelled leg)' },
+      { asset: 'f35', qty: 2, base: 0.67, label: 'F-35 maritime strike — 2 sorties (deep, the whole tanker plan)' },
+      { asset: 'fighter', qty: 2, base: 0.62, label: 'Air strike — 2 F-15E sorties (deep, unrefuelled leg)' },
       { asset: 'cruise', qty: 3, base: 0.76, label: 'TLAM salvo — 3 cruise missiles' },
     ],
   },
@@ -139,8 +154,10 @@ const TARGETS = [
     desc: 'Second Tactical Air Base — MiG-29 and F-5 squadrons covering the northwestern approaches, and the dispersal field aircraft are flown to when the interior is hit. Far from the Gulf: a long way in and a long way back out.',
     world: -2,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.66, label: 'Air strike — 2 fighter sorties (deep, unrefuelled leg)' },
+      { asset: 'f35', qty: 2, base: 0.71, label: 'F-35 strike package — 2 sorties (deep)' },
+      { asset: 'fighter', qty: 3, base: 0.66, label: 'Air strike — 3 F-15E sorties (deep, unrefuelled leg)' },
       { asset: 'cruise', qty: 3, base: 0.80, label: 'TLAM salvo — 3 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.70, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, runway and ramp' },
     ],
   },
   {
@@ -150,7 +167,9 @@ const TARGETS = [
     world: -12,
     packages: [
       { asset: 'cruise', qty: 3, base: 0.86, label: 'TLAM salvo — 3 cruise missiles' },
-      { asset: 'fighter', qty: 2, base: 0.72, label: 'Air strike — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.77, label: 'F-35 strike package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.72, label: 'Air strike — 3 F-15E sorties' },
+      { asset: 'heavy', qty: 2, base: 0.76, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, loading berths and tank farm' },
     ],
   },
   {
@@ -160,7 +179,9 @@ const TARGETS = [
     world: -12,
     packages: [
       { asset: 'cruise', qty: 3, base: 0.86, label: 'TLAM salvo — 3 cruise missiles' },
-      { asset: 'fighter', qty: 2, base: 0.72, label: 'Air strike — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.77, label: 'F-35 strike package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.72, label: 'Air strike — 3 F-15E sorties' },
+      { asset: 'heavy', qty: 2, base: 0.76, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, the whole refinery train' },
     ],
   },
 
@@ -180,7 +201,8 @@ const TARGETS = [
     desc: 'Transporter-erector-launchers operating out of culverts, road tunnels and orchard cover in the western highlands. They shoot and move inside fifteen minutes. There is nothing here to bomb twice — find them tonight and kill them tonight, or find them again next week.',
     world: -1,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.68, label: 'Armed reconnaissance — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.73, label: 'Armed reconnaissance — 2 F-35 sorties' },
+      { asset: 'fighter', qty: 2, base: 0.68, label: 'Armed reconnaissance — 2 F-16CM sorties' },
       { asset: 'cruise', qty: 2, base: 0.58, label: 'TLAM salvo — 2 missiles (they will have moved)' },
     ],
   },
@@ -190,7 +212,8 @@ const TARGETS = [
     desc: 'The strategic reserve, dispersed into the desert interior — hardened shelters cut into rock, and hides the IRGC prepared years ago for exactly this. The furthest inland of the launcher groups and the hardest to hold a fix on.',
     world: -1,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.66, label: 'Armed reconnaissance — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.71, label: 'Armed reconnaissance — 2 F-35 sorties' },
+      { asset: 'fighter', qty: 2, base: 0.66, label: 'Armed reconnaissance — 2 F-16CM sorties' },
       { asset: 'cruise', qty: 2, base: 0.56, label: 'TLAM salvo — 2 missiles (they will have moved)' },
     ],
   },
@@ -200,7 +223,8 @@ const TARGETS = [
     desc: 'Launchers scattered through the valleys north of the Gulf littoral, ranging every American base on the Arabian side. Close enough to reach quickly, mobile enough that quickly is the only way it works.',
     world: -1,
     packages: [
-      { asset: 'fighter', qty: 2, base: 0.70, label: 'Armed reconnaissance — 2 fighter sorties' },
+      { asset: 'f35', qty: 2, base: 0.75, label: 'Armed reconnaissance — 2 F-35 sorties' },
+      { asset: 'fighter', qty: 2, base: 0.70, label: 'Armed reconnaissance — 2 F-16CM sorties' },
       { asset: 'cruise', qty: 2, base: 0.60, label: 'TLAM salvo — 2 missiles (they will have moved)' },
     ],
   },
@@ -242,24 +266,118 @@ const TARGET_REPAIR = {
   oil:         5,   // refinery trains and loading berths are the slowest of all
 };
 
-// Full-effect damage of one strike package. A package is a package: the
-// differences between platforms are already priced into probability of kill,
-// world opinion, and what the sortie costs you — not into tonnage. So two good
-// packages finish a fixed site, and everything short of two good packages is
-// a race against the repair crews. Individual packages override with `dmg`.
+// Fallback full-effect damage for anything not carrying its own weight in
+// AIR_ASSETS. Individual packages override with `dmg`.
 const PKG_DAMAGE = 55;
+
+// ============================================================
+// THE AIR CAMPAIGN, IN THE ORDER IT IS ACTUALLY FLOWN
+// ------------------------------------------------------------
+// An American air war against a defended country is not one force applied
+// evenly for thirty nights. It is three forces applied in sequence, and the
+// sequence is the doctrine:
+//
+//   1. The door is kicked by things that survive a live SAM belt — F-35s and
+//      F-22s, and Tomahawks that fly under it. Small magazines, light bomb
+//      loads, expensive per aimpoint. This phase is slow and it is supposed to
+//      be slow: what it is buying is not damage, it is the next phase.
+//   2. Once the belt is broken, the fourth-generation force is released —
+//      F-15Es, F-16s, the carrier's Super Hornets. There are far more of them
+//      and each one carries far more, but they are 1980s airframes and they
+//      die in defended airspace. Volume, not survivability.
+//   3. Once nobody is contesting the sky at all, the heavies come — B-1s and
+//      B-52s off Diego Garcia, which is what it looks like when the United
+//      States stops raiding and starts flattening. One heavy package does the
+//      work of two nights of fighters. They are also the most helpless thing
+//      in the inventory if the belt comes back up.
+//
+// `ad`     — success penalty per point of surviving SAM coverage (0..3)
+// `loss`   — aircrew loss risk per point of the same
+// `weight` — condition taken off a site that wears down, on full effects
+// `tanker` — tracks booked, as a function of target depth
+// `needs`  — the air-superiority phase this platform will not be tasked below
+const AIR_ASSETS = {
+  f35:     { ad: 0.02, loss: 0.015, weight: 45, tanker: (d) => 2 + d },
+  fighter: { ad: 0.11, loss: 0.060, weight: 62, tanker: (d) => 2 + d, needs: 'degraded' },
+  heavy:   { ad: 0.20, loss: 0.090, weight: 92, tanker: (d) => 3 + d, needs: 'superiority' },
+  stealth: { ad: 0.02, loss: 0,     weight: 55, tanker: () => 4 },
+  cruise:  { ad: 0,    loss: 0,     weight: 55, tanker: () => 0 },
+};
+
+// How much of the sky Iran still owns, and what that permits. Air superiority
+// is not a switch the player throws — it is computed off what is left of the
+// SAM belt and the fighter bases, which means it can be LOST again by looking
+// away while the repair crews work. The whole late-war force structure rests
+// on a number that has to be maintained.
+//   0.00 — opening night: the belt is whole
+//   0.40 — DEGRADED: the belt is broken enough to fly fourth-gen into
+//   0.80 — AIR SUPERIORITY: nobody is contesting the sky; bring the heavies
+const AIR_PHASE = { degraded: 0.40, superiority: 0.80 };
+// what the number is built from: the SAM belt is three quarters of the problem,
+// Iranian fighter basing the rest
+const AIR_WEIGHT = { sam: 0.75, airbase: 0.25 };
+
+// ============================================================
+// THEATER FORCE FLOW
+// ------------------------------------------------------------
+// The other half of why an American war gets heavier rather than lighter. The
+// carriers are what is there on night one; everything else is a machine that
+// takes weeks to spin up and then does not stop. Squadrons come out of CONUS
+// and USAFE, the tanker wings come with them, and by the third week there is
+// simply more of everything than there was.
+//
+// It is not free and it is not automatic in the way a resource tick is: every
+// wave needs a ramp to land on, and ramps are what world opinion buys. Lose
+// the basing tier a wave needs and the wave holds at its staging field until
+// the politics are repaired — the buildup stalls exactly when the player has
+// spent the standing that pays for it.
+const FORCE_FLOW = [
+  { at: 3, needs: 'nato', f35: 1, fighters: 2, tanker: 1, rep: 1,
+    title: 'AIR EXPEDITIONARY WING CLOSES — AL DHAFRA',
+    text: 'The first tranche out of the CONUS force flow is on the ramp: an F-35A squadron off Hill and two F-16CM squadrons out of Spangdahlem, with the KC-135 element that brought them. They are combat-ready in the morning.' },
+  { at: 5, needs: 'gulf', f35: 1, fighters: 3, tanker: 1, rep: 1,
+    title: 'SECOND TRANCHE ON THE RAMP — AL UDEID',
+    text: 'F-15E Strike Eagles out of Seymour Johnson and a second F-35A squadron closed overnight. Air Mobility Command has been running a bridge across the Atlantic for four days to do it — the aircraft are the easy part.' },
+  { at: 8, needs: 'gulf', f35: 2, fighters: 3, tanker: 2, rep: 1,
+    title: 'KC-46 TANKER WING ESTABLISHED IN THEATER',
+    text: 'Two tanker squadrons and their maintenance tail are established at Al Udeid and Prince Sultan. This is the wave that actually matters: fuel in the air is what has been capping the plan, and tonight there is meaningfully more of it.' },
+  { at: 11, needs: 'gulf', f35: 1, fighters: 3, tanker: 2, rep: 2,
+    title: 'THIRD TRANCHE — PRINCE SULTAN AND ALI AL SALEM',
+    text: 'Another four squadrons are on the ramps and the munitions ships have caught up with them. Weapons handlers are building up JDAM in numbers nobody in this theater has seen since 2003.' },
+  { at: 15, needs: 'nato', f35: 2, fighters: 4, tanker: 2, rep: 2,
+    title: 'USAFE SQUADRONS ARRIVE — MUWAFFAQ SALTI AND ERBIL',
+    text: 'The European theater has been stripped to reinforce this one. F-16s from Aviano and F-15Es from Lakenheath are flying out of Jordan and northern Iraq, which puts the western axis in the plan for the first time.' },
+  { at: 19, needs: 'gulf', f35: 1, fighters: 4, tanker: 2, rep: 2,
+    title: 'SUSTAINED SURGE RATE ACHIEVED — CENTCOM AIR FORCES',
+    text: 'The last of the deploying wings is in place and the theater has reached its sustained surge rate. From tonight the plan is limited by what the tankers can carry and by nothing else — this is the whole weight of American air power, and it is now simply present.' },
+];
+
+// ============================================================
+// THE HEAVY BOMBER FORCE
+// ------------------------------------------------------------
+// B-1Bs and B-52s off the Diego Garcia ramp — the same field as the 509th and
+// a completely different weapon. A B-2 is a key cut for one lock; the heavies
+// are tonnage, and tonnage is what actually takes a country's ability to fight
+// away from it. They cannot penetrate anything and they will not be tasked
+// into contested airspace, which is why they are the reward for the first two
+// phases rather than a substitute for them.
+const HEAVY_TRANSIT_TURNS = 2;
+const HEAVY_CAP = 3;        // sustainable missions off the ramp
+const HEAVY_READY = 2;      // generated and ready the turn they land
 
 // ============================================================
 // TANKER TRACKS
 // ------------------------------------------------------------
 // The binding constraint on an air campaign flown from the sea against a
 // country the size of Iran is not aircraft and it is not weapons — it is fuel
-// in the air. Every fighter package and every bomber mission books tanker
-// tracks out of a nightly theater total; Tomahawks book none, because a missile
-// does not refuel. What this buys the war is geography: Tabriz and the Caspian
-// cost most of a night's tanker plan, so the decision "two targets on the
-// littoral or one in the far northwest" is a real one every turn.
-const TANKER_COST = { fighter: (depth) => 2 + depth, stealth: () => 4, cruise: () => 0 };
+// in the air. Every manned package books tanker tracks out of a nightly theater
+// total; Tomahawks book none, because a missile does not refuel. What this buys
+// the war is geography: Tabriz and the Caspian cost most of a night's tanker
+// plan, so the decision "two targets on the littoral or one in the far
+// northwest" is a real one every turn. The heavies book the most of anyone —
+// they are the longest legs in the theater and they fly with a tanker apiece.
+const TANKER_COST = Object.fromEntries(
+  Object.entries(AIR_ASSETS).map(([k, a]) => [k, a.tanker]));
 
 // theater baseline before any deck or basing is counted
 const TANKER_BASE = 4;
@@ -334,13 +452,19 @@ const BREAKOUT = {
 // Three numbers do almost all the work: what the country will absorb in dead,
 // how fast Iran puts its damaged sites back together, and how well it
 // coordinates what it has left.
+// `softGate` decides whether the air-superiority ladder is advice or law. On
+// easy and normal, CENTCOM simply will not task fourth-gen fighters or heavy
+// bombers into airspace that has not been taken — the packages are not offered,
+// and the player learns the doctrine by reading why. On hard the staff will
+// write any plan the President signs: the packages are always available, and
+// flying them early is priced in dead aircrew instead of refused outright.
 const DIFFICULTY = {
-  easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25,
+  easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25, softGate: false,
     desc: 'A forgiving war. The country absorbs more, Iran reconstitutes slower, and the enrichment clock runs long.' },
-  normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1,
+  normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1, softGate: false,
     desc: 'The war as designed. Everything above and below is scaled from here.' },
-  hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85,
-    desc: 'The country has less patience, Iran repairs faster and fights better coordinated, and the centrifuges are further along than you would like.' },
+  hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85, softGate: true,
+    desc: 'The country has less patience, Iran repairs faster and fights better coordinated, the centrifuges are further along than you would like — and the staff will fly any package you order, into any threat, and hand you the casualty list afterwards.' },
 };
 
 // These levels were once named for the chair you were sitting in. A save
@@ -447,12 +571,17 @@ const FORD_INGRESS = { x: 1120, y: 790 };
 // it is the cruise magazine fired from a different hull (see the `sub` flag on
 // strike packages), and it needs its own origin so the inbound bearing on the
 // scope comes from where the boat is rather than from where the carrier is.
-const STRIKE_ORIGINS = { fighter: 'csg-lincoln', cruise: 'csg-lincoln', stealth: 'diego', sub: 'ssn-toledo' };
+const STRIKE_ORIGINS = {
+  f35: 'csg-lincoln', fighter: 'csg-lincoln', cruise: 'csg-lincoln',
+  stealth: 'diego', heavy: 'diego', sub: 'ssn-toledo',
+};
 
 const ASSET_NAMES = {
-  fighter: 'Fighter sorties',
+  f35: '5th-gen sorties (F-35/F-22)',
+  fighter: '4th-gen sorties (F-15E/F-16/F-18)',
   cruise: 'Cruise missiles (TLAM)',
   stealth: 'B-2 bomber missions',
+  heavy: 'Heavy bomber missions (B-1/B-52)',
 };
 
 // ---- projection scale ----
@@ -468,16 +597,27 @@ const MISSILE_RANGES = [
 
 // ---- flight animation config ----
 // Animation length (ms) for each strike asset's map animation
-const FLIGHT_DUR = { fighter: 10500, stealth: 16000, cruise: 6500 };
+const FLIGHT_DUR = { f35: 10500, fighter: 10500, stealth: 16000, heavy: 14000, cruise: 6500 };
 
-// Fighter airframes: a random one flies each fighter package. cs is the
-// callsign root; from decides whether it launches off a carrier or a land base.
-const FIGHTER_TYPES = [
+// Airframes by tier: a random one flies each package. cs is the callsign root;
+// from decides whether it launches off a carrier or a land base. The split is
+// the whole point of the force structure — the 5th-gen pool is what flies on
+// night one, the 4th-gen pool is what floods in once the belt is broken, and
+// the heavies come off the Diego Garcia ramp at the end.
+const F35_TYPES = [
   { type: 'F-35A', cs: 'PANTHER', from: 'land' },
-  { type: 'F/A-18E', cs: 'RHINO', from: 'carrier' },
-  { type: 'F-16C', cs: 'VIPER', from: 'land' },
-  { type: 'F-15E', cs: 'MUDHEN', from: 'land' },
+  { type: 'F-35C', cs: 'WARLOCK', from: 'carrier' },
   { type: 'F-22A', cs: 'RAPTOR', from: 'land' },
+];
+const FIGHTER_TYPES = [
+  { type: 'F/A-18E', cs: 'RHINO', from: 'carrier' },
+  { type: 'F-16CM', cs: 'VIPER', from: 'land' },
+  { type: 'F-15E', cs: 'MUDHEN', from: 'land' },
+  { type: 'F/A-18F', cs: 'GUNSLINGER', from: 'carrier' },
+];
+const HEAVY_TYPES = [
+  { type: 'B-1B', cs: 'BONE', from: 'land' },
+  { type: 'B-52H', cs: 'BUFF', from: 'land' },
 ];
 
 // Every in-flight status / problem message lives here — edit freely.
@@ -497,6 +637,13 @@ const FLIGHT_EVENTS = [
   { at: 0.22, kind: 'status', only: 'fighter', msgs: [
     'On the tanker — topping off before the push',
     'Refueling complete — pushing to the line',
+  ] },
+  { at: 0.30, kind: 'status', only: 'heavy', msgs: [
+    'Heavy is on the boom — full offload, then the long leg north',
+    'Cell is joined and level — running the whole target set off one pass',
+  ] },
+  { at: 0.90, kind: 'status', only: 'heavy', msgs: [
+    'Bomb bay doors open — full load, walking the aimpoints',
   ] },
   { at: 0.42, kind: 'status', msgs: [
     'Feet dry — entering contested airspace',

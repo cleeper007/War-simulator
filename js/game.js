@@ -41,8 +41,12 @@ const Game = (() => {
     // fleetCapacity) — these are the opening values with the Lincoln alone,
     // forward. The SOF task force is not carrier-based, and the B-2s are not
     // in theater at all: they sit at Whiteman until they are sent for.
-    res: { fighters: 3, cruise: 6, stealth: 0, specops: 1 },
-    caps: { fighters: 4, cruise: 8, stealth: 0, specops: 1 },
+    // Three manned tiers, and only one of them can fly tonight. The fourth-gen
+    // force is aboard and on the ramps from the first turn — it is simply not
+    // going into a live SAM belt (see airPhase). What the player has on night
+    // one is F-35s, Tomahawks, and a decision about how fast to spend them.
+    res: { f35: 2, fighters: 3, cruise: 6, stealth: 0, heavy: 0, specops: 1 },
+    caps: { f35: 2, fighters: 4, cruise: 8, stealth: 0, heavy: 0, specops: 1 },
     // The fleet. One deck to start; the second has to be sent for. Only mutable
     // state lives here — names come from CARRIER_INFO by id, so a restored save
     // can never carry a stale ship name back into the war.
@@ -53,6 +57,17 @@ const Game = (() => {
     secondCarrierOrdered: false, secondCarrierEta: 0,
     // the 509th Bomb Wing: at Whiteman AFB, Missouri, until called forward
     bombersOrdered: false, bomberEta: 0, bombersArrived: false,
+    // the heavy bomber force — B-1s and B-52s, called forward once the sky is
+    // being taken and not before (see orderHeavies)
+    heaviesOrdered: false, heavyEta: 0, heaviesArrived: false,
+    // ---- the theater buildup ----
+    // Waves already landed (by index into FORCE_FLOW) and the running total they
+    // have added. Capacity is derived from this, never mutated in place, so a
+    // wave can never be double-counted and a restored save needs no migration.
+    forceFlow: { landed: [], f35: 0, fighters: 0, tanker: 0, rep: 0 },
+    // the air-superiority phase as of the last turn boundary, so the report can
+    // tell the player the night it changed — in either direction
+    airPhaseSeen: 'contested',
     // the turn a deployment order was cut, so only one goes out a night
     deployTurn: 0,
     alliedFighters: 0,     // coalition and IAF squadrons folded into the fighter cap
@@ -124,8 +139,8 @@ const Game = (() => {
 
     // Platforms flown, and the deepest counter Iran has been seen to develop
     // against each. See IranAI.adaptPenalty.
-    adapt: { cruise: 0, fighter: 0, stealth: 0 },
-    adaptSeen: { cruise: 0, fighter: 0, stealth: 0 },
+    adapt: { cruise: 0, f35: 0, fighter: 0, stealth: 0, heavy: 0 },
+    adaptSeen: { cruise: 0, f35: 0, fighter: 0, stealth: 0, heavy: 0 },
 
     // Is the flagship out of the anti-ship envelope? Derived rather than stored:
     // with two independently-stationed decks there is no single fleet posture,
@@ -170,6 +185,11 @@ const Game = (() => {
 
   // ---- save / continue (localStorage) ----
   const Save = (() => {
+    // v9: the air campaign became three campaigns in sequence. Strike assets
+    // split into 5th-gen, 4th-gen and heavy bombers behind an air-superiority
+    // gate, and theater capacity now grows all war off the force flow. A v8
+    // save has one undifferentiated fighter pool, no phase, and no buildup —
+    // there is no honest way to decide what it should become.
     // v8: the war stopped being fully observable. Target condition is now
     // something CENTCOM estimates rather than reads, Iran runs one of three
     // hidden war plans, enrichment is a race against a hidden number, and
@@ -186,8 +206,8 @@ const Game = (() => {
     // v5: downed aircrew and their recovery counters became state. A v4 save has
     // no `downed` field and a stats block missing three counters — retired
     // rather than migrated, the same as every version before it.
-    const KEY = 'cic-save-v8';   // bump the version to invalidate old saves
-    const VERSION = 8;
+    const KEY = 'cic-save-v9';   // bump the version to invalidate old saves
+    const VERSION = 9;
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -198,6 +218,7 @@ const Game = (() => {
       'regimeChaosTurns', 'regimeErratic', 'hostageCrisis', 'stats',
       'carriers', 'secondCarrierOrdered', 'secondCarrierEta', 'alliedFighters',
       'bombersOrdered', 'bomberEta', 'bombersArrived', 'deployTurn',
+      'heaviesOrdered', 'heavyEta', 'heaviesArrived', 'forceFlow', 'airPhaseSeen',
       'difficulty', 'iranPosture', 'postureKnown', 'breakout', 'intel',
       'tankers', 'tankerCap', 'basing', 'basingDebt', 'warPowers', 'addresses', 'threat',
       'timeline', 'adapt', 'adaptSeen', 'turnStartHp',
@@ -366,6 +387,10 @@ const Game = (() => {
     if (G.basing.nato) n += BASING_TIERS.nato.tankers;
     if (G.basing.gulf) n += BASING_TIERS.gulf.tankers;
     if (G.coalition) n += 1;
+    // the tanker wings that came in with the force flow. This is the single
+    // biggest reason a war in week three is heavier than a war in week one:
+    // the plan stops being written around four tracks a night.
+    n += G.forceFlow.tanker;
     return n;
   }
 
@@ -529,6 +554,89 @@ const Game = (() => {
     return w; // 0..3
   }
 
+  // number of air-defense targets, so the weight above can be read as a fraction
+  const AD_SITES = TARGETS.filter(t => t.type === 'airdefense').length;
+
+  // ============================================================
+  // AIR SUPERIORITY
+  // ------------------------------------------------------------
+  // How much of the sky is actually American, 0..1. Three quarters of it is the
+  // SAM belt and the rest is Iranian fighter basing — take both down and the
+  // theater stops being contested airspace and starts being a range.
+  //
+  // Nothing about this is a one-way ratchet. Air defense sites repair overnight
+  // like everything else, so a phase that was bought in week one is gone by
+  // week two if nobody keeps going back. That is the intended shape of the
+  // campaign: the heavy force is not a reward you unlock, it is a condition you
+  // maintain, and the night you look away is the night the plan gets smaller.
+  // ============================================================
+  function airSuperiority() {
+    const sam = AD_SITES ? airDefenseWeight() / AD_SITES : 0;
+    let ab = 0, n = 0;
+    for (const t of TARGETS) {
+      if (t.type !== 'airbase') continue;
+      ab += t.hp / 100; n++;
+    }
+    const iranian = AIR_WEIGHT.sam * sam + AIR_WEIGHT.airbase * (n ? ab / n : 0);
+    return clamp(1 - iranian, 0, 1);
+  }
+
+  function airPhase() {
+    const s = airSuperiority();
+    return s >= AIR_PHASE.superiority ? 'superiority'
+      : s >= AIR_PHASE.degraded ? 'degraded' : 'contested';
+  }
+
+  // ordering, so "is this phase at least that phase" is one comparison
+  const PHASE_RANK = { contested: 0, degraded: 1, superiority: 2 };
+  const phaseAtLeast = (need) => PHASE_RANK[airPhase()] >= PHASE_RANK[need || 'contested'];
+
+  const PHASE_LABEL = {
+    contested: 'AIRSPACE CONTESTED',
+    degraded: 'AIR DEFENSES DEGRADED',
+    superiority: 'AIR SUPERIORITY',
+  };
+
+  // The night the sky changes hands, in either direction. Reported at the turn
+  // boundary rather than the moment a package lands, because that is when the
+  // player is actually reading — and because losing it back is the event that
+  // has to land hardest.
+  function airPhaseEvents() {
+    const now = airPhase();
+    const was = G.airPhaseSeen;
+    G.airPhaseSeen = now;
+    if (now === was) return [];
+    const rising = PHASE_RANK[now] > PHASE_RANK[was];
+    if (now === 'degraded' && rising) return [{
+      cls: 'friendly', title: 'AIR DEFENSES DEGRADED — FOURTH-GEN FORCE RELEASED',
+      text: 'The SAM belt is broken enough to fly into. CENTCOM has released the F-15E, F-16 and Super Hornet ' +
+        'squadrons to the nightly tasking order, which roughly triples the number of aimpoints that can be ' +
+        'serviced in a night. They carry far more than the F-35s do and they survive far less — the belt is ' +
+        'broken, not gone, and every night it is left alone the crews put some of it back.',
+    }];
+    if (now === 'superiority' && rising) return [{
+      cls: 'friendly', title: 'AIR SUPERIORITY DECLARED OVER IRAN',
+      text: 'Nothing is contesting the sky. The SAM network is rubble and the fighter bases are cratered, and ' +
+        'for the first time American aircraft are operating over Iran on their own terms. The heavy bomber ' +
+        'force can be called forward — B-1s and B-52s off Diego Garcia, which is the difference between ' +
+        'raiding a country and dismantling one.',
+    }];
+    // falling — the repair crews took it back
+    return [{
+      cls: 'iran', title: now === 'contested'
+        ? 'AIRSPACE CONTESTED AGAIN — SAM BELT RECONSTITUTED'
+        : 'AIR SUPERIORITY LOST — DEFENSES BACK UP',
+      text: now === 'contested'
+        ? 'While the campaign was somewhere else, Iran rolled spare launchers and engagement radars out of ' +
+          'the dispersal revetments and put the belt back together. The fourth-generation squadrons are off ' +
+          'tonight\'s tasking order and the aimpoints they were servicing go with them. The door has to be ' +
+          'kicked a second time.'
+        : 'Enough of the air defense network is back on the air that CENTCOM will no longer put heavy bombers ' +
+          'over Iran. The B-1s and B-52s are on the ramp at Diego Garcia and they are staying there until the ' +
+          'belt is taken down again.',
+    }];
+  }
+
   // ============================================================
   // CARRIER STRIKE GROUPS
   // ------------------------------------------------------------
@@ -599,7 +707,12 @@ const Game = (() => {
     return cv.posture === 'forward' ? 1 : 0;
   }
 
-  // fighter/TLAM caps and per-turn replenishment, derived from the whole fleet
+  // The theater's air order of battle: the decks, plus every land-based wing
+  // the force flow has put on a ramp. The decks can be sunk or pulled back and
+  // the land-based force cannot — which is why a war that runs long stops being
+  // a carrier war and becomes an Air Force one.
+  const F35_BASE = 2;   // Al Dhafra's resident squadron plus the carrier detachment
+
   function fleetCapacity() {
     let fighters = 0, cruise = 0, repFighters = 0, repCruise = 0;
     for (const cv of G.carriers) {
@@ -611,11 +724,17 @@ const Game = (() => {
       repFighters += b.repFighters * f;
       repCruise += b.repCruise * f;
     }
+    const ff = G.forceFlow;
     return {
-      // allied squadrons fly from land and survive the loss of every deck
-      fighters: Math.round(fighters) + G.alliedFighters,
+      // allied squadrons and the deployed wings fly from land and survive the
+      // loss of every deck
+      f35: F35_BASE + ff.f35,
+      fighters: Math.round(fighters) + G.alliedFighters + ff.fighters,
       cruise: Math.round(cruise),
-      repFighters: Math.round(repFighters),
+      // the 5th-gen force turns slowly — low-observable maintenance is the
+      // reason there are never many of them ready on any given night
+      repF35: 1 + Math.floor(ff.f35 / 3),
+      repFighters: Math.round(repFighters) + ff.rep,
       repCruise: Math.round(repCruise),
     };
   }
@@ -625,10 +744,51 @@ const Game = (() => {
   // deck can no longer hold ready
   function syncFleetCaps() {
     const cap = fleetCapacity();
+    G.caps.f35 = cap.f35;
     G.caps.fighters = cap.fighters;
     G.caps.cruise = cap.cruise;
+    G.res.f35 = Math.min(G.res.f35, G.caps.f35);
     G.res.fighters = Math.min(G.res.fighters, G.caps.fighters);
     G.res.cruise = Math.min(G.res.cruise, G.caps.cruise);
+  }
+
+  // ============================================================
+  // THE FORCE FLOW
+  // ------------------------------------------------------------
+  // Called once a turn. A wave lands when its turn comes up AND the basing tier
+  // it needs is still open — squadrons need a ramp, and ramps are what world
+  // opinion buys. A wave that has nowhere to land is not lost, it holds at its
+  // staging field and tries again next turn, so tanking the politics does not
+  // permanently delete the buildup; it stalls it for exactly as long as the
+  // politics stay tanked.
+  // ============================================================
+  function forceFlowTick() {
+    const events = [];
+    FORCE_FLOW.forEach((w, i) => {
+      if (G.turn < w.at || G.forceFlow.landed.includes(i)) return;
+      if (!G.basing[w.needs]) {
+        // announce the stall once, on the turn it was due, and then stay quiet
+        if (G.turn === w.at) events.push({
+          cls: 'world', title: 'FORCE FLOW HELD — NO RAMP TO LAND ON',
+          text: `The next tranche of deploying squadrons is sitting at its staging field with nowhere to go. ` +
+            `${BASING_TIERS[w.needs].name} is suspended, and aircraft cannot be bedded down on runways ` +
+            `whose governments will not have them. They will close as soon as that is repaired — the ` +
+            `buildup is not cancelled, it is waiting on the State Department.`,
+        });
+        return;
+      }
+      G.forceFlow.landed.push(i);
+      G.forceFlow.f35 += w.f35;
+      G.forceFlow.fighters += w.fighters;
+      G.forceFlow.tanker += w.tanker;
+      G.forceFlow.rep += w.rep;
+      events.push({
+        cls: 'friendly', title: w.title, text: w.text,
+        dTanker: w.tanker,
+      });
+    });
+    if (events.length) syncFleetCaps();
+    return events;
   }
 
   // put every deck where its state says it is (also used on load/restore)
@@ -675,6 +835,50 @@ const Game = (() => {
     return {
       cls: 'friendly', title: 'B-2 FORCE IN THEATER — DIEGO GARCIA',
       text: 'The 509th Bomb Wing flew from Whiteman with the tanker force strung out behind it across the Pacific, and the aircraft are on the ramp at Diego Garcia under cover. Munitions handlers are building up GBU-57s tonight. From here the Massive Ordnance Penetrator is on the table — which means Fordow is finally a target and not a briefing slide.',
+    };
+  }
+
+  // ============================================================
+  // THE HEAVY BOMBER FORCE
+  // ------------------------------------------------------------
+  // Two gates, deliberately separated. Calling the heavies forward only needs
+  // the belt to be BREAKING — you can see air superiority coming and start the
+  // two-turn transit against it, which is exactly the call a real staff makes.
+  // Actually flying them needs the sky to be taken (see pkgBlock), so a player
+  // who calls them early and then lets the SAM belt come back has a squadron of
+  // very expensive aircraft parked on an atoll doing nothing.
+  //
+  // They come off the same ramp as the 509th and they do not compete with it —
+  // Diego Garcia is a long way from anything Iran can reach, and the transit
+  // that matters is Fifth Fleet's, which is why this one takes a slot too.
+  // ============================================================
+  function orderHeavies() {
+    if (G.over || G.heaviesOrdered || transitCommitted() || busy()) return;
+    if (!phaseAtLeast('degraded')) return;
+    G.heaviesOrdered = true;
+    G.heavyEta = HEAVY_TRANSIT_TURNS;
+    G.deployTurn = G.turn;
+    AudioSys.play('cable');
+    UI.renderAll(G);
+    Save.write();
+  }
+
+  function checkHeavyArrival() {
+    if (!G.heaviesOrdered || G.heaviesArrived || G.heavyEta <= 0) return null;
+    G.heavyEta--;
+    if (G.heavyEta > 0) return null;
+
+    G.heaviesArrived = true;
+    G.caps.heavy = HEAVY_CAP;
+    G.res.heavy = HEAVY_READY;
+    AudioSys.play('cable');
+    return {
+      cls: 'friendly', title: 'HEAVY BOMBER FORCE IN THEATER — DIEGO GARCIA',
+      text: 'B-1Bs out of Dyess and B-52s out of Barksdale are on the ramp at Diego Garcia, and the munitions ' +
+        'yard has been working around the clock to meet them. A single one of these aircraft carries more ' +
+        'ordnance than a four-ship of Strike Eagles. They cannot penetrate anything, they cannot survive a ' +
+        'SAM belt, and against fixed targets in an empty sky they will take Iran\'s ability to fight apart ' +
+        'faster than anything else in the inventory.',
     };
   }
 
@@ -883,13 +1087,18 @@ const Game = (() => {
   // site — IAF F-35I escort and SEAD opening the corridor for US penetrators.
   // It is the only path to Fordow that isn't a B-2, and it costs more abroad
   // than an American strike does: everyone reads it as the war widening.
+  // Flown as 5th-gen on both sides — Israeli F-35I Adirs with an American
+  // package alongside them. That matters mechanically as well as narratively:
+  // the joint option is Israel's alternative to a B-2 and it has to stay
+  // available in the opening phase, which it would not be if it were tasked as
+  // fourth-generation. The bill is the whole night's 5th-gen magazine.
   const JOINT_PKGS = {
     natanz: {
-      asset: 'fighter', qty: 2, base: 0.78, eta: 2, joint: true, extraWorld: -6,
+      asset: 'f35', qty: 2, base: 0.78, eta: 2, joint: true, extraWorld: -6,
       label: 'JOINT US–ISRAELI PACKAGE — F-35I escort + penetrators',
     },
     fordow: {
-      asset: 'fighter', qty: 2, base: 0.62, eta: 2, joint: true, extraWorld: -8,
+      asset: 'f35', qty: 2, base: 0.62, eta: 2, joint: true, extraWorld: -8,
       label: 'JOINT US–ISRAELI PACKAGE — the only alternative to a B-2',
     },
   };
@@ -911,8 +1120,47 @@ const Game = (() => {
     return `SIDELINED — patience ${G.israelPatience}`;
   }
 
-  const AD_PENALTY = { fighter: 0.09, cruise: 0.05, stealth: 0.02 };
   const resKey = (asset) => asset === 'fighter' ? 'fighters' : asset;
+  const assetProfile = (asset) => AIR_ASSETS[asset] || AIR_ASSETS.cruise;
+
+  // ============================================================
+  // THE GATE
+  // ------------------------------------------------------------
+  // Why a package the player can see is not a package the player can fly. This
+  // is separate from the magazine and separate from the tanker plan, because
+  // all three run out at different times and the answer to each is different:
+  // an empty magazine waits for the turn, an empty tanker plan waits for the
+  // night, and a live SAM belt waits for the player to go and kill it.
+  //
+  // On hard the staff does not refuse (see DIFFICULTY.softGate) — the package
+  // flies, and computeStrike prices what it costs to fly it into a threat that
+  // has not been taken down.
+  // ============================================================
+  function pkgBlock(target, pkg) {
+    const need = assetProfile(pkg.asset).needs;
+    if (need && !phaseAtLeast(need) && !diff().softGate) {
+      return need === 'degraded'
+        ? 'SAM BELT INTACT — fourth-generation aircraft are not being tasked into this threat. ' +
+          'Take the air defense network down with F-35s and Tomahawks first; the squadrons are ' +
+          'on the ramp and they are not going anywhere.'
+        : 'NO AIR SUPERIORITY — heavy bombers are not released over defended airspace. They are the ' +
+          'least survivable aircraft in the theater and they will not be tasked until nothing is ' +
+          'contesting the sky.';
+    }
+    if (pkg.asset === 'heavy' && !G.heaviesArrived) {
+      return G.heaviesOrdered
+        ? `HEAVY BOMBER FORCE EN ROUTE — ${G.heavyEta} turn(s) from the Diego Garcia ramp.`
+        : 'HEAVY BOMBER FORCE NOT IN THEATER — the B-1s and B-52s are in CONUS and have to be called forward.';
+    }
+    return null;
+  }
+
+  // is this package being flown into airspace nobody has taken? Only possible
+  // at all on hard, and it is the most expensive thing a player can choose to do
+  const unsuppressed = (pkg) => {
+    const need = assetProfile(pkg.asset).needs;
+    return !!(need && !phaseAtLeast(need));
+  };
 
   // Why a TLAM salvo comes up short — weather, bad targeting data, or a launch/
   // booster fault. Air defense is never the cause.
@@ -922,8 +1170,11 @@ const Game = (() => {
     'Strike failed to achieve desired effects. Assessed cause: booster and launch faults — several birds failed to reach the target after leaving the rail.',
   ];
 
-  // how much condition one package takes off a site that wears down
-  const pkgDamage = (pkg) => pkg.dmg || PKG_DAMAGE;
+  // How much condition one package takes off a site that wears down. This is
+  // where the tiers actually differ: an F-35 carries two weapons in a bay, a
+  // Strike Eagle carries a wing full, and a B-52 carries more than both put
+  // together twice over. Individual packages still override with `dmg`.
+  const pkgDamage = (pkg) => pkg.dmg || assetProfile(pkg.asset).weight || PKG_DAMAGE;
 
   // Why a shot at a hull comes up dry. A ship is a small thing on a big ocean
   // that does not stay where you last saw it — the misses are about the target
@@ -934,17 +1185,28 @@ const Game = (() => {
     'Hard maneuver and a full decoy spread — chaff and corner reflectors in the air — and the weapon took the false picture. No damage assessed.',
   ];
 
+  // Flying a tier into airspace it was never meant to see. Only reachable on
+  // hard, where the gate is advice rather than law — and the price is set so
+  // that doing it is a real decision and not a free shortcut past two phases of
+  // campaign. The aircrew number is the one that should stop the player.
+  const RAW_PENALTY = 0.22;   // straight off the probability of effects
+  const RAW_LOSS = 3;         // multiplier on the aircrew loss roll
+
   function computeStrike(target, pkg) {
     const ad = airDefenseWeight();
+    const prof = assetProfile(pkg.asset);
+    const raw = unsuppressed(pkg);
     // TLAMs fly under the SAM belt — air defense doesn't degrade a Tomahawk.
     // Its misses come from weather, targeting, or launch faults, not the threat.
-    const adPenalty = pkg.asset === 'cruise' ? 0 : AD_PENALTY[pkg.asset] * ad;
+    const adPenalty = prof.ad * ad + (raw ? RAW_PENALTY : 0);
     const dmgBonus = target.hp < 100 ? 0.15 : 0;
     // What Iran has learned about the way this campaign is being flown. Fly one
     // platform into the ground and this is the bill for it (see IranAI.adaptStep).
     const adaptPenalty = IranAI.adaptPenalty(pkg.asset);
     const success = clamp(pkg.base - adPenalty - adaptPenalty + dmgBonus, 0.05, 0.95);
-    const lossRisk = pkg.asset === 'fighter' ? clamp(0.05 * ad, 0, 0.35) : 0;
+    // A packed bomber cell over a live SAM belt is not a risk, it is a funeral —
+    // hence the higher cap when the tier is being flown outside its phase.
+    const lossRisk = clamp(prof.loss * ad * (raw ? RAW_LOSS : 1), 0, raw ? 0.70 : 0.35);
     // What the player is buying: full effects on the good half of the success
     // band, half effects on the rest of it. Sites that wear down lose condition;
     // the buried nuclear sites take a whole step.
@@ -956,7 +1218,7 @@ const Game = (() => {
     const gradual = wearsDown(target);
     const oneShot = target.type === 'ship';
     return {
-      success, adPenalty, adaptPenalty, lossRisk, gradual, oneShot,
+      success, adPenalty, adaptPenalty, lossRisk, gradual, oneShot, raw,
       fullOdds: success * (oneShot ? 1 : gradual ? 0.5 : 0.6),
       damage: gradual ? pkgDamage(pkg) : 50,
       tanker: tankerCost(target, pkg),
@@ -967,7 +1229,9 @@ const Game = (() => {
   // mission IN FLIGHT: fighter and TLAM packages arrive at the end of this
   // turn; B-2s transiting from Diego Garcia take two turns. BDA comes back
   // with the battle report — you commit, then you wait.
-  const MISSION_ETA = { fighter: 1, cruise: 1, stealth: 2 };
+  // the heavies stage off Diego Garcia like the B-2s do, and the flight time
+  // from an atoll 2,900 nm south is the same for a Bone as it is for a Spirit
+  const MISSION_ETA = { f35: 1, fighter: 1, cruise: 1, stealth: 2, heavy: 2 };
 
   function executeStrike(target, pkg) {
     if (G.over || busy()) return;
@@ -977,6 +1241,8 @@ const Game = (() => {
     // not reachable without the northern tanker tracks
     if (target.type === 'tel' && (!target.dispersed || !target.located)) return;
     if (!canReach(target)) return;
+    // and a tier that has not been released is not a package
+    if (pkgBlock(target, pkg)) return;
     // fuel in the air is booked before anything leaves the deck
     const { cost, ok } = tankersFor(target, pkg);
     if (!ok) return;
@@ -1651,6 +1917,15 @@ const Game = (() => {
         // standing abroad is a permission slip, and it is checked nightly
         const basing = syncBasing();
 
+        // the machine spins up: deploying squadrons close on whatever ramps the
+        // politics have left open. Checked after basing, so a wave that arrives
+        // the same night access is revoked correctly finds nowhere to land.
+        const flow = forceFlowTick();
+
+        // and the sky changes hands, in whichever direction tonight's BDA and
+        // tonight's repair crews left it
+        const phase = airPhaseEvents();
+
         // the Hill votes once, in the middle of the second week
         const vote = warPowersVote();
         const cutoff = vote && vote.cutoff;
@@ -1662,6 +1937,8 @@ const Game = (() => {
         if (arrival) fleet.push(arrival);
         const bombers = checkBomberArrival();
         if (bombers) fleet.push(bombers);
+        const heavies = checkHeavyArrival();
+        if (heavies) fleet.push(heavies);
 
         // and the coast works up tomorrow night's shot, in the open, on purpose
         const threat = raiseThreat();
@@ -1669,7 +1946,7 @@ const Game = (() => {
 
         const day = Math.ceil(G.turn / 2);
         const all = [...bda, ...events, ...dispersals, ...(repairs ? [repairs] : []),
-          ...basing, ...(vote && !cutoff ? [vote] : []), ...fleet];
+          ...phase, ...basing, ...flow, ...(vote && !cutoff ? [vote] : []), ...fleet];
         UI.setTicker(IranAI.headlines(G, all));
         recordTurn(all);
         const result = cutoff ? buildResult('defeat', 'cutoff') : checkEnd();
@@ -1703,12 +1980,18 @@ const Game = (() => {
     // replenish — what the decks can turn around depends on where they are
     syncFleetCaps();
     const cap = fleetCapacity();
+    G.res.f35 = Math.min(G.res.f35 + cap.repF35, G.caps.f35);
     G.res.fighters = Math.min(G.res.fighters + cap.repFighters, G.caps.fighters);
     G.res.cruise = Math.min(G.res.cruise + cap.repCruise, G.caps.cruise);
     // the bombers only regenerate once there are bombers — turnaround at Diego
     // Garcia is three turns per airframe, and an empty ramp turns nothing around
     if (G.bombersArrived && G.turn % 3 === 0) {
       G.res.stealth = Math.min(G.res.stealth + 1, G.caps.stealth);
+    }
+    // the heavies turn faster than the B-2s do: no low-observable coatings to
+    // repair between sorties, just fuel, bombs and crew rest
+    if (G.heaviesArrived && G.turn % 2 === 0) {
+      G.res.heavy = Math.min(G.res.heavy + 1, G.caps.heavy);
     }
 
     // tonight's tanker plan is written fresh: fuel in the air does not bank
@@ -1911,6 +2194,11 @@ const Game = (() => {
       syncStatus(t);
     }
     syncJointPackages(); // packages live on static TARGETS — rebuild from saved state
+    // caps are derived, never stored: rebuild them from the restored fleet and
+    // the restored force flow rather than trusting the numbers in the save
+    syncFleetCaps();
+    G.caps.heavy = G.heaviesArrived ? HEAVY_CAP : 0;
+    G.res.heavy = Math.min(G.res.heavy, G.caps.heavy);
     AudioSys.setMuted(!!data.muted);
     start(true);
   }
@@ -1960,6 +2248,14 @@ const Game = (() => {
     // and the Strait does not always open quiet
     if (Math.random() < 0.25) G.hormuz = 'CONTESTED';
 
+    // nothing has deployed yet and nobody owns the sky
+    G.forceFlow = { landed: [], f35: 0, fighters: 0, tanker: 0, rep: 0 };
+    G.heaviesOrdered = false; G.heavyEta = 0; G.heaviesArrived = false;
+    G.caps.heavy = 0; G.res.heavy = 0;
+    syncFleetCaps();
+    G.res.f35 = G.caps.f35;
+    G.airPhaseSeen = airPhase();
+
     G.tankerCap = tankerCapacity();
     G.tankers = G.tankerCap;
   }
@@ -2002,9 +2298,12 @@ const Game = (() => {
   // the scope dramatizes the number, it never feeds back into the strike math.
   return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, israelStatus,
     airDefenseWeight, orderCarrier, toggleCarrierPosture, carrierFactor, carrierExposure,
-    orderBombers, transitCommitted, wearsDown,
+    orderBombers, orderHeavies, transitCommitted, wearsDown,
+    // the air-superiority ladder: what the sky is worth tonight, and what that
+    // releases. pkgBlock is the single answer to "why can't I fly this".
+    airSuperiority, airPhase, phaseAtLeast, pkgBlock, PHASE_LABEL,
     // the uncertainty layer: everything the player sees goes through these
     estimate, condition, breakoutEstimate, barred, canReach, tankersFor, tankerCapacity,
     casualtyLimit, difficulty: diff,
-    FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, WAR_POWERS_TURN, G };
+    FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, HEAVY_TRANSIT_TURNS, WAR_POWERS_TURN, G };
 })();

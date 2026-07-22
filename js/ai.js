@@ -195,20 +195,31 @@ const IranAI = (() => {
     stealth: ['Tehran has bought low-frequency early-warning radars into the approach corridors. They ' +
       'cannot generate a firing solution on a B-2 and they know it — what they can do is know a mission ' +
       'is coming and get the crews underground before it arrives.'],
+    f35: ['The surviving batteries have stopped trying to track the fifth-generation packages and started ' +
+      'timing them. Iranian air defense now goes to emissions silence on a schedule built from a month of ' +
+      'our own tasking order, and comes up only in the terminal window — which is late enough to matter.',
+      'Passive detection has improved: infrared search-and-track sets moved into the corridors, cued by ' +
+      'the low-band radars. They still cannot lock an F-35. They can now put a fighter in front of one.'],
+    heavy: ['The heavy cells fly the same profiles at the same altitudes because that is what a bomber ' +
+      'cell does, and Tehran has been writing them down. Anything left of the mobile SAM force is being ' +
+      'held back specifically for those tracks, and the aimpoints under them are being emptied first.'],
   };
 
   // Returns an event on the turn a platform's counter deepens, else null.
   function adaptStep(G) {
-    for (const asset of ['cruise', 'fighter', 'stealth']) {
+    const LABEL = { cruise: 'CRUISE MISSILE', f35: 'FIFTH-GENERATION', fighter: 'FOURTH-GENERATION',
+      stealth: 'PENETRATOR', heavy: 'HEAVY BOMBER' };
+    const NOUN = { cruise: 'cruise', f35: 'fifth-generation', fighter: 'fourth-generation',
+      stealth: 'penetrator', heavy: 'heavy bomber' };
+    for (const asset of ['cruise', 'f35', 'fighter', 'stealth', 'heavy']) {
       const lvl = adaptLevel(asset);
       if (lvl <= (G.adaptSeen[asset] || 0)) continue;
       G.adaptSeen[asset] = lvl;
       const pool = ADAPT_TEXT[asset];
-      const label = { cruise: 'CRUISE MISSILE', fighter: 'MANNED STRIKE', stealth: 'PENETRATOR' }[asset];
       return {
-        cls: 'iran', title: `IRAN ADAPTS — ${label} EFFECTIVENESS DEGRADED`,
+        cls: 'iran', title: `IRAN ADAPTS — ${LABEL[asset]} EFFECTIVENESS DEGRADED`,
         text: pool[Math.min(lvl - 1, pool.length - 1)] +
-          ` Assessed penalty to ${asset === 'fighter' ? 'manned strike' : asset} packages is now ` +
+          ` Assessed penalty to ${NOUN[asset]} packages is now ` +
           `−${Math.round(lvl * ADAPT_PER_LEVEL * 100)}%. Mixing the force is what keeps this shallow.`,
       };
     }
@@ -446,6 +457,26 @@ const IranAI = (() => {
       cjcs.text = `Incirlik is closed to us and Riyadh has asked that Prince Sultan not be used offensively. ` +
         `That is two squadrons and two tanker tracks off tonight's plan — we are down to ${Game.tankerCapacity()} ` +
         'tracks a night, and the tanker plan is what caps the deep targets. It gets worse below fifteen.';
+    } else if (Game.airPhase() === 'contested') {
+      // the single most important thing the staff can tell a player who is
+      // wondering why two thirds of the air force will not fly
+      cjcs.text = 'Sequence, Mr. President. Two thirds of the air component is sitting on ramps I will not ' +
+        `send it off — ${adLeft} SAM complex${adLeft === 1 ? '' : 'es'} still active, and an F-16 over that ` +
+        'belt is a dead pilot on Iranian television. What we have tonight is F-35s and Tomahawks, and what ' +
+        'they are for is not damage, it is taking the sky. Kill the air defense network first. Everything ' +
+        'else in this war gets three times easier the moment it is down.';
+    } else if (Game.airPhase() === 'degraded' && !G.heaviesArrived) {
+      cjcs.text = 'The belt is broken and the fourth-generation squadrons are flying — that is the volume ' +
+        'you have been waiting for. The next step is the heavies. Take the rest of the air defense network ' +
+        'and Tabriz down and I can put B-1s and B-52s over Iran, and a heavy cell takes a site apart in one ' +
+        'night that a fighter package would work on for three. ' +
+        (G.heaviesOrdered ? `They are already moving — ${G.heavyEta} turn(s) out.`
+          : 'They can be called forward now; they just cannot fly until the sky is ours.');
+    } else if (Game.airPhase() === 'superiority' && adLeft >= 1) {
+      cjcs.text = 'We hold air superiority tonight and we do not hold it permanently. Their crews are out ' +
+        'there right now rolling spare launchers out of the revetments, and the night that number crosses ' +
+        'back the heavies come off the tasking order and the plan gets small again. Keep going back to the ' +
+        'SAM sites. It is the least satisfying tasking in this war and it is the one holding the rest up.';
     } else if (blind >= 3) {
       cjcs.text = `We are flying on a stale picture. ${blind} sites on the list have assessments wide ` +
         'enough to be useless — anywhere from "nearly finished" to "back at full" — and every package ' +
@@ -456,8 +487,6 @@ const IranAI = (() => {
       cjcs.text = G.bombersOrdered
         ? `The 509th is airborne out of Whiteman with the tanker train strung out behind it — ${G.bomberEta} turn(s) to Diego Garcia. Until those aircraft are on that ramp, Fordow is a target we can photograph and not one we can service.`
         : 'Be clear on what you do not have: there is not a B-2 within eight thousand miles of this war. They are parked at Whiteman. One turn on the tankers puts them at Diego Garcia and puts the GBU-57 in play, and nothing else in the inventory touches Fordow — not a Tomahawk, not a fighter, nothing. The bill is one night of the naval transit: the turn they move, nothing else does.';
-    } else if (adLeft >= 2) {
-      cjcs.text = `Their air defense network is largely intact — ${adLeft} SAM complexes active. Non-stealth strikes carry real attrition risk. Recommend SEAD first${G.bombersArrived ? ', or lean on the B-2s' : ''}.`;
     } else if (reconstituting.length >= 2) {
       cjcs.text = `We are renting damage instead of buying it, Mr. President. ${reconstituting.length} sites we have already ` +
         `hit are working through the night — ${reconstituting.slice(0, 3).map(t => `${t.short} at ${Game.condition(t)}`).join(', ')} — ` +
