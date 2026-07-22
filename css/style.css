@@ -338,6 +338,11 @@ button { font-family: var(--mono); }
 .target.intact .tgt-core { fill: var(--red); }
 .target.damaged .tgt-core { fill: var(--amber); }
 .target.destroyed .tgt-core { fill: #3d4a63; }
+/* deck cuts on a hull at sea, so the deckhouse reads out of a single fill */
+.tgt-core .ship-deck { fill: #0b1a2e; }
+.tgt-core .ship-bridge { fill: #cfe2ff; }
+.target.destroyed .tgt-core .ship-bridge { fill: #5a6883; }
+
 /* the flag flies in national colours regardless of target status */
 .tgt-flag .flag-staff { fill: #8fa2c4; }
 .tgt-flag .flag-green { fill: #239f40; }

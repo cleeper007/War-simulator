@@ -106,6 +106,26 @@ const TARGETS = [
     ],
   },
   {
+    id: 'ship-mahdavi', name: 'IRIS Shahid Mahdavi — Gulf of Oman', short: 'MAHDAVI',
+    type: 'ship', x: 703, y: 586,
+    desc: 'IRGC-Navy forward base ship operating outside the Strait, carrying anti-ship missiles and drones well past the Gulf. A hull at sea, not a pier — she moves, and she is the closest Iranian shooter to the carrier box.',
+    world: -3,
+    packages: [
+      { asset: 'fighter', qty: 2, base: 0.80, label: 'Air strike — 2 fighter sorties' },
+      { asset: 'cruise', qty: 2, base: 0.84, label: 'TLAM salvo — 2 cruise missiles' },
+    ],
+  },
+  {
+    id: 'ship-caspian', name: 'IRGC Caspian Flotilla — Bandar-e Anzali', short: 'CASPIAN FLOT',
+    type: 'ship', x: 392, y: 72,
+    desc: 'Missile craft in the Caspian, 900 nm from the Gulf and beyond the fight — but a live hull all the same. The Caspian is a closed sea with Moscow on the far shore: putting American ordnance in it costs far more abroad than the tonnage is worth.',
+    world: -8,
+    packages: [
+      { asset: 'fighter', qty: 2, base: 0.62, label: 'Air strike — 2 fighter sorties (deep, unrefuelled leg)' },
+      { asset: 'cruise', qty: 3, base: 0.76, label: 'TLAM salvo — 3 cruise missiles' },
+    ],
+  },
+  {
     id: 'tabriz-ab', name: 'Tabriz Air Base', short: 'TABRIZ AB',
     type: 'airbase', x: 260, y: 54,
     desc: 'Second Tactical Air Base — MiG-29 and F-5 squadrons covering the northwestern approaches, and the dispersal field aircraft are flown to when the interior is hit. Far from the Gulf: a long way in and a long way back out.',

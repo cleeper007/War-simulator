@@ -18,14 +18,20 @@ const IranAI = (() => {
     return s; // 0..2
   }
 
+  // Iran's navy: the bases and the hulls that sail from them. Everything
+  // downstream — carrier risk, the Hormuz reopening, the capacity meter, the
+  // negotiation gate — is written against a 0..2 scale, so this reports the
+  // surviving FRACTION of the fleet on that scale rather than a raw count.
+  // Hulls can then be added or removed without re-tuning the whole sim.
   function navalStrength() {
+    const fleet = TARGETS.filter(t => t.type === 'naval' || t.type === 'ship');
+    if (!fleet.length) return 0;
     let s = 0;
-    for (const t of TARGETS) {
-      if (t.type !== 'naval') continue;
+    for (const t of fleet) {
       if (t.status === 'destroyed') continue;
       s += t.status === 'damaged' ? 0.5 : 1;
     }
-    return s; // 0..2
+    return (s / fleet.length) * 2; // 0..2
   }
 
   // ---- event builders (return event objects consumed by game.js) ----

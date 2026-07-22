@@ -77,6 +77,22 @@ const MapView = (() => {
     return g;
   }
 
+  // an Iranian hull at sea, plan view, bow up — the same top-down language the
+  // US carrier and its escorts are drawn in, so the eye reads it as a ship
+  // underway rather than the profile silhouette a naval BASE wears. The decks
+  // are cut in map-background dark so the deckhouse reads out of one fill.
+  function shipHull() {
+    const g = el('g', { class: 'tgt-core' });
+    // raked bow, parallel midbody, transom stern
+    g.appendChild(el('path', { d: 'M0,-6.8 L2.6,-2.2 L2.6,4.6 Q2.6,5.4 1.8,5.4 ' +
+      'L-1.8,5.4 Q-2.6,5.4 -2.6,4.6 L-2.6,-2.2 Z' }));
+    // deck breaks, held clear of the sheer so the hull line stays unbroken
+    g.appendChild(el('rect', { class: 'ship-deck', x: -2, y: -2.3, width: 4, height: 0.8 }));
+    g.appendChild(el('rect', { class: 'ship-deck', x: -2, y: 2.7, width: 4, height: 0.8 }));
+    g.appendChild(el('rect', { class: 'ship-bridge', x: -1.3, y: -1.1, width: 2.6, height: 2.4 }));
+    return g;
+  }
+
   // the glyph that identifies a target type — drawn on the map at 1x and blown
   // up inside the tactical scope, so both views read as the same object
   function targetCore(type) {
@@ -91,6 +107,8 @@ const MapView = (() => {
         return el('path', { class: 'tgt-core', d: 'M0,-5.5 L2.5,3 L0,1.2 L-2.5,3 Z' });
       case 'naval':
         return el('path', { class: 'tgt-core', d: 'M-4,-1 L4,-1 L2,3 L-2,3 Z M-0.8,-5 L0.8,-5 L0.8,-1 L-0.8,-1 Z' });
+      case 'ship':      // a hull underway, as opposed to the base she sails from
+        return shipHull();
       case 'airbase':   // swept-wing planform, nose up
         return el('path', { class: 'tgt-core',
           d: 'M0,-5.5 L1.1,-1.6 L5,1.4 L5,2.6 L1.1,1.4 L1.1,3.4 L2.4,4.8 L2.4,5.5 ' +

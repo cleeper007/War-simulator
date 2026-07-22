@@ -97,10 +97,13 @@ const Game = (() => {
 
   // ---- save / continue (localStorage) ----
   const Save = (() => {
+    // v6: two IRGC hulls joined the target list and naval strength became a
+    // fraction of the fleet. A v5 save would load with both ships untouched and
+    // a capacity meter that no longer means what it meant when it was written.
     // v5: downed aircrew and their recovery counters became state. A v4 save has
     // no `downed` field and a stats block missing three counters — retired
     // rather than migrated, the same as every version before it.
-    const KEY = 'cic-save-v5';   // bump the version to invalidate old saves
+    const KEY = 'cic-save-v6';   // bump the version to invalidate old saves
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -116,7 +119,7 @@ const Game = (() => {
     function write() {
       if (G.over) return;
       try {
-        const data = { version: 5, muted: AudioSys.isMuted(), fields: {}, targets: {} };
+        const data = { version: 6, muted: AudioSys.isMuted(), fields: {}, targets: {} };
         for (const f of FIELDS) data.fields[f] = G[f];
         for (const t of TARGETS) data.targets[t.id] = t.status || 'intact';
         localStorage.setItem(KEY, JSON.stringify(data));
@@ -126,7 +129,7 @@ const Game = (() => {
     function read() {
       try {
         const data = JSON.parse(localStorage.getItem(KEY));
-        return data && data.version === 5 ? data : null;
+        return data && data.version === 6 ? data : null;
       } catch (e) { return null; }
     }
 
