@@ -153,9 +153,10 @@ const Game = (() => {
   // ------------------------------------------------------------
   // Every fighter sortie and every Tomahawk in this war comes off a deck, so
   // where the decks sit is the standing decision underneath all the others.
-  // FORWARD is the Gulf of Oman: the full air wing, and a hull inside every
-  // anti-ship missile, swarm boat and midget submarine Iran has left. BACK is
-  // the deep Arabian Sea: untouchable, and half the strike power. The move
+  // FORWARD is the North Arabian Sea box east of Oman: the full air wing, and a
+  // hull inside the longest-legged anti-ship weapons Iran has left. BACK is the
+  // deep Arabian Sea, down toward the Indian Ocean approaches: untouchable at
+  // that range, and half the strike power for the tanker distance. The move
   // between them takes a turn, and that turn buys the worst of both — reduced
   // capability, still exposed.
   //
@@ -337,11 +338,11 @@ const Game = (() => {
       cv.moving = null;
       MapView.setCarrierPosture(cv);
       events.push(cv.posture === 'forward' ? {
-        cls: 'friendly', title: `${cvShort(cv)} ON STATION — GULF OF OMAN`,
-        text: `${cvName(cv)} has closed back up into the Gulf of Oman and resumed full flight operations. Her air wing is at your disposal again — and so is she, to everything Iran can range on that water.`,
+        cls: 'friendly', title: `${cvShort(cv)} ON STATION — NORTH ARABIAN SEA`,
+        text: `${cvName(cv)} has closed northwest into the North Arabian Sea box and resumed full flight operations. Her air wing is at your disposal again — and so is she, to everything Iran can range that far out.`,
       } : {
-        cls: 'friendly', title: `${cvShort(cv)} WITHDRAWN TO THE ARABIAN SEA`,
-        text: `${cvName(cv)} is clear of the anti-ship envelope and steaming in open water. She is out of reach, and so is half of what she could do for you: the tanker chain from out here only supports a fraction of her sortie rate.`,
+        cls: 'friendly', title: `${cvShort(cv)} WITHDRAWN TO THE DEEP ARABIAN SEA`,
+        text: `${cvName(cv)} has steamed southeast into the deep Arabian Sea, clear of the anti-ship envelope and out toward the Indian Ocean approaches. She is out of reach, and so is half of what she could do for you: the tanker chain from that far off Iran only supports a fraction of her sortie rate.`,
       });
     }
     if (events.length) syncFleetCaps();
@@ -366,13 +367,14 @@ const Game = (() => {
     MapView.setCarrierPosture(ford);
     AudioSys.play('cable');
     return {
-      cls: 'friendly', title: 'FORD ON STATION — ARABIAN SEA',
-      text: 'The USS Gerald R. Ford Carrier Strike Group has arrived in the Arabian Sea and checked in with Fifth Fleet. Her air wing is available from standoff at reduced rate — bring her up into the Gulf of Oman and she doubles what she gives you, on the same terms as every other hull in that water.',
+      cls: 'friendly', title: 'FORD ON STATION — DEEP ARABIAN SEA',
+      text: 'The USS Gerald R. Ford Carrier Strike Group has come up out of the Indian Ocean into the deep Arabian Sea and checked in with Fifth Fleet. Her air wing is available from standoff at reduced rate — bring her northwest into the North Arabian Sea box and she doubles what she gives you, on the same terms as every other hull that far forward.',
     };
   }
 
   // ---- Iranian anti-ship fires ----
-  // The reason a carrier in the Gulf of Oman is a decision and not scenery. The
+  // The reason a carrier forward in the North Arabian Sea is a decision and not
+  // scenery — she is a long way out, but not out of reach of Iran's best. The
   // threat is Iran's navy: kill the naval bases and the risk goes with them.
   function carrierRisk() {
     const events = [];
@@ -417,8 +419,8 @@ const Game = (() => {
     syncFleetCaps();
     MapView.setCarrierPosture(cv);
     return {
-      cls: 'iran', title: `${cvShort(cv)} STRUCK — WITHDRAWING FROM THE GULF`,
-      text: `An Iranian anti-ship missile got through the screen and hit ${cvName(cv)} above the waterline, starting fires on the hangar deck. Damage control has the ship, but her flight deck is fouled and her catapults are down. She is retiring to the Arabian Sea and will fly at a fraction of her rate for the rest of this war. Fifth Fleet did not order the withdrawal — the damage did.`,
+      cls: 'iran', title: `${cvShort(cv)} STRUCK — WITHDRAWING TO STANDOFF`,
+      text: `An Iranian anti-ship missile got through the screen and hit ${cvName(cv)} above the waterline, starting fires on the hangar deck. Damage control has the ship, but her flight deck is fouled and her catapults are down. She is retiring southeast into the deep Arabian Sea and will fly at a fraction of her rate for the rest of this war. Fifth Fleet did not order the withdrawal — the damage did.`,
       casualties: rand(8, 25), dApproval: -7, dOil: 6,
       flashAsset: cv.id, attack: { kind: 'missile', base: cv.id, count: 4 },
     };

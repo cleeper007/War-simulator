@@ -98,24 +98,24 @@ const UI = (() => {
   // The panel answers three questions at a glance: where is each deck, what is
   // it worth there, and can it be shot at.
   function carrierLine(cv) {
-    if (cv.lost) return { label: 'LOST', cls: 'cv-lost', note: 'Sunk in the Gulf of Oman.' };
+    if (cv.lost) return { label: 'LOST', cls: 'cv-lost', note: 'Sunk in the North Arabian Sea.' };
     if (!cv.arrived) return null;   // handled by the order/ETA button below
     if (cv.moving) {
       return {
-        label: cv.moving === 'forward' ? 'CLOSING THE GULF' : 'WITHDRAWING',
+        label: cv.moving === 'forward' ? 'CLOSING NORTHWEST' : 'WITHDRAWING',
         cls: 'cv-moving',
         note: 'Repositioning — 50% strike capability, and still inside the envelope until she is clear.',
       };
     }
     if (cv.posture === 'forward') {
       return {
-        label: 'ON STATION — GULF OF OMAN', cls: 'cv-forward',
+        label: 'ON STATION — N. ARABIAN SEA', cls: 'cv-forward',
         note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
           'Full sortie generation. Under threat from Iranian anti-ship fires.',
       };
     }
     return {
-      label: 'ARABIAN SEA', cls: 'cv-back',
+      label: 'DEEP ARABIAN SEA', cls: 'cv-back',
       note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
         'Out of reach. 50% strike capability.',
     };
@@ -191,15 +191,15 @@ const UI = (() => {
             `509th. ${info.short} can be surged next turn.</span></button>`;
         }
         return `<button data-carrier-order="1">SURGE ${info.short} TO THE THEATER` +
-          `<span class="diplo-desc">Orders ${info.name} to the Gulf. ${Game.FORD_TRANSIT_TURNS} turns out; ` +
-          `arrives at standoff in the Arabian Sea. Costs no money and no lives — it costs tonight's naval ` +
+          `<span class="diplo-desc">Orders ${info.name} into theater. ${Game.FORD_TRANSIT_TURNS} turns out; ` +
+          `arrives at standoff in the deep Arabian Sea. Costs no money and no lives — it costs tonight's naval ` +
           `transit, so the B-2s cannot be moved until next turn.</span></button>`;
       }
       const fwd = cv.posture === 'forward';
       return `<button data-carrier-toggle="${cv.id}" ${cv.moving ? 'disabled' : ''}>` +
         (cv.moving ? `${info.short} REPOSITIONING`
-          : fwd ? `PULL ${info.short} BACK TO THE ARABIAN SEA`
-          : `SEND ${info.short} FORWARD TO THE GULF OF OMAN`) +
+          : fwd ? `PULL ${info.short} BACK TO THE DEEP ARABIAN SEA`
+          : `SEND ${info.short} FORWARD TO THE NORTH ARABIAN SEA`) +
         `<span class="diplo-desc">` +
         (cv.moving ? 'The order is given. She is between stations until the end of the turn.'
           : fwd ? 'Takes one turn at 50% capability, exposed until she is clear. Safe once there, at half the strike power.'

@@ -29,7 +29,7 @@ const MapView = (() => {
   const SEAS = [
     { name: 'PERSIAN GULF', x: 390, y: 457 },
     { name: 'GULF OF OMAN', x: 667, y: 551 },
-    { name: 'ARABIAN SEA', x: 833, y: 668 },
+    { name: 'ARABIAN SEA', x: 760, y: 715 },
     { name: 'CASPIAN SEA', x: 423, y: 38 },
   ];
 
@@ -394,7 +394,7 @@ const MapView = (() => {
     const x = FORD_INGRESS.x + (st.back.x - FORD_INGRESS.x) * progress;
     const y = FORD_INGRESS.y + (st.back.y - FORD_INGRESS.y) * progress;
     moveAsset(id, x, y, true);
-    setAssetActive(id, x < 985 && y < 690);
+    setAssetActive(id, x < 1040 && y < 752);
   }
 
   function flashAsset(assetId) {

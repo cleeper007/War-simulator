@@ -51,8 +51,8 @@ fight — the mission is driving it to zero.
 
 ### Theater forces and the naval transit
 
-You open the war with one deck — the *Abraham Lincoln*, on station in the Gulf of Oman
-— and everything else is somewhere else. Two forces can be brought in, and **Fifth
+You open the war with one deck — the *Abraham Lincoln*, on station in the North Arabian
+Sea, well east of Oman — and everything else is somewhere else. Two forces can be brought in, and **Fifth
 Fleet cuts one naval transit plan a night**, so only one deployment order goes out per
 turn and the order you put them in is the decision:
 
@@ -70,9 +70,10 @@ reach; the carrier is slow and pays out for the rest of the war. Sending the For
 costs a turn before the 509th can follow — she does not have to arrive first, but that
 lost night still puts Fordow a turn further away.
 
-Once in theater, each deck is either **forward** in the Gulf of Oman (full sortie
-generation, inside every anti-ship weapon Iran owns) or **back** in the deep Arabian
-Sea (untouchable, half the strike power). Repositioning takes a turn at reduced
+Once in theater, each deck is either **forward** in the North Arabian Sea box east of
+Oman (full sortie generation, inside the longest-legged anti-ship weapons Iran owns) or
+**back** in the deep Arabian Sea toward the Indian Ocean approaches (untouchable, half
+the strike power). Repositioning takes a turn at reduced
 capability, still exposed.
 
 ### Israel
@@ -159,7 +160,7 @@ more at home than any target on the map.
   - *B-2 missions (GBU-57)* — scarce, slow to arrive, and not in theater until the
     509th is deployed forward; the **only** weapon that can kill Fordow.
 - **Move forces** — surge the *Ford*, deploy the B-2s forward, or shift a deck between
-  the Gulf of Oman and the Arabian Sea. Only one deployment order can be cut per turn
+  the North Arabian Sea and the deep Arabian Sea. Only one deployment order can be cut per turn
   (see above); posture changes are free of it.
 - **Take one diplomatic action** — backchannel talks, UN pressure, sanctions,
   coalition building, **coordinating with Israel**, an address to the nation, or

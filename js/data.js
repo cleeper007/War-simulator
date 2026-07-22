@@ -143,10 +143,10 @@ const TARGETS = [
 // (ATACMS/PrSM) — drawn with range rings on the forward-basing layer;
 // forward: lives on the toggleable forward-basing layer (off by default)
 const US_ASSETS = [
-  { id: 'csg-lincoln', name: 'USS Abraham Lincoln', short: 'LINCOLN', x: 710, y: 587, kind: 'carrier', sortie: true,
-    desc: 'The only carrier strike group in theater, on station in the middle of the Gulf of Oman. Full sortie generation — and inside every anti-ship weapon Iran owns.' },
-  // labelAbove keeps her name clear of Diego Garcia's on the way in
-  { id: 'csg-ford', name: 'USS Gerald R. Ford', short: 'FORD', x: 1060, y: 646, kind: 'carrier', sortie: true, active: false, labelAbove: true,
+  { id: 'csg-lincoln', name: 'USS Abraham Lincoln', short: 'LINCOLN', x: 800, y: 668, kind: 'carrier', sortie: true,
+    desc: 'The only carrier strike group in theater, on station in the North Arabian Sea some 250 nm southeast of Ra\'s al Hadd — out of the Gulf of Oman entirely, and still inside the anti-ship weapons Iran shoots the farthest. Full sortie generation, flown in over Oman on tankers.' },
+  // labelAbove keeps her name clear of neighbouring labels on the way in
+  { id: 'csg-ford', name: 'USS Gerald R. Ford', short: 'FORD', x: 1120, y: 790, kind: 'carrier', sortie: true, active: false, labelAbove: true,
     desc: 'Second carrier strike group. Not in theater — she has to be sent for, and she has an ocean to cross.' },
   { id: 'udeid', name: 'Al Udeid AB — Qatar', short: 'AL UDEID', x: 427, y: 543, kind: 'airbase', sortie: true,
     desc: 'Forward headquarters, tankers and strike aircraft. Within Iranian ballistic missile range.' },
@@ -156,7 +156,10 @@ const US_ASSETS = [
     desc: 'US forces in western Iraq. Repeatedly targeted by Iranian missiles and proxy rockets.' },
   // active: false — the ramp is bare until the bomber force is called forward
   // from Whiteman AFB. Nothing stealthy exists in this theater until it is.
-  { id: 'diego', name: 'Diego Garcia (B-2 staging)', short: 'B-2 // DIEGO GARCIA →', x: 895, y: 655, kind: 'bomber', active: false,
+  // parked in the open water south of Oman's cape, clear of the carrier boxes
+  // out east; the arrow points off the bottom of the chart, which is where the
+  // atoll actually is
+  { id: 'diego', name: 'Diego Garcia (B-2 staging)', short: 'B-2 // DIEGO GARCIA ↓', x: 660, y: 730, kind: 'bomber', active: false,
     desc: 'Staging field 2,900 nm south. Empty until the 509th Bomb Wing is deployed forward from Whiteman AFB, Missouri — and the B-2 is the only platform that can kill Fordow.' },
 
   // -- forward basing layer (projected from real coordinates; toggle in map header) --
@@ -203,20 +206,25 @@ const CARRIER_INFO = {
   'csg-ford':    { name: 'USS Gerald R. Ford',  short: 'FORD' },
 };
 
-// A deck is either FORWARD — in the Gulf of Oman, full sortie generation, and
-// inside the anti-ship envelope — or BACK in the deep Arabian Sea, safe and
-// flying at half rate. Repositioning between them takes a turn, and that turn
-// is spent at reduced capability while still exposed. Every station below sits
-// in open water clear of both coasts; check any change against the coastline.
+// Nobody parks a supercarrier in the Gulf of Oman. Both stations below are out
+// in the Arabian Sea, east of the easternmost point of Oman and on the water
+// between Oman and India — FORWARD is the North Arabian Sea box at roughly
+// 22N 63E, close enough for the air wing to reach Iran on tankers and still
+// inside the outer edge of Iran's anti-ship reach. BACK is 200-odd miles
+// further southeast, down toward the Indian Ocean approaches at roughly 20N
+// 65E: untouchable, and half the sortie rate for the tanker distance.
+// Repositioning between them takes a turn, and that turn is spent at reduced
+// capability while still exposed. Every station sits in open water clear of
+// both coasts; check any change against the coastline.
 const CARRIER_STATIONS = {
-  'csg-lincoln': { forward: { x: 710, y: 587 }, back: { x: 786, y: 658 } },
-  'csg-ford':    { forward: { x: 766, y: 604 }, back: { x: 872, y: 616 } },
+  'csg-lincoln': { forward: { x: 800, y: 668 }, back: { x: 880, y: 736 } },
+  'csg-ford':    { forward: { x: 846, y: 646 }, back: { x: 940, y: 718 } },
 };
 
-// Where the Ford begins her run-in: over the horizon east of the plot, outside
-// the frame. She closes one leg per turn until she's on station, on a track
-// that keeps her clear of the Diego Garcia marker.
-const FORD_INGRESS = { x: 1060, y: 646 };
+// Where the Ford begins her run-in: over the horizon southeast of the plot,
+// outside the frame, coming up out of the Indian Ocean. She closes one leg per
+// turn until she's on station.
+const FORD_INGRESS = { x: 1120, y: 790 };
 
 // map from asset type to launch origin on the map
 const STRIKE_ORIGINS = { fighter: 'csg-lincoln', cruise: 'csg-lincoln', stealth: 'diego' };
