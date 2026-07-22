@@ -657,9 +657,13 @@ const Game = (() => {
   // per-deck contribution at FORWARD station. The Ford is the newer and larger
   // ship and generates the heavier sortie rate; halved at BACK, she is worth
   // exactly the +3 fighters / +4 TLAM her arrival is advertised as.
+  // repFighters keeps pace with what a fourth-gen package actually costs: those
+  // are three-sortie packages, so a deck turning two a night can never sustain
+  // one. Three is the number that makes the tier read as volume, which is the
+  // entire reason it exists.
   const CARRIER_BASE = {
-    'csg-lincoln': { fighters: 4, cruise: 8, repFighters: 2, repCruise: 2 },
-    'csg-ford':    { fighters: 6, cruise: 8, repFighters: 2, repCruise: 2 },
+    'csg-lincoln': { fighters: 4, cruise: 8, repFighters: 3, repCruise: 2 },
+    'csg-ford':    { fighters: 6, cruise: 8, repFighters: 3, repCruise: 2 },
   };
   const FORD_TRANSIT_TURNS = 5;
 
@@ -711,7 +715,12 @@ const Game = (() => {
   // the force flow has put on a ramp. The decks can be sunk or pulled back and
   // the land-based force cannot — which is why a war that runs long stops being
   // a carrier war and becomes an Air Force one.
-  const F35_BASE = 2;   // Al Dhafra's resident squadron plus the carrier detachment
+  // Al Dhafra's resident squadron, the carrier's F-35C detachment and the
+  // Raptors. This number carries the ENTIRE opening phase now — it is the only
+  // manned tier that flies before the SAM belt comes down — so it has to
+  // sustain about a package a night on its own. At anything less the war opens
+  // with a magazine that reads full and cannot be tasked.
+  const F35_BASE = 4;
 
   function fleetCapacity() {
     let fighters = 0, cruise = 0, repFighters = 0, repCruise = 0;
@@ -731,9 +740,12 @@ const Game = (() => {
       f35: F35_BASE + ff.f35,
       fighters: Math.round(fighters) + G.alliedFighters + ff.fighters,
       cruise: Math.round(cruise),
-      // the 5th-gen force turns slowly — low-observable maintenance is the
-      // reason there are never many of them ready on any given night
-      repF35: 1 + Math.floor(ff.f35 / 3),
+      // The 5th-gen force turns slower than the fourth-generation fleet does —
+      // low-observable maintenance is the reason there are never many of them
+      // ready on any given night — but it has to turn fast enough to put a
+      // package up most nights, because in the opening phase it is the only
+      // manned option there is.
+      repF35: 2 + Math.floor(ff.f35 / 2),
       repFighters: Math.round(repFighters) + ff.rep,
       repCruise: Math.round(repCruise),
     };
@@ -1122,6 +1134,20 @@ const Game = (() => {
 
   const resKey = (asset) => asset === 'fighter' ? 'fighters' : asset;
   const assetProfile = (asset) => AIR_ASSETS[asset] || AIR_ASSETS.cruise;
+
+  // The smallest package a tier can be tasked in, anywhere on the board.
+  // The assets panel counts SORTIES and the strike modal spends PACKAGES, and
+  // the two are not the same number: a magazine holding two sorties against a
+  // three-sortie package reads perfectly healthy in the sidebar and refuses
+  // every target on the map. That gap is a bug report waiting to happen, so
+  // the panel is given the means to say "short of a package" out loud.
+  function minPackage(asset) {
+    let n = Infinity;
+    for (const t of TARGETS) {
+      for (const p of t.packages) if (p.asset === asset) n = Math.min(n, p.qty);
+    }
+    return isFinite(n) ? n : 0;
+  }
 
   // ============================================================
   // THE GATE
@@ -1989,8 +2015,10 @@ const Game = (() => {
       G.res.stealth = Math.min(G.res.stealth + 1, G.caps.stealth);
     }
     // the heavies turn faster than the B-2s do: no low-observable coatings to
-    // repair between sorties, just fuel, bombs and crew rest
-    if (G.heaviesArrived && G.turn % 2 === 0) {
+    // repair between sorties, just fuel, bombs and crew rest. One a night
+    // against two-sortie packages is a heavy cell every other night, which is
+    // the tempo an atoll 2,900 nm from the target can actually sustain.
+    if (G.heaviesArrived) {
       G.res.heavy = Math.min(G.res.heavy + 1, G.caps.heavy);
     }
 
@@ -2301,7 +2329,7 @@ const Game = (() => {
     orderBombers, orderHeavies, transitCommitted, wearsDown,
     // the air-superiority ladder: what the sky is worth tonight, and what that
     // releases. pkgBlock is the single answer to "why can't I fly this".
-    airSuperiority, airPhase, phaseAtLeast, pkgBlock, PHASE_LABEL,
+    airSuperiority, airPhase, phaseAtLeast, pkgBlock, PHASE_LABEL, minPackage, resKey,
     // the uncertainty layer: everything the player sees goes through these
     estimate, condition, breakoutEstimate, barred, canReach, tankersFor, tankerCapacity,
     casualtyLimit, difficulty: diff,

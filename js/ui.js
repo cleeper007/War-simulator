@@ -198,17 +198,31 @@ const UI = (() => {
     const held = (need, present) => !present || Game.phaseAtLeast(need) ? ''
       : Game.difficulty().softGate ? ' <span class="res-gate warn">UNSUPPRESSED</span>'
       : ' <span class="res-gate crit">HELD</span>';
+    // A count is not an answer. What the player needs to know is whether the
+    // magazine holds a PACKAGE, because that is the unit the strike modal
+    // spends — "1 / 2" reads like something you can use and buys nothing.
+    // Only when the count is non-zero: an empty magazine already reads as
+    // empty, and it is the leftover sortie that lies.
+    const short = (asset, present) => {
+      if (!present) return '';
+      const have = G.res[Game.resKey(asset)], min = Game.minPackage(asset);
+      return min && have > 0 && have < min
+        ? ` <span class="res-gate crit">SHORT OF A PACKAGE (${min} NEEDED)</span>` : '';
+    };
     const rows = [
-      ['5th-gen sorties (F-35/F-22)', `${G.res.f35} / ${G.caps.f35}`, ''],
-      ['4th-gen sorties (F-15E/F-16)', `${G.res.fighters} / ${G.caps.fighters}`, held('degraded', true)],
-      ['Cruise missiles (TLAM)', `${G.res.cruise} / ${G.caps.cruise}`, ''],
-      ['B-2 missions (GBU-57)', b2, ''],
-      ['Heavy bombers (B-1/B-52)', hv, held('superiority', G.heaviesArrived)],
+      ['5th-gen sorties (F-35/F-22)', `${G.res.f35} / ${G.caps.f35}`, short('f35', true)],
+      ['4th-gen sorties (F-15E/F-16)', `${G.res.fighters} / ${G.caps.fighters}`,
+        held('degraded', true) || short('fighter', true)],
+      ['Cruise missiles (TLAM)', `${G.res.cruise} / ${G.caps.cruise}`, short('cruise', true)],
+      ['B-2 missions (GBU-57)', b2, short('stealth', G.bombersArrived)],
+      ['Heavy bombers (B-1/B-52)', hv,
+        held('superiority', G.heaviesArrived) || short('heavy', G.heaviesArrived)],
       ['SOF task force (Tier 1)', `${G.res.specops} / ${G.caps.specops}`, ''],
     ];
     let html = renderAirPhase(G);
     html += rows.map(([n, v, gate]) =>
-      `<div class="res-row"><span>${n}${gate}</span><span class="res-count">${v}</span></div>`).join('');
+      `<div class="res-row"><span>${n}${gate}</span>` +
+      `<span class="res-count${gate.includes('crit') ? ' crit' : ''}">${v}</span></div>`).join('');
     // Tanker tracks are the other magazine, and the one that actually runs out.
     // Shown with the reach it buys, because "6 tracks" means nothing on its own
     // and "6 tracks — one deep package" means everything.
@@ -629,7 +643,7 @@ const UI = (() => {
     }
 
     target.packages.forEach((pkg) => {
-      const have = G.res[pkg.asset === 'fighter' ? 'fighters' : pkg.asset] ?? 0;
+      const have = G.res[Game.resKey(pkg.asset)] ?? 0;
       const { cost, ok: fuelOk } = Game.tankersFor(target, pkg);
       const stockOk = have >= pkg.qty;
       // the air-superiority ladder outranks both magazines: a tier that has not

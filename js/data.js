@@ -362,7 +362,7 @@ const FORCE_FLOW = [
 // into contested airspace, which is why they are the reward for the first two
 // phases rather than a substitute for them.
 const HEAVY_TRANSIT_TURNS = 2;
-const HEAVY_CAP = 3;        // sustainable missions off the ramp
+const HEAVY_CAP = 4;        // sustainable missions off the ramp
 const HEAVY_READY = 2;      // generated and ready the turn they land
 
 // ============================================================
