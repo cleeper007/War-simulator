@@ -1479,7 +1479,12 @@ const Game = (() => {
     G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
     AudioSys.play('cable');
     UI.renderAll(G);
-    UI.showReport('DIPLOMATIC CABLE', events, afterAction);
+    // an intelligence tasking comes back as a product, not a cable — it is the
+    // same action slot, but the player should be able to tell at a glance which
+    // of the two they spent it on
+    const INTEL_ACTIONS = ['bda', 'hunt', 'assess-nuclear', 'assess-intent'];
+    UI.showReport(INTEL_ACTIONS.includes(action) ? 'INTELLIGENCE PRODUCT' : 'DIPLOMATIC CABLE',
+      events, afterAction);
   }
 
   // ---- Israel's own clock ----

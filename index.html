@@ -87,52 +87,110 @@
       <!-- Personnel recovery: this panel does not exist as a standing option.
            CSAR.renderPanel un-hides it only while aircrew are down, and hides
            it again the moment they are recovered or taken. -->
-      <div class="panel hidden" id="csar-panel">
-        <div class="panel-title">PERSONNEL RECOVERY <span id="csar-status"></span></div>
-        <div id="csar-brief"></div>
-        <div id="csar-buttons"></div>
+      <div class="panel hidden" id="csar-panel" data-panel="csar">
+        <button type="button" class="panel-head" aria-expanded="true">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <span class="panel-title">PERSONNEL RECOVERY</span>
+          <span class="panel-badge"></span>
+          <span class="panel-meta" id="csar-status"></span>
+        </button>
+        <div class="panel-body"><div class="panel-body-inner">
+          <div id="csar-brief"></div>
+          <div id="csar-buttons"></div>
+        </div></div>
       </div>
 
-      <div class="panel" id="objectives-panel">
-        <div class="panel-title">MISSION OBJECTIVES</div>
-        <ul id="objectives-list"></ul>
-        <!-- The race the whole war is against. Never an exact number: the band
-             is what the player is actually being given, and narrowing it costs
-             the same action slot as everything else. -->
-        <div id="breakout-line" class="breakout"></div>
+      <div class="panel" id="objectives-panel" data-panel="objectives">
+        <button type="button" class="panel-head" aria-expanded="true">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <span class="panel-title">MISSION OBJECTIVES</span>
+          <span class="panel-badge"></span>
+          <span class="panel-meta"></span>
+        </button>
+        <div class="panel-body"><div class="panel-body-inner">
+          <ul id="objectives-list"></ul>
+          <!-- The race the whole war is against. Never an exact number: the band
+               is what the player is actually being given, and narrowing it costs
+               the same action slot as everything else. -->
+          <div id="breakout-line" class="breakout"></div>
+        </div></div>
       </div>
 
-      <div class="panel" id="resources-panel">
-        <div class="panel-title">STRIKE ASSETS AVAILABLE</div>
-        <div id="resources-list"></div>
+      <div class="panel" id="resources-panel" data-panel="resources">
+        <button type="button" class="panel-head" aria-expanded="true">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <span class="panel-title">STRIKE ASSETS AVAILABLE</span>
+          <span class="panel-badge"></span>
+          <span class="panel-meta"></span>
+        </button>
+        <div class="panel-body"><div class="panel-body-inner">
+          <div id="resources-list"></div>
+        </div></div>
       </div>
 
-      <div class="panel" id="fleet-panel">
-        <div class="panel-title">THEATER FORCES <span id="fleet-status"></span></div>
-        <div id="fleet-list"></div>
-        <div id="fleet-buttons"></div>
+      <div class="panel collapsed" id="fleet-panel" data-panel="fleet">
+        <button type="button" class="panel-head" aria-expanded="false">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <span class="panel-title">THEATER FORCES</span>
+          <span class="panel-badge"></span>
+          <span class="panel-meta" id="fleet-status"></span>
+        </button>
+        <div class="panel-body"><div class="panel-body-inner">
+          <div id="fleet-list"></div>
+          <div id="fleet-buttons"></div>
+        </div></div>
       </div>
 
-      <div class="panel" id="advisors-panel">
-        <div class="panel-title">SITUATION ROOM — ADVISORS</div>
-        <div id="advisors-list"></div>
+      <div class="panel collapsed" id="advisors-panel" data-panel="advisors">
+        <button type="button" class="panel-head" aria-expanded="false">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <span class="panel-title">SITUATION ROOM — ADVISORS</span>
+          <span class="panel-badge"></span>
+          <span class="panel-meta"></span>
+        </button>
+        <div class="panel-body"><div class="panel-body-inner">
+          <div id="advisors-list"></div>
+        </div></div>
       </div>
 
-      <div class="panel" id="diplo-panel">
-        <div class="panel-title">DIPLOMATIC ACTIONS <span id="diplo-status"></span></div>
-        <div id="diplo-buttons"></div>
+      <!-- Diplomacy, intelligence, special operations and a recovery push all
+           spend the SAME single action slot. The badge on each collapsed header
+           is what is still available inside it, so the choice is visible without
+           opening all four. -->
+      <div class="panel collapsed" id="diplo-panel" data-panel="diplo">
+        <button type="button" class="panel-head" aria-expanded="false">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <span class="panel-title">DIPLOMATIC ACTIONS</span>
+          <span class="panel-badge"></span>
+          <span class="panel-meta" id="diplo-status"></span>
+        </button>
+        <div class="panel-body"><div class="panel-body-inner">
+          <div id="diplo-buttons"></div>
+        </div></div>
       </div>
 
-      <!-- Intelligence taskings spend the SAME action slot as diplomacy, the
-           raid's ISR prep and a recovery push. Knowing costs what doing costs. -->
-      <div class="panel" id="intel-panel">
-        <div class="panel-title">INTELLIGENCE TASKING <span id="intel-status"></span></div>
-        <div id="intel-buttons"></div>
+      <div class="panel collapsed" id="intel-panel" data-panel="intel">
+        <button type="button" class="panel-head" aria-expanded="false">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <span class="panel-title">INTELLIGENCE TASKING</span>
+          <span class="panel-badge"></span>
+          <span class="panel-meta" id="intel-status"></span>
+        </button>
+        <div class="panel-body"><div class="panel-body-inner">
+          <div id="intel-buttons"></div>
+        </div></div>
       </div>
 
-      <div class="panel" id="specops-panel">
-        <div class="panel-title">SPECIAL OPERATIONS <span id="specops-status"></span></div>
-        <div id="specops-buttons"></div>
+      <div class="panel collapsed" id="specops-panel" data-panel="specops">
+        <button type="button" class="panel-head" aria-expanded="false">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <span class="panel-title">SPECIAL OPERATIONS</span>
+          <span class="panel-badge"></span>
+          <span class="panel-meta" id="specops-status"></span>
+        </button>
+        <div class="panel-body"><div class="panel-body-inner">
+          <div id="specops-buttons"></div>
+        </div></div>
       </div>
       </div>
 

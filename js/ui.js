@@ -8,6 +8,74 @@ const UI = (() => {
   let selectedPkg = null;
   let currentTarget = null;
 
+  // ============================================================
+  // COLLAPSIBLE SIDEBAR PANELS
+  // ------------------------------------------------------------
+  // The sidebar is eight sections deep and only one of them is ever the one
+  // being used. Each is a dropdown: the header is the hit target, the caret
+  // turns, and the open/shut state survives a reload — a player who works out
+  // of diplomacy and intelligence should not have to re-open them every war.
+  // A shut section is not silent: its badge carries the one thing worth knowing
+  // from the outside, which for an action panel is how many orders in it can
+  // actually be given tonight.
+  // ============================================================
+  const PANEL_KEY = 'cic-panels-v1';
+  let panelState = {};
+
+  function savePanelState() {
+    try { localStorage.setItem(PANEL_KEY, JSON.stringify(panelState)); } catch (e) {}
+  }
+
+  function setPanelOpen(panel, open) {
+    panel.classList.toggle('collapsed', !open);
+    panel.querySelector('.panel-head').setAttribute('aria-expanded', String(open));
+    panelState[panel.dataset.panel] = open;
+  }
+
+  function initPanels() {
+    try { panelState = JSON.parse(localStorage.getItem(PANEL_KEY)) || {}; }
+    catch (e) { panelState = {}; }
+    for (const panel of document.querySelectorAll('#sidebar-scroll .panel[data-panel]')) {
+      const key = panel.dataset.panel;
+      // the markup carries the default; storage overrides it when the player
+      // has an opinion
+      if (key in panelState) setPanelOpen(panel, panelState[key]);
+      panel.querySelector('.panel-head').addEventListener('click', () => {
+        const opening = panel.classList.contains('collapsed');
+        setPanelOpen(panel, opening);
+        savePanelState();
+        // a section opened at the bottom of the list would otherwise expand
+        // off-screen: pull it back into the scroll once it has finished growing
+        if (opening) setTimeout(() => panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 200);
+      });
+    }
+  }
+
+  function setBadge(key, text, cls) {
+    const panel = document.querySelector(`.panel[data-panel="${key}"]`);
+    if (!panel) return;
+    const badge = panel.querySelector('.panel-badge');
+    badge.textContent = text || '';
+    badge.className = 'panel-badge' + (cls ? ` ${cls}` : '');
+  }
+
+  // Action panels get counted rather than described: whatever the section
+  // rendered, how much of it is still live.
+  const ACTION_PANELS = {
+    fleet: 'fleet-buttons', csar: 'csar-buttons', diplo: 'diplo-buttons',
+    intel: 'intel-buttons', specops: 'specops-buttons',
+  };
+  function renderBadges() {
+    for (const key in ACTION_PANELS) {
+      const box = $(ACTION_PANELS[key]);
+      if (!box) continue;
+      const total = box.querySelectorAll('button').length;
+      const live = box.querySelectorAll('button:not(:disabled)').length;
+      if (!total) { setBadge(key, ''); continue; }
+      setBadge(key, live ? `${live} READY` : 'NONE', live ? '' : 'badge-none');
+    }
+  }
+
   // ---- HUD / bottom bar ----
   function renderHUD(G) {
     // clock
@@ -79,9 +147,12 @@ const UI = (() => {
       box.className = 'breakout halted';
       box.innerHTML = '<span class="bo-label">ENRICHMENT</span>' +
         '<span class="bo-value">HALTED — no capability remaining</span>';
+      setBadge('objectives', 'HALTED');
       return;
     }
     const urgent = brk.hi <= 6 ? ' urgent' : brk.hi <= 12 ? ' warn' : '';
+    // shut, the objectives panel still has to show the clock the war is run against
+    setBadge('objectives', `${brk.lo}–${brk.hi}T`, urgent ? '' : 'badge-none');
     box.className = 'breakout' + urgent;
     box.innerHTML = '<span class="bo-label">EST. TIME TO A DEVICE</span>' +
       `<span class="bo-value">${brk.lo}–${brk.hi} turns</span>` +
@@ -121,6 +192,8 @@ const UI = (() => {
       }).join('');
     }
     $('resources-list').innerHTML = html;
+    // shut, the assets panel shows the magazine that actually runs out first
+    setBadge('resources', `${tk} TKR`, tkCls === 'crit' ? '' : 'badge-none');
     // B-2s still crossing the Indian Ocean get a transit card in the scope panel
     MapView.updateTransit(G.missions);
   }
@@ -314,61 +387,113 @@ const UI = (() => {
       },
     ];
 
-    // ---- intelligence taskings ----
-    // Same slot, different currency: these buy knowing instead of doing.
+    $('diplo-buttons').innerHTML = actionButtons(actions, used);
+    wireActions('#diplo-buttons');
+  }
+
+  // one control for every order the player can give, so a tasking looks like a
+  // tasking wherever it is rendered
+  function actionButtons(list, used) {
+    return list.map(a =>
+      `<button data-diplo="${a.id}" ${used || a.disabled ? 'disabled' : ''}>` +
+      `${a.name}<span class="diplo-desc">` +
+      (a.current ? `<span class="il-current">${a.current}</span>` : '') +
+      `${a.desc}</span></button>`).join('');
+  }
+
+  function wireActions(sel) {
+    for (const btn of document.querySelectorAll(`${sel} button`)) {
+      btn.addEventListener('click', () => Game.doDiplo(btn.dataset.diplo));
+    }
+  }
+
+  // ---- intelligence tasking ----
+  // Same action slot as diplomacy, different currency: these buy knowing
+  // instead of doing. The panel leads with the collection picture — what is
+  // currently known, and how firmly — because every one of these orders is a
+  // decision to spend the night's slot moving one of those lines. Reading the
+  // state out of four paragraphs of button text was the wrong shape for it.
+  function renderIntel(G) {
+    const used = G.diploUsed;
+    $('intel-status').textContent = used ? '— SLOT SPENT THIS TURN' : '';
+
     const hidden = IranAI.liveTels().filter(t => !t.located).length;
     const brk = Game.breakoutEstimate();
+    const posture = G.postureKnown ? IranAI.posture() : null;
+
+    const lines = [
+      ['Enrichment', brk.halted ? 'HALTED' : `${brk.lo}–${brk.hi}T · ${brk.conf}`,
+        brk.halted || brk.conf === 'high' ? 'known' : brk.conf === 'low' ? 'unknown' : ''],
+      ['Dispersed launchers', hidden ? `${hidden} unlocated` : 'none loose',
+        hidden ? 'unknown' : 'known'],
+      ['Iranian war plan', posture ? posture.name : 'unassessed', posture ? 'known' : 'unknown'],
+    ];
+    const picture = lines.map(([label, value, cls]) =>
+      `<div class="intel-line"><span>${label}</span>` +
+      `<span class="il-value ${cls}">${value}</span></div>`).join('');
+
     const intel = [
       {
         id: 'bda', name: 'Task a collection deck — reassess damaged sites',
-        desc: 'Overhead, a Global Hawk orbit and the signals picture against the three sites the ' +
-          'analysts are least sure of. Narrows their estimates to ±3 — which is the difference between ' +
-          'knowing a site needs one more package and guessing.',
+        current: 'Sharpens the three battle-damage estimates the analysts trust least.',
+        desc: 'Overhead, a Global Hawk orbit and the signals picture. Narrows those estimates to ±3 — ' +
+          'which is the difference between knowing a site needs one more package and guessing.',
       },
       {
         id: 'hunt', name: 'Hunt dispersed launchers',
+        current: hidden
+          ? `${hidden} launcher group${hidden === 1 ? '' : 's'} loose in the country and shooting.`
+          : 'Nothing unaccounted for.',
         desc: hidden
-          ? `${hidden} launcher group${hidden === 1 ? '' : 's'} loose in the country and shooting. A sweep ` +
-            'may find one. Found is not killed — they move again if they are not serviced the same turn.'
-          : 'No dispersed launchers unaccounted for.',
+          ? 'A sweep may find one. Found is not killed — they move again if they are not serviced the ' +
+            'same turn.'
+          : 'Every launcher group known to have left a base is on the plot or destroyed.',
         disabled: !hidden,
       },
       {
         id: 'assess-nuclear', name: 'Reassess the enrichment timeline',
+        current: brk.halted
+          ? 'No capability remaining.'
+          : `Current judgement: ${brk.lo}–${brk.hi} turns, ${brk.conf} confidence.`,
         desc: brk.halted
           ? 'Enrichment capability is destroyed. There is no timeline left to assess.'
-          : `Current judgement: ${brk.lo}–${brk.hi} turns, ${brk.conf} confidence. Narrows the band — ` +
-            'the estimate is what the whole campaign is being paced against.',
+          : 'Narrows the band — the estimate is what the whole campaign is being paced against.',
         disabled: brk.halted,
       },
       {
         id: 'assess-intent', name: 'Assess Iranian war plan',
-        desc: G.postureKnown
-          ? `Assessed: ${IranAI.posture().name}. ${IranAI.posture().brief}`
+        current: posture ? `Assessed: ${posture.name}.` : 'Never assessed.',
+        desc: posture
+          ? posture.brief
           : 'The Agency can tell you which arm Tehran has decided to fight this war with — and therefore ' +
             'which one is worth spending the campaign destroying. One tasking, permanent answer.',
         disabled: G.postureKnown,
       },
     ];
-    const render = (list) => list.map(a =>
-      `<button data-diplo="${a.id}" ${used || a.disabled ? 'disabled' : ''}>` +
-      `${a.name}<span class="diplo-desc">${a.desc}</span></button>`).join('');
-    $('diplo-buttons').innerHTML = render(actions);
-    $('intel-buttons').innerHTML = render(intel);
-    $('intel-status').textContent = used ? '— SLOT SPENT THIS TURN' : '';
-    for (const btn of document.querySelectorAll('#diplo-buttons button, #intel-buttons button')) {
-      btn.addEventListener('click', () => Game.doDiplo(btn.dataset.diplo));
-    }
+
+    $('intel-buttons').innerHTML = picture + actionButtons(intel, used);
+    wireActions('#intel-buttons');
   }
+
+  let csarWasHidden = true;
 
   function renderSidebar(G) {
     CSAR.renderPanel(G);   // hidden unless there are Americans on the ground
+    // A recovery panel that has just appeared opens itself. Whatever the player
+    // had shut, aircrew on the ground outrank it.
+    const csar = $('csar-panel');
+    const csarHidden = csar.classList.contains('hidden');
+    if (csarWasHidden && !csarHidden) { setPanelOpen(csar, true); savePanelState(); }
+    csarWasHidden = csarHidden;
+
     renderObjectives(G);
     renderResources(G);
     renderFleet(G);
     renderAdvisors(G);
     renderDiplo(G);
+    renderIntel(G);
     SpecOps.renderPanel(G);
+    renderBadges();
   }
 
   function renderAll(G) {
@@ -572,6 +697,7 @@ const UI = (() => {
 
   // ---- wiring ----
   function init() {
+    initPanels();
     document.querySelectorAll('[data-close]').forEach(btn => {
       btn.addEventListener('click', () => $(btn.dataset.close).classList.add('hidden'));
     });
