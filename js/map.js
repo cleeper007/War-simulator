@@ -39,14 +39,54 @@ const MapView = (() => {
     return n;
   }
 
+  // international radiation symbol: a 1.5r hub with three blades running from
+  // r=2.2 out to r=5.4, each 60 degrees wide with 60 degrees of gap between.
+  function radiationTrefoil() {
+    const g = el('g', { class: 'tgt-core' });
+    g.appendChild(el('circle', { r: 1.5 }));
+    const blades = [
+      'M-2.70,-4.68 A5.4,5.4 0 0 1 2.70,-4.68 L1.10,-1.91 A2.2,2.2 0 0 0 -1.10,-1.91 Z',
+      'M5.40,0 A5.4,5.4 0 0 1 2.70,4.68 L1.10,1.91 A2.2,2.2 0 0 0 2.20,0 Z',
+      'M-2.70,4.68 A5.4,5.4 0 0 1 -5.40,0 L-2.20,0 A2.2,2.2 0 0 0 -1.10,1.91 Z',
+    ];
+    for (const d of blades) g.appendChild(el('path', { d }));
+    return g;
+  }
+
+  // SAM battery: a wheeled launcher with the rails elevated and slewed left,
+  // two canisters riding them nose-up — the silhouette an S-300 site presents.
+  function samSite() {
+    const g = el('g', { class: 'tgt-core' });
+    g.appendChild(el('path', { d: 'M-4.6,5.4 L4.6,5.4 L3.2,3.4 L-3.2,3.4 Z' })); // launcher vehicle
+    const rails = el('g', { transform: 'translate(0,3.4) rotate(-28)' });
+    rails.appendChild(el('path', { d: 'M-2.9,-6.6 L-2.1,-8.1 L-1.3,-6.6 L-1.3,0 L-2.9,0 Z' }));
+    rails.appendChild(el('path', { d: 'M1.1,-6.6 L1.9,-8.1 L2.7,-6.6 L2.7,0 L1.1,0 Z' }));
+    g.appendChild(rails);
+    return g;
+  }
+
+  // Iranian tricolour flying from a staff. Keeps its national colours in every
+  // status — the ring around it is what carries intact/damaged/destroyed.
+  function iranianFlag() {
+    const g = el('g', { class: 'tgt-core tgt-flag' });
+    g.appendChild(el('rect', { class: 'flag-staff', x: -4.7, y: -6.4, width: 1.2, height: 12.4 }));
+    g.appendChild(el('rect', { class: 'flag-green', x: -3.5, y: -5.8, width: 8.5, height: 1.63 }));
+    g.appendChild(el('rect', { class: 'flag-white', x: -3.5, y: -4.17, width: 8.5, height: 1.63 }));
+    g.appendChild(el('rect', { class: 'flag-red', x: -3.5, y: -2.54, width: 8.5, height: 1.63 }));
+    g.appendChild(el('circle', { class: 'flag-emblem', cx: 0.75, cy: -3.35, r: 0.58 })); // nishan
+    return g;
+  }
+
   // the glyph that identifies a target type — drawn on the map at 1x and blown
   // up inside the tactical scope, so both views read as the same object
   function targetCore(type) {
     switch (type) {
-      case 'nuclear':
-        return el('path', { class: 'tgt-core', d: 'M0,-5 L4.3,2.5 L-4.3,2.5 Z' }); // triangle
-      case 'airdefense':
-        return el('rect', { class: 'tgt-core', x: -3.5, y: -3.5, width: 7, height: 7, transform: 'rotate(45)' });
+      case 'nuclear':   // radiation trefoil — hub plus three 60-degree blades
+        return radiationTrefoil();
+      case 'airdefense':  // SAM site — erector-launcher with two canisters up
+        return samSite();
+      case 'command':   // Iranian national flag on a staff
+        return iranianFlag();
       case 'missile':
         return el('path', { class: 'tgt-core', d: 'M0,-5.5 L2.5,3 L0,1.2 L-2.5,3 Z' });
       case 'naval':
