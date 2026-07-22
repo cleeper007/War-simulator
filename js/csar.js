@@ -115,13 +115,14 @@ const CSAR = (() => {
     // turns alternate 06:00 / 18:00; even turns launch into the dark
     if (G.turn % 2 === 0) { p += 0.12; parts.push(['Night recovery — they own the dark', 0.12]); }
 
+    // the helicopters fly through whatever is left of the SAM belt, so this is
+    // worth exactly what has been shot off it
     let adBonus = 0;
     for (const t of TARGETS) {
       if (t.type !== 'airdefense') continue;
-      if (t.status === 'destroyed') adBonus += 0.06;
-      else if (t.status === 'damaged') adBonus += 0.03;
+      adBonus += 0.06 * (1 - t.hp / 100);
     }
-    if (adBonus > 0) { p += adBonus; parts.push(['Air defenses degraded', adBonus]); }
+    if (adBonus > 0.005) { p += adBonus; parts.push(['Air defenses degraded', adBonus]); }
 
     if (d.isr) { p += 0.10; parts.push(['ISR pushed — position locked', 0.10]); }
     if (G.coalition) { p += 0.05; parts.push(['Coalition tankers and basing', 0.05]); }

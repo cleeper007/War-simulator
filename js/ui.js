@@ -51,7 +51,7 @@ const UI = (() => {
     w.className = 'stat-value big ' + (G.world < 30 ? 'crit' : G.world < 45 ? 'warn' : '');
 
     $('casualty-value').textContent = G.casualties.us;
-    $('casualty-value').className = 'stat-value big ' + (G.casualties.us > 110 ? 'crit' : G.casualties.us > 60 ? 'warn' : '');
+    $('casualty-value').className = 'stat-value big ' + (G.casualties.us > 180 ? 'crit' : G.casualties.us > 110 ? 'warn' : '');
 
     AudioSys.alertCheck(G);
   }
@@ -62,7 +62,7 @@ const UI = (() => {
     const items = [
       { text: `Destroy nuclear program (${deg}% / 100%)`, done: deg >= 100 },
       { text: 'Break Iran\'s war machine (missiles · navy · IRGC command)', done: G.iranBroken() },
-      { text: `Limit US casualties (${G.casualties.us} / 150 tolerated)`, done: null },
+      { text: `Limit US casualties (${G.casualties.us} / ${Game.CASUALTY_LIMIT} tolerated)`, done: null },
       { text: `Keep Strait of Hormuz open`, done: null },
     ];
     $('objectives-list').innerHTML = items.map(i =>
@@ -344,13 +344,25 @@ const UI = (() => {
     const est = Game.computeStrike(target, pkg);
     const pct = Math.round(est.success * 100);
     const sCls = pct >= 70 ? 'est-good' : pct >= 45 ? 'est-warn' : 'est-bad';
+    // "probability of kill" means something different for a site that wears
+    // down: the roll decides whether the package achieves effects, and what the
+    // effects are worth is the bite it takes out of the condition track. Both
+    // numbers go in front of the player, plus what it takes to finish the job.
+    const hits = est.gradual ? Math.ceil(target.hp / est.damage) : 0;
     const eta = pkg.eta || (pkg.asset === 'stealth' ? 2 : 1);
     const tot = eta > 1
       ? `TIME ON TARGET: <span class="est-warn">${eta} turns — ${pkg.joint ? 'joint mission planning and transit' : 'transit from Diego Garcia'}</span>`
       : 'TIME ON TARGET: <span class="est-good">end of this turn — BDA with the battle report</span>';
     const worldCost = target.world + (pkg.extraWorld || 0);
     let html =
-      `EST. PROBABILITY OF KILL: <span class="${sCls}">${pct}%</span><br>` +
+      `EST. PROBABILITY OF EFFECTS: <span class="${sCls}">${pct}%</span><br>` +
+      (est.gradual
+        ? `TARGET CONDITION: <span class="${target.hp >= 100 ? 'est-bad' : 'est-warn'}">` +
+          `${Math.round(target.hp)}% operational</span><br>` +
+          `PACKAGE WEIGHT: <span class="est-good">−${est.damage} condition</span> on full effects, ` +
+          `<span class="dim">half that on partial — ${hits} more package${hits === 1 ? '' : 's'} ` +
+          `on target to finish it</span><br>`
+        : '') +
       `${tot}<br>` +
       `WORLD OPINION: <span class="est-warn">${worldCost}</span>` +
       (pkg.extraWorld ? ` <span class="dim">(${target.world} target, ${pkg.extraWorld} for flying it with Israel)</span>` : '') + `<br>`;

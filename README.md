@@ -23,7 +23,7 @@ Open `index.html` in any modern browser — no build step, no server, no depende
 
 Iranian missiles have struck a US destroyer in the Strait of Hormuz. This is not a
 crisis to be managed — it is a war to be won. Each turn is 12 in-game hours; you have
-20 turns (10 days) before the campaign culminates.
+30 turns (15 days) before the campaign culminates.
 
 ### How you win
 
@@ -43,10 +43,10 @@ fight — the mission is driving it to zero.
 
 ### How you lose
 
-- **Unsustainable losses** — 150+ US dead. The home front stops funding the war.
+- **Unsustainable losses** — 250+ US dead. The home front stops funding the war.
 - **Impeachment** — approval collapses below 20%.
 - **Economic collapse** — the Strait of Hormuz stays closed too long, or oil passes $240.
-- **Campaign culmination** — 20 turns expire with the program still standing (defeat);
+- **Campaign culmination** — 30 turns expire with the program still standing (defeat);
   expire with real damage done and it's a graded stalemate instead.
 
 ### Theater forces and the naval transit
@@ -146,6 +146,27 @@ does not. The failure cases are the harshest political outcomes in the game — 
 rescue costs 15 points of approval and 8 of world opinion — and a clean one is worth
 more at home than any target on the map.
 
+### Damage, condition, and repair
+
+Fixed installations are worn down, not switched off. Every target carries a **0–100
+condition track**, and a strike package that achieves full effects takes 55 off it —
+half that on partial effects, nothing on a miss. So a SAM complex, missile base, naval
+base, airbase, refinery or command node takes **two good packages to finish**, and it
+keeps fighting on whatever is left in the meantime: air defenses screen the skies in
+proportion to their condition, and a missile brigade at 30% throws 30% of the salvo.
+
+The counterpart is that **Iran repairs overnight**. Any damaged site you don't put
+ordnance on this turn gets crews, spare radars and fill dirt, and climbs back toward
+full — fastest at command nodes (+14/turn), slowest at oil infrastructure (+5/turn),
+and slower across the board once the IRGC command complex is degraded. **Zero is
+permanent**: nobody reconstitutes rubble mid-war. The practical consequence is that
+concentration beats spread — two packages on one target in the same turn kills it,
+one package a turn just keeps it wounded while you pay for it.
+
+Two kinds of target sit outside this and take damage in whole steps the way they
+always did: **ships**, because a hull is afloat or it is on the bottom and it never
+comes back up, and the **nuclear sites**, which are all-or-nothing by design.
+
 ### Each turn you can
 
 - **Lay on strikes** — click any Iranian target on the map, pick a strike package,
@@ -195,8 +216,11 @@ step away, and the mute toggle in the status bar to silence sound effects.
   machine spins up over the first days. Every turn it survives is a turn it spends
   killing Americans.
 - **Plan your volleys.** Strikes land at the end of the turn, in the order you queued
-  them — SEAD first, then the packages that need clear skies. Don't double-tap a
-  target that already has a mission inbound; watch the MISSIONS IN FLIGHT list.
+  them — SEAD first, then the packages that need clear skies. Watch the MISSIONS IN
+  FLIGHT list so you know what is already inbound.
+- **Finish what you start.** A half-serviced target list is worse than a short one:
+  everything you leave damaged repairs itself while you are somewhere else. Stack two
+  packages on one site in the same turn rather than one package on two sites.
 - Iran's retaliation scales with what's left of its missile and naval forces. Killing
   missile bases thins the barrages; killing naval bases lets the Fifth Fleet force the
   Strait of Hormuz back open. A dead navy can't keep the strait shut.

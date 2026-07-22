@@ -7,13 +7,15 @@ const IranAI = (() => {
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
   const chance = (p) => Math.random() < p;
 
-  // How many of Iran's missile bases still function (scales retaliation)
+  // How much of Iran's missile force still functions (scales retaliation).
+  // Read off each base's condition track, so a brigade worn down to 30% throws
+  // 30% of the salvo — the weight of what comes back at you falls in step with
+  // the damage you do, rather than in two big steps.
   function missileStrength() {
     let s = 0;
     for (const t of TARGETS) {
       if (t.type !== 'missile') continue;
-      if (t.status === 'destroyed') continue;
-      s += t.status === 'damaged' ? 0.5 : 1;
+      s += t.hp / 100;
     }
     return s; // 0..2
   }
@@ -27,10 +29,7 @@ const IranAI = (() => {
     const fleet = TARGETS.filter(t => t.type === 'naval' || t.type === 'ship');
     if (!fleet.length) return 0;
     let s = 0;
-    for (const t of fleet) {
-      if (t.status === 'destroyed') continue;
-      s += t.status === 'damaged' ? 0.5 : 1;
-    }
+    for (const t of fleet) s += t.hp / 100;
     return (s / fleet.length) * 2; // 0..2
   }
 
@@ -160,7 +159,7 @@ const IranAI = (() => {
 
     // coordination: killing command degrades the response machine
     const irgc = TARGETS.find(t => t.id === 'irgc-hq');
-    let coord = irgc.status === 'destroyed' ? 0.6 : irgc.status === 'damaged' ? 0.8 : 1;
+    let coord = 0.6 + 0.4 * (irgc.hp / 100);
     if (G.regimeChaosTurns > 0) coord *= 0.55;                      // decapitated: paralysis
     else if (G.regimeErratic) coord = Math.min(1.15, coord + 0.25); // erratic remnant: lashing out
     // the war machine spins up over the first days, faster when provoked
@@ -227,6 +226,10 @@ const IranAI = (() => {
   function advise(G) {
     const nukeDeg = G.nukeDegraded();
     const adLeft = TARGETS.filter(t => t.type === 'airdefense' && t.status !== 'destroyed').length;
+    // sites hit but not finished, worst first — the ones the repair crews own
+    const reconstituting = TARGETS
+      .filter(t => Game.wearsDown(t) && t.hp > 0 && t.hp < 100)
+      .sort((a, b) => a.hp - b.hp);
 
     const secdef = { name: 'SecDef Whitfield', cls: 'hawk', text: '' };
     const secstate = { name: 'SecState Okafor', cls: 'dove', text: '' };
@@ -287,8 +290,8 @@ const IranAI = (() => {
       nsa.text = 'Tehran\'s command chain is decapitated and their retaliation is uncoordinated. This window closes fast — whoever consolidates power will need to look strong. Use it or lose it.';
     } else if (G.approval < 35) {
       nsa.text = 'Your political capital is nearly spent. Congress smells blood. We need visible wins or visible peace — drift is fatal.';
-    } else if (G.casualties.us >= 100) {
-      nsa.text = `${G.casualties.us} dead and the country is counting. The home front will not fund this war past 150 — win it before the arithmetic wins it for them.`;
+    } else if (G.casualties.us >= 170) {
+      nsa.text = `${G.casualties.us} dead and the country is counting. The home front will not fund this war past ${Game.CASUALTY_LIMIT} — win it before the arithmetic wins it for them.`;
     } else if (warStr >= 3) {
       nsa.text = 'Their war machine is still near full strength and they will throw everything they have. What matters is the exchange rate: their launchers and hulls have to die faster than our people do.';
     } else {
@@ -301,6 +304,11 @@ const IranAI = (() => {
         : 'Be clear on what you do not have: there is not a B-2 within eight thousand miles of this war. They are parked at Whiteman. One turn on the tankers puts them at Diego Garcia and puts the GBU-57 in play, and nothing else in the inventory touches Fordow — not a Tomahawk, not a fighter, nothing. The bill is one night of the naval transit: the turn they move, nothing else does.';
     } else if (adLeft >= 2) {
       cjcs.text = `Their air defense network is largely intact — ${adLeft} SAM complexes active. Non-stealth strikes carry real attrition risk. Recommend SEAD first${G.bombersArrived ? ', or lean on the B-2s' : ''}.`;
+    } else if (reconstituting.length >= 2) {
+      cjcs.text = `We are renting damage instead of buying it, Mr. President. ${reconstituting.length} sites we have already ` +
+        `hit are working through the night — ${reconstituting.slice(0, 3).map(t => `${t.short} at ${Math.round(t.hp)}%`).join(', ')} — ` +
+        `and every one of them climbs back toward full while we service something else. Concentrate the ` +
+        `packages: two on target in the same turn finishes a site, one a turn just keeps it wounded.`;
     } else if (nukeDeg < 100) {
       cjcs.text = 'Skies are relatively permissive now. Fordow requires a B-2 with penetrators — nothing else touches it. Natanz we can service with either bombers or a heavy Tomahawk package.';
     } else {
@@ -319,7 +327,7 @@ const IranAI = (() => {
     if (G.approval < 35) h.push('POLL: PRESIDENT\'S CONDUCT OF THE WAR UNDERWATER, IMPEACHMENT TALK GROWS');
     else if (G.approval > 60) h.push('RALLY EFFECT: PUBLIC BACKS PRESIDENT\'S CONDUCT OF THE WAR');
     if (missileStrength() + navalStrength() <= 1) h.push('ANALYSTS: IRAN\'S MILITARY SHATTERED — HOW MUCH LONGER CAN TEHRAN FIGHT?');
-    if (G.casualties.us >= 100) h.push('CASUALTY COUNT MOUNTS — CONGRESS DEBATES LIMITS ON THE WAR');
+    if (G.casualties.us >= 170) h.push('CASUALTY COUNT MOUNTS — CONGRESS DEBATES LIMITS ON THE WAR');
     if (G.hormuz === 'CLOSED') h.push('GAS LINES FORM AS HORMUZ CLOSURE CHOKES GLOBAL SUPPLY');
     if (G.regimeChaosTurns > 0) h.push('POWER VACUUM IN TEHRAN — INTELLIGENCE AGENCIES ASK: WHO IS IN CHARGE?');
     if (G.downed) h.push(`SEARCH UNDER WAY FOR US AIRCREW DOWN INSIDE IRAN — PENTAGON WILL NOT DISCUSS RECOVERY OPERATIONS`);

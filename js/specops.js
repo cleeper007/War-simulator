@@ -34,17 +34,21 @@ const SpecOps = (() => {
       parts.push([`ISR preparation ×${Math.min(G.isrPrep, ISR_CAP)}`, bonus]);
     }
 
+    // the corridor in is worth whatever the SAM belt has actually lost, not
+    // whatever bracket it happens to sit in
     let adBonus = 0;
     for (const t of TARGETS) {
       if (t.type !== 'airdefense') continue;
-      if (t.status === 'destroyed') adBonus += 0.06;
-      else if (t.status === 'damaged') adBonus += 0.03;
+      adBonus += 0.06 * (1 - t.hp / 100);
     }
-    if (adBonus > 0) { p += adBonus; parts.push(['Air defenses degraded', adBonus]); }
+    if (adBonus > 0.005) { p += adBonus; parts.push(['Air defenses degraded', adBonus]); }
 
     const hq = TARGETS.find(t => t.id === 'irgc-hq');
-    if (hq.status === 'destroyed') { p += 0.10; parts.push(['IRGC command destroyed', 0.10]); }
-    else if (hq.status === 'damaged') { p += 0.05; parts.push(['IRGC command damaged', 0.05]); }
+    const hqBonus = 0.10 * (1 - hq.hp / 100);
+    if (hqBonus > 0.005) {
+      p += hqBonus;
+      parts.push([hq.hp <= 0 ? 'IRGC command destroyed' : 'IRGC command degraded', hqBonus]);
+    }
 
     p = clamp(p, 0.05, 0.75);
     return { p, parts };

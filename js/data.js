@@ -157,6 +157,35 @@ const TARGETS = [
   },
 ];
 
+// ---- durability model ----
+// Fixed installations are worn down rather than switched off. Every target
+// carries a 0–100 condition track; a package takes a bite out of it and the
+// site keeps fighting on whatever is left. What a site does with the nights you
+// spend somewhere else is repair — spare radars rolled out of the dispersal
+// revetments, craters filled, a replacement crane barged in — so anything left
+// standing at 20% is back at 60% in a few days if you look away. Zero is
+// permanent: nobody reconstitutes rubble in the middle of a war.
+//
+// Two kinds of target sit outside this and take damage in whole steps the way
+// they always have. A hull is afloat or it is on the bottom and it never comes
+// back up; and the buried enrichment halls are all-or-nothing by design.
+// Types absent from this table are the ones that neither wear down nor repair.
+const TARGET_REPAIR = {
+  command:    14,   // radios and staff officers — a command node reconstitutes fastest
+  airdefense: 12,   // spare launchers and engagement radars rolled out of dispersal
+  airbase:    12,   // fill the craters, sweep the ramp, fly again by morning
+  missile:    10,   // the TELs were always hidden; the brigade rebuilds around them
+  naval:       8,   // piers, cranes and fuel farms take longer than a runway does
+  oil:         5,   // refinery trains and loading berths are the slowest of all
+};
+
+// Full-effect damage of one strike package. A package is a package: the
+// differences between platforms are already priced into probability of kill,
+// world opinion, and what the sortie costs you — not into tonnage. So two good
+// packages finish a fixed site, and everything short of two good packages is
+// a race against the repair crews. Individual packages override with `dmg`.
+const PKG_DAMAGE = 55;
+
 // ---- US assets shown on the map ----
 // sortie: can generate fixed-wing strike sorties (flight animations launch
 // from the nearest sortie-capable base); atacms: hosts Army long-range fires

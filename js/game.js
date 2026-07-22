@@ -6,9 +6,22 @@ const Game = (() => {
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
+  // ---- how long the country lets you fight ----
+  // The turn cap is not what ends most campaigns — this is. Iran kills Americans
+  // every night its missile force is alive, so the casualty ceiling is the real
+  // clock, and it is scaled to a war that now runs fifteen days rather than ten.
+  // Both numbers are quoted to the player (objectives panel, NSA, headlines), so
+  // they live here rather than being written into four files by hand.
+  const CASUALTY_LIMIT = 250;   // Congress cuts off funding past this
+  const WEARINESS_TURN = 14;    // after this, a long war bleeds approval on its own
+
   // ---- game state ----
   const G = {
-    turn: 1, maxTurns: 20,
+    // Fifteen days at two turns a day. Sites that wear down and repair take two
+    // or three good packages apiece instead of one lucky roll, so the campaign
+    // is a grind now and the clock is scaled to the grind — and so is what the
+    // country will absorb while you run it (see CASUALTY_LIMIT).
+    turn: 1, maxTurns: 30,
     approval: 58,          // %
     oil: 84,               // $/bbl Brent
     world: 60,             // world opinion 0–100
@@ -63,17 +76,15 @@ const Game = (() => {
       let d = 0;
       for (const id of ['natanz', 'fordow']) {
         const t = TARGETS.find(x => x.id === id);
-        if (t.status === 'destroyed') d += 50;
-        else if (t.status === 'damaged') d += 25;
+        d += (100 - t.hp) / 2;
       }
-      return d; // 0–100
+      return Math.round(d); // 0–100
     },
     // Iran's remaining ability to fight, 0–100, for the HUD meter:
     // missile force + navy + IRGC command, the set you must break to win
     iranCapacity() {
       const irgc = TARGETS.find(t => t.id === 'irgc-hq');
-      const irgcVal = irgc.status === 'destroyed' ? 0 : irgc.status === 'damaged' ? 0.5 : 1;
-      return Math.round(100 * (IranAI.missileStrength() + IranAI.navalStrength() + irgcVal) / 5);
+      return Math.round(100 * (IranAI.missileStrength() + IranAI.navalStrength() + irgc.hp / 100) / 5);
     },
     // warfighting capacity shattered: missile force and navy near zero, IRGC command gone
     iranBroken() {
@@ -97,13 +108,17 @@ const Game = (() => {
 
   // ---- save / continue (localStorage) ----
   const Save = (() => {
+    // v7: targets stopped being a three-state enum and became a 0–100 condition
+    // track that repairs overnight, and the campaign runs to 30 turns against
+    // rescaled loss thresholds. A v6 save carries neither, and dropping it into
+    // this balance would be a different war than the one it was saved from.
     // v6: two IRGC hulls joined the target list and naval strength became a
     // fraction of the fleet. A v5 save would load with both ships untouched and
     // a capacity meter that no longer means what it meant when it was written.
     // v5: downed aircrew and their recovery counters became state. A v4 save has
     // no `downed` field and a stats block missing three counters — retired
     // rather than migrated, the same as every version before it.
-    const KEY = 'cic-save-v6';   // bump the version to invalidate old saves
+    const KEY = 'cic-save-v7';   // bump the version to invalidate old saves
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -119,9 +134,10 @@ const Game = (() => {
     function write() {
       if (G.over) return;
       try {
-        const data = { version: 6, muted: AudioSys.isMuted(), fields: {}, targets: {} };
+        const data = { version: 7, muted: AudioSys.isMuted(), fields: {}, targets: {} };
         for (const f of FIELDS) data.fields[f] = G[f];
-        for (const t of TARGETS) data.targets[t.id] = t.status || 'intact';
+        // condition is the source of truth; status is derived from it on load
+        for (const t of TARGETS) data.targets[t.id] = t.hp;
         localStorage.setItem(KEY, JSON.stringify(data));
       } catch (e) { /* storage unavailable — play without saves */ }
     }
@@ -129,7 +145,7 @@ const Game = (() => {
     function read() {
       try {
         const data = JSON.parse(localStorage.getItem(KEY));
-        return data && data.version === 6 ? data : null;
+        return data && data.version === 7 ? data : null;
       } catch (e) { return null; }
     }
 
@@ -140,13 +156,37 @@ const Game = (() => {
     return { write, read, clear };
   })();
 
+  // ============================================================
+  // TARGET CONDITION
+  // ------------------------------------------------------------
+  // Every target carries hp 0–100 and its status is DERIVED from it, so the map,
+  // the capacity meter, the Iranian AI, the objectives and the raid math all go
+  // on reading t.status and never have to know which damage model applies.
+  // wearsDown() is the dividing line: sites in TARGET_REPAIR take proportional
+  // damage and repair overnight, while ships and the nuclear sites move in whole
+  // steps — 100 → 50 → 0 — and never come back.
+  // ============================================================
+  const wearsDown = (t) => TARGET_REPAIR[t.type] !== undefined;
+
+  function syncStatus(t) {
+    t.status = t.hp <= 0 ? 'destroyed' : t.hp < 100 ? 'damaged' : 'intact';
+  }
+
+  function damageTarget(t, amount) {
+    t.hp = clamp(t.hp - amount, 0, 100);
+    syncStatus(t);
+    MapView.updateTarget(t);
+  }
+
   // ---- strike math ----
+  // Air defense degrades in proportion to what is still standing, so a SAM belt
+  // worn down to 40% screens the skies at 40% — there is no cliff between
+  // "damaged" and "destroyed" for the player to game.
   function airDefenseWeight() {
     let w = 0;
     for (const t of TARGETS) {
       if (t.type !== 'airdefense') continue;
-      if (t.status === 'destroyed') continue;
-      w += t.status === 'damaged' ? 0.5 : 1;
+      w += t.hp / 100;
     }
     return w; // 0..3
   }
@@ -473,15 +513,26 @@ const Game = (() => {
     'Strike failed to achieve desired effects. Assessed cause: booster and launch faults — several birds failed to reach the target after leaving the rail.',
   ];
 
+  // how much condition one package takes off a site that wears down
+  const pkgDamage = (pkg) => pkg.dmg || PKG_DAMAGE;
+
   function computeStrike(target, pkg) {
     const ad = airDefenseWeight();
     // TLAMs fly under the SAM belt — air defense doesn't degrade a Tomahawk.
     // Its misses come from weather, targeting, or launch faults, not the threat.
     const adPenalty = pkg.asset === 'cruise' ? 0 : AD_PENALTY[pkg.asset] * ad;
-    const dmgBonus = target.status === 'damaged' ? 0.15 : 0;
+    const dmgBonus = target.hp < 100 ? 0.15 : 0;
     const success = clamp(pkg.base - adPenalty + dmgBonus, 0.05, 0.95);
     const lossRisk = pkg.asset === 'fighter' ? clamp(0.05 * ad, 0, 0.35) : 0;
-    return { success, adPenalty, lossRisk };
+    // What the player is buying: full effects on the good half of the success
+    // band, half effects on the rest of it. Sites that wear down lose condition;
+    // ships and the buried sites take a whole step.
+    const gradual = wearsDown(target);
+    return {
+      success, adPenalty, lossRisk, gradual,
+      fullOdds: success * (gradual ? 0.5 : 0.6),
+      damage: gradual ? pkgDamage(pkg) : 50,
+    };
   }
 
   // Strikes take time. Authorizing a package commits the assets and puts the
@@ -523,31 +574,36 @@ const Game = (() => {
     G.world = clamp(G.world + worldCost, 0, 100);
     const est = computeStrike(target, pkg);
     const roll = Math.random();
-    let outcome, text;
+    let text;
 
-    if (roll < est.success * 0.6) {
-      outcome = 'destroyed';
-    } else if (roll < est.success) {
-      outcome = target.status === 'damaged' ? 'destroyed' : 'damaged';
-    } else {
-      outcome = 'miss';
-    }
+    // One roll, three bands: full effects, half effects, nothing. A site that
+    // wears down loses condition off its track; a hull or a buried hall takes a
+    // whole step, and the top band takes it out outright the way it always has.
+    const dmg = roll < est.fullOdds ? (est.gradual ? est.damage : 100)
+      : roll < est.success ? (est.gradual ? est.damage * 0.5 : 50)
+      : 0;
+
+    const before = target.hp;
+    damageTarget(target, dmg);
+    const outcome = target.hp <= 0 ? 'destroyed' : dmg > 0 ? 'damaged' : 'miss';
 
     const ev = { cls: 'friendly', title: `BDA: ${target.name}`, dWorld: worldCost };
     ev.hit = outcome === 'destroyed' || outcome === 'damaged';
 
     if (outcome === 'destroyed') {
-      target.status = 'destroyed';
       G.stats.destroyed++;
       G.approval = clamp(G.approval + 3, 0, 100);
       ev.dApproval = 3;
       text = 'Battle damage assessment confirms the target is destroyed. Functional capability eliminated.';
       if (target.type === 'oil') { G.oil += 10; ev.dOil = 10; }
     } else if (outcome === 'damaged') {
-      target.status = 'damaged';
       G.approval = clamp(G.approval + 1, 0, 100);
       ev.dApproval = 1;
-      text = 'Partial effects on target. Significant damage, but the site retains residual capability. A follow-up strike would likely finish it.';
+      text = est.gradual
+        ? `Partial effects on target. BDA assesses the site at ${Math.round(target.hp)}% of its operational ` +
+          `capability, down from ${Math.round(before)}% — it is damaged, not finished, and it is still fighting. ` +
+          'Every night it is left alone, crews put some of that back.'
+        : 'Partial effects on target. Significant damage, but the site retains residual capability. A follow-up strike would likely finish it.';
     } else {
       G.approval = clamp(G.approval - 2, 0, 100);
       ev.dApproval = -2;
@@ -627,6 +683,42 @@ const Game = (() => {
       setTimeout(finishBatch, (FLIGHT_DUR[head.pkg.asset] || 1000) + launchClip + 3500);
     };
     next();
+  }
+
+  // ============================================================
+  // OVERNIGHT REPAIR
+  // ------------------------------------------------------------
+  // What Iran does with the turns you spend somewhere else. Anything still
+  // standing works its way back toward full; anything you finished stays
+  // finished, and anything you put ordnance on tonight is too busy burning to
+  // start. This is the whole reason a half-serviced target list is worse than a
+  // short one — damage you don't follow up on is damage you rent, not own.
+  // ============================================================
+  function repairTargets() {
+    // a decapitated command chain cannot organize a national repair effort:
+    // parts, crews and priorities all come down the same wire you just cut
+    const hq = TARGETS.find(t => t.id === 'irgc-hq');
+    const eff = 0.4 + 0.6 * (hq.hp / 100);
+
+    const back = [];
+    for (const t of TARGETS) {
+      if (!wearsDown(t) || t.hp <= 0 || t.hp >= 100) continue;
+      if (G.struckThisTurn.includes(t.id)) continue;   // still burning
+      const rate = Math.max(1, Math.round(TARGET_REPAIR[t.type] * eff));
+      t.hp = Math.min(100, t.hp + rate);
+      syncStatus(t);
+      MapView.updateTarget(t);
+      back.push(`${t.short} ${Math.round(t.hp)}%`);
+    }
+    if (!back.length) return null;
+
+    return {
+      cls: 'iran', title: 'DAMAGED SITES RECONSTITUTING OVERNIGHT',
+      text: 'Overhead imagery shows work parties at every site CENTCOM did not revisit — craters filled, ' +
+        'spare radars trucked out of the dispersal revetments, generators and crews moved in from the ' +
+        `interior. Reassessed capability: ${back.join(' · ')}. Damage that is not followed up is damage ` +
+        'that does not stay done.',
+    };
   }
 
   // ran after any resolved action: persist, then check for an ending
@@ -772,14 +864,12 @@ const Game = (() => {
     const hits = [];
     for (const [id, killP, dmgP] of [['natanz', 0.30, 0.75], ['fordow', 0, 0.40]]) {
       const t = TARGETS.find(x => x.id === id);
-      if (t.status === 'destroyed') continue;
+      if (t.hp <= 0) continue;
       const roll = Math.random();
-      if (roll < killP) { t.status = 'destroyed'; hits.push(`${t.name} destroyed`); }
-      else if (roll < dmgP) {
-        t.status = t.status === 'damaged' ? 'destroyed' : 'damaged';
-        hits.push(`${t.name} ${t.status}`);
-      }
-      MapView.updateTarget(t);
+      if (roll < killP) damageTarget(t, 100);
+      else if (roll < dmgP) damageTarget(t, 50);
+      else continue;
+      hits.push(`${t.name} ${t.status}`);
     }
 
     const bda = hits.length
@@ -795,12 +885,11 @@ const Game = (() => {
 
   // ---- Iranian phase / end turn ----
   function applyEvent(ev) {
+    // an outside actor working over a target CENTCOM never scheduled — an
+    // Israeli counter-strike lands like a strike package, not like a switch
     if (ev.degradeTarget) {
       const t = TARGETS.find(x => x.id === ev.degradeTarget);
-      if (t && t.status !== 'destroyed') {
-        t.status = t.status === 'damaged' ? 'destroyed' : 'damaged';
-        MapView.updateTarget(t);
-      }
+      if (t && t.hp > 0) damageTarget(t, wearsDown(t) ? PKG_DAMAGE * 0.6 : 50);
     }
     if (ev.casualties) G.casualties.us += ev.casualties;
     if (ev.dApproval) G.approval = clamp(G.approval + ev.dApproval, 0, 100);
@@ -836,6 +925,9 @@ const Game = (() => {
       // Iran's salvos fly on the map — missiles, drone swarms, intercepts —
       // before the battle report lands and covers the screen
       MapView.animateIranianAttacks(events, () => {
+        // repair runs before the night's events land, so anything an Israeli
+        // counter-strike catches in the open stays caught for the turn
+        const repairs = repairTargets();
         for (const ev of events) applyEvent(ev);
 
         // economy: oil carries a war premium set by Iran's remaining ability
@@ -852,7 +944,7 @@ const Game = (() => {
         // domestic drift: expensive gas and long wars erode approval
         if (G.oil >= 150) G.approval = clamp(G.approval - 2, 0, 100);
         else if (G.oil >= 115) G.approval = clamp(G.approval - 1, 0, 100);
-        if (G.turn > 8) G.approval = clamp(G.approval - 0.5, 0, 100);
+        if (G.turn > WEARINESS_TURN) G.approval = clamp(G.approval - 0.5, 0, 100);
 
         // fleet movement closes the turn: decks that spent it repositioning are
         // on their new stations, and the second carrier is one leg closer
@@ -863,7 +955,7 @@ const Game = (() => {
         if (bombers) fleet.push(bombers);
 
         const day = Math.ceil(G.turn / 2);
-        const all = [...bda, ...events, ...fleet];
+        const all = [...bda, ...events, ...(repairs ? [repairs] : []), ...fleet];
         UI.setTicker(IranAI.headlines(G, all));
         const result = checkEnd();
 
@@ -917,7 +1009,7 @@ const Game = (() => {
     // primary win: the nuclear program is gone and Iran can no longer fight
     if (G.nukeDegraded() >= 100 && G.iranBroken()) return buildResult('victory', 'military');
     // the losses are military and political:
-    if (G.casualties.us >= 150) return buildResult('defeat', 'casualties');
+    if (G.casualties.us >= CASUALTY_LIMIT) return buildResult('defeat', 'casualties');
     if (G.approval <= 20) return buildResult('defeat', 'impeachment');
     if (G.hormuzClosedTurns >= 5 || G.oil >= 240) return buildResult('defeat', 'economy');
     return null;
@@ -934,7 +1026,7 @@ const Game = (() => {
     const deg = G.nukeDegraded();
     const milGrade = deg >= 100 && G.stats.destroyed >= 5 ? 'A'
       : deg >= 100 ? 'B' : deg >= 50 ? 'C' : deg >= 25 ? 'D' : 'F';
-    const livesGrade = gradeFor(G.casualties.us, [15, 30, 60, 120]);
+    const livesGrade = gradeFor(G.casualties.us, [25, 50, 100, 200]);
     const worldGrade = G.world >= 60 ? 'A' : G.world >= 48 ? 'B' : G.world >= 36 ? 'C' : G.world >= 25 ? 'D' : 'F';
     const econGrade = gradeFor(G.stats.peakOil, [100, 125, 155, 190]);
 
@@ -954,7 +1046,7 @@ const Game = (() => {
       impeachment: 'With approval in ruins, your own party abandoned you. The House opened impeachment proceedings over the conduct of the war; the presidency is effectively over.',
       economy: 'The prolonged closure of Hormuz broke the global economy. Fuel rationing, a market crash, and allied governments falling — the war was lost at the gas pump.',
       exhaustion: 'The force culminated with the objectives nowhere in sight. Magazines empty, crews exhausted, and Iran\'s program still standing — the campaign simply ran out of ammunition and time.',
-      time: 'Ten days of war ended in an armed standoff. Real damage was done, but Iran\'s capacity to fight survives; the problem is handed to the next news cycle, and perhaps the next president.',
+      time: 'Fifteen days of war ended in an armed standoff. Real damage was done, but Iran\'s capacity to fight survives; the problem is handed to the next news cycle, and perhaps the next president.',
     };
     const narratives = {
       military: `CENTCOM's assessment is unambiguous: enrichment halted, missile brigades combat-ineffective, the IRGC command chain severed.` +
@@ -1046,14 +1138,17 @@ const Game = (() => {
 
   function restoreAndStart(data) {
     for (const [f, v] of Object.entries(data.fields)) G[f] = v;
-    for (const t of TARGETS) t.status = data.targets[t.id] || 'intact';
+    for (const t of TARGETS) {
+      t.hp = typeof data.targets[t.id] === 'number' ? data.targets[t.id] : 100;
+      syncStatus(t);
+    }
     syncJointPackages(); // packages live on static TARGETS — rebuild from saved state
     AudioSys.setMuted(!!data.muted);
     start(true);
   }
 
   function init() {
-    for (const t of TARGETS) t.status = 'intact';
+    for (const t of TARGETS) { t.hp = 100; syncStatus(t); }
     AudioSys.init();
     UI.init();
     SpecOps.init();
@@ -1085,5 +1180,6 @@ const Game = (() => {
   // the scope dramatizes the number, it never feeds back into the strike math.
   return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, israelStatus,
     airDefenseWeight, orderCarrier, toggleCarrierPosture, carrierFactor, carrierExposure,
-    orderBombers, transitCommitted, FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, G };
+    orderBombers, transitCommitted, wearsDown,
+    FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, CASUALTY_LIMIT, G };
 })();

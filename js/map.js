@@ -279,8 +279,16 @@ const MapView = (() => {
       attachTooltip(g, () => {
         const st = t.status || 'intact';
         const stColor = st === 'intact' ? 'var(--red)' : st === 'damaged' ? 'var(--amber)' : 'var(--dim)';
+        // the condition track is the whole strike decision now, so it reads on
+        // the tooltip — and a site that repairs says so, because that is what
+        // makes leaving it at 30% a different choice than finishing it
+        const pct = Math.round(t.hp ?? 100);
+        const cond = st === 'destroyed' ? 'STATUS: destroyed'
+          : `STATUS: ${st} — ${pct}% operational`;
         return `<span class="tt-name">${t.name}</span><br>` +
-          `<span class="tt-status" style="color:${stColor}">STATUS: ${st}</span><br>${t.desc}` +
+          `<span class="tt-status" style="color:${stColor}">${cond}</span><br>${t.desc}` +
+          (st === 'damaged' && Game.wearsDown(t)
+            ? `<br><span style="color:var(--amber)">Repairs overnight unless struck again.</span>` : '') +
           (st !== 'destroyed' ? `<br><em style="color:var(--blue)">Click to plan strike</em>` : '');
       });
       g.addEventListener('click', (e) => {
