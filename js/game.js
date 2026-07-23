@@ -698,21 +698,21 @@ const Game = (() => {
   // ------------------------------------------------------------
   // Every fighter sortie and every Tomahawk in this war comes off a deck, so
   // where the decks sit is the standing decision underneath all the others.
-  // FORWARD is the North Arabian Sea box east of Oman: the full air wing, and a
-  // hull inside the longest-legged anti-ship weapons Iran has left. BACK is the
+  // FORWARD is the North Arabian Sea box east of Oman: a hull inside the
+  // longest-legged anti-ship weapons Iran has left, but Aegis on the Gulf
+  // approaches, weight on the strait, and a lid on the oil premium. BACK is the
   // deep Arabian Sea, down toward the Indian Ocean approaches: untouchable at
-  // that range, and half the strike power for the tanker distance. The move
-  // between them takes a turn, and that turn buys the worst of both — reduced
-  // capability, still exposed.
+  // that range, and none of those forward effects. The air wing flies at full
+  // rate from either station — the move between them takes a turn, and buys the
+  // worst of both: exposed on the way, without the presence effects yet.
   //
   // Nothing here mutates G.caps directly. Capacity is recomputed from the
   // fleet's disposition (see fleetCapacity), so a posture change can never
   // leak a permanent bonus and a restored save needs no migration.
   // ============================================================
 
-  // per-deck contribution at FORWARD station. The Ford is the newer and larger
-  // ship and generates the heavier sortie rate; halved at BACK, she is worth
-  // exactly the +3 fighters / +4 TLAM her arrival is advertised as.
+  // per-deck contribution, flown at full rate from either station now. The Ford
+  // is the newer and larger ship and generates the heavier sortie rate.
   // repFighters keeps pace with what a fourth-gen package actually costs: those
   // are three-sortie packages, so a deck turning two a night can never sustain
   // one. Three is the number that makes the tier read as volume, which is the
@@ -750,14 +750,14 @@ const Game = (() => {
   const cvName = (cv) => CARRIER_INFO[cv.id].name;    // "USS Abraham Lincoln"
   const cvShort = (cv) => CARRIER_INFO[cv.id].short;  // "LINCOLN"
 
-  // how much of a deck's air wing is actually in the fight
+  // how much of a deck's air wing is actually in the fight. Station no longer
+  // costs sorties: a deck flies its full air wing forward OR back — the tanker
+  // distance is absorbed, and the whole tradeoff of posture lives in exposure
+  // and the forward-presence effects (Aegis, the strait, the oil premium), not
+  // in strike volume. Only loss and battle damage take capability off the deck.
   function carrierFactor(cv) {
     if (cv.lost || !cv.arrived) return 0;
-    // repositioning flies at the same reduced rate as sitting back, because
-    // that is what a carrier in transit is: off station either way
-    let f = (cv.moving || cv.posture === 'back') ? 0.5 : 1;
-    if (cv.damaged) f *= 0.5;   // fires out, catapults down, flying a fraction of her rate
-    return f;
+    return cv.damaged ? 0.5 : 1;   // fires out, catapults down, flying a fraction of her rate
   }
 
   // exposure to Iranian anti-ship fires, 0..1 — the mirror of the capability above
@@ -1014,10 +1014,10 @@ const Game = (() => {
       MapView.setCarrierPosture(cv);
       events.push(cv.posture === 'forward' ? {
         cls: 'friendly', title: `${cvShort(cv)} ON STATION — NORTH ARABIAN SEA`,
-        text: `${cvName(cv)} has closed northwest into the North Arabian Sea box and resumed full flight operations. Her air wing is at your disposal again — and so is she, to everything Iran can range that far out.`,
+        text: `${cvName(cv)} has closed northwest into the North Arabian Sea box. Her air wing was flying full from standoff and flies full here — what she adds on station is her Aegis escorts over the Gulf bases, her weight on the strait, and a lid on the oil premium. And she is now inside everything Iran can range that far out.`,
       } : {
         cls: 'friendly', title: `${cvShort(cv)} WITHDRAWN TO THE DEEP ARABIAN SEA`,
-        text: `${cvName(cv)} has steamed southeast into the deep Arabian Sea, clear of the anti-ship envelope and out toward the Indian Ocean approaches. She is out of reach, and so is half of what she could do for you: the tanker chain from that far off Iran only supports a fraction of her sortie rate.`,
+        text: `${cvName(cv)} has steamed southeast into the deep Arabian Sea, clear of the anti-ship envelope and out toward the Indian Ocean approaches. She keeps her full sortie rate from out here — what she gives up is the forward presence: no Aegis over the Gulf bases, no pressure on the strait, no lid on the oil premium.`,
       });
     }
     if (events.length) syncFleetCaps();
@@ -1043,7 +1043,7 @@ const Game = (() => {
     AudioSys.play('cable');
     return {
       cls: 'friendly', title: 'FORD ON STATION — DEEP ARABIAN SEA',
-      text: 'The USS Gerald R. Ford Carrier Strike Group has come up out of the Indian Ocean into the deep Arabian Sea and checked in with Fifth Fleet. Her air wing is available from standoff at reduced rate — bring her northwest into the North Arabian Sea box and she doubles what she gives you, on the same terms as every other hull that far forward.',
+      text: 'The USS Gerald R. Ford Carrier Strike Group has come up out of the Indian Ocean into the deep Arabian Sea and checked in with Fifth Fleet. Her full air wing is available from standoff — bring her northwest into the North Arabian Sea box and she flies the same sorties, now with her Aegis escorts over the Gulf bases, weight on the strait, and a lid on the oil premium, on the same terms as every other hull that far forward.',
     };
   }
 

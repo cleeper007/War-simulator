@@ -211,10 +211,14 @@ costs a turn before the 509th can follow — she does not have to arrive first, 
 lost night still puts Fordow a turn further away.
 
 Once in theater, each deck is either **forward** in the North Arabian Sea box east of
-Oman (full sortie generation, inside the longest-legged anti-ship weapons Iran owns) or
-**back** in the deep Arabian Sea toward the Indian Ocean approaches (untouchable, half
-the strike power). Repositioning takes a turn at reduced
-capability, still exposed.
+Oman or **back** in the deep Arabian Sea toward the Indian Ocean approaches. The air wing
+flies at **full sortie generation from either station** — posture is no longer a strike
+tradeoff. What forward buys is **presence**: Aegis BMD over the Gulf-state bases (thinning
+the ballistic salvos aimed at Al Udeid and Al Dhafra), weight on the Strait of Hormuz that
+makes it harder for Iran to close, and a lid on the oil-war premium — paid for by sitting
+a hull inside the longest-legged anti-ship weapons Iran owns. Back is untouchable but gives
+up all three. Repositioning takes a turn, exposed and without the presence effects until
+she is on station.
 
 ### Israel
 

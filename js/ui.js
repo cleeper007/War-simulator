@@ -260,7 +260,7 @@ const UI = (() => {
       return {
         label: cv.moving === 'forward' ? 'CLOSING NORTHWEST' : 'WITHDRAWING',
         cls: 'cv-moving',
-        note: 'Repositioning — 50% strike capability, and still inside the envelope until she is clear.',
+        note: 'Repositioning — full strike either way, but still inside the envelope until she is clear, and the forward presence effects are not up yet.',
       };
     }
     if (cv.posture === 'forward') {
@@ -274,7 +274,7 @@ const UI = (() => {
     return {
       label: 'DEEP ARABIAN SEA', cls: 'cv-back',
       note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
-        'Out of reach. 50% strike capability.',
+        'Out of reach — and flying her full air wing. But no Aegis over the Gulf bases, no weight on the strait, no lid on the oil premium.',
     };
   }
 
@@ -395,8 +395,8 @@ const UI = (() => {
           : `SEND ${info.short} FORWARD TO THE NORTH ARABIAN SEA`) +
         `<span class="diplo-desc">` +
         (cv.moving ? 'The order is given. She is between stations until the end of the turn.'
-          : fwd ? 'Takes one turn at 50% capability, exposed until she is clear. Safe once there, at half the strike power — but the Aegis umbrella, the pressure on the strait, and the lid on oil all come off with her.'
-          : 'Takes one turn at 50% capability. Full sortie generation once on station — plus Aegis BMD over the Gulf-state bases, a harder strait to close, and a lower oil premium. The cost is a hull inside Iran\'s anti-ship envelope.') +
+          : fwd ? 'Takes one turn, exposed until she is clear. Full strike either way — but the Aegis umbrella, the pressure on the strait, and the lid on oil all come off with her.'
+          : 'Takes one turn, exposed until she is on station. Full strike either way — going forward adds Aegis BMD over the Gulf-state bases, a harder strait to close, and a lower oil premium. The cost is a hull inside Iran\'s anti-ship envelope.') +
         `</span></button>`;
     }).join('');
 
