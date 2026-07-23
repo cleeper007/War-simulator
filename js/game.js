@@ -68,6 +68,10 @@ const Game = (() => {
     // the air-superiority phase as of the last turn boundary, so the report can
     // tell the player the night it changed — in either direction
     airPhaseSeen: 'contested',
+    // one-time campaign milestones the country rallies behind — each pays an
+    // approval bump exactly once, tracked here so a phase that is lost and
+    // retaken, or a program re-degraded past 100, does not pay twice.
+    milestones: { superiority: false, degraded: false, nukeGutted: false, iranBroken: false },
     // the turn a deployment order was cut, so only one goes out a night
     deployTurn: 0,
     alliedFighters: 0,     // coalition and IAF squadrons folded into the fighter cap
@@ -219,7 +223,7 @@ const Game = (() => {
       'carriers', 'secondCarrierOrdered', 'secondCarrierEta', 'alliedFighters',
       'bombersOrdered', 'bomberEta', 'bombersArrived', 'deployTurn',
       'heaviesOrdered', 'heavyEta', 'heaviesArrived', 'forceFlow', 'airPhaseSeen',
-      'difficulty', 'iranPosture', 'postureKnown', 'breakout', 'intel',
+      'milestones', 'difficulty', 'iranPosture', 'postureKnown', 'breakout', 'intel',
       'tankers', 'tankerCap', 'basing', 'basingDebt', 'warPowers', 'addresses', 'threat',
       'timeline', 'adapt', 'adaptSeen', 'turnStartHp',
     ];
@@ -607,20 +611,39 @@ const Game = (() => {
     G.airPhaseSeen = now;
     if (now === was) return [];
     const rising = PHASE_RANK[now] > PHASE_RANK[was];
-    if (now === 'degraded' && rising) return [{
-      cls: 'friendly', title: 'AIR DEFENSES DEGRADED — FOURTH-GEN FORCE RELEASED',
-      text: 'The SAM belt is broken enough to fly into. CENTCOM has released the F-15E, F-16 and Super Hornet ' +
-        'squadrons to the nightly tasking order, which roughly triples the number of aimpoints that can be ' +
-        'serviced in a night. They carry far more than the F-35s do and they survive far less — the belt is ' +
-        'broken, not gone, and every night it is left alone the crews put some of it back.',
-    }];
-    if (now === 'superiority' && rising) return [{
-      cls: 'friendly', title: 'AIR SUPERIORITY DECLARED OVER IRAN',
-      text: 'Nothing is contesting the sky. The SAM network is rubble and the fighter bases are cratered, and ' +
-        'for the first time American aircraft are operating over Iran on their own terms. The heavy bomber ' +
-        'force can be called forward — B-1s and B-52s off Diego Garcia, which is the difference between ' +
-        'raiding a country and dismantling one.',
-    }];
+    if (now === 'degraded' && rising) {
+      // the country reads "our planes are getting through" as the war being won,
+      // and rewards it — but only the first time the belt comes down, not every
+      // time it is retaken after Iran patches it back together.
+      const ev = {
+        cls: 'friendly', title: 'AIR DEFENSES DEGRADED — FOURTH-GEN FORCE RELEASED',
+        text: 'The SAM belt is broken enough to fly into. CENTCOM has released the F-15E, F-16 and Super Hornet ' +
+          'squadrons to the nightly tasking order, which roughly triples the number of aimpoints that can be ' +
+          'serviced in a night. They carry far more than the F-35s do and they survive far less — the belt is ' +
+          'broken, not gone, and every night it is left alone the crews put some of it back.',
+      };
+      if (!G.milestones.degraded) {
+        G.milestones.degraded = true;
+        G.approval = clamp(G.approval + 4, 0, 100);
+        ev.dApproval = 4;
+      }
+      return [ev];
+    }
+    if (now === 'superiority' && rising) {
+      const ev = {
+        cls: 'friendly', title: 'AIR SUPERIORITY DECLARED OVER IRAN',
+        text: 'Nothing is contesting the sky. The SAM network is rubble and the fighter bases are cratered, and ' +
+          'for the first time American aircraft are operating over Iran on their own terms. The heavy bomber ' +
+          'force can be called forward — B-1s and B-52s off Diego Garcia, which is the difference between ' +
+          'raiding a country and dismantling one.',
+      };
+      if (!G.milestones.superiority) {
+        G.milestones.superiority = true;
+        G.approval = clamp(G.approval + 7, 0, 100);
+        ev.dApproval = 7;
+      }
+      return [ev];
+    }
     // falling — the repair crews took it back
     return [{
       cls: 'iran', title: now === 'contested'
@@ -635,6 +658,39 @@ const Game = (() => {
           'over Iran. The B-1s and B-52s are on the ramp at Diego Garcia and they are staying there until the ' +
           'belt is taken down again.',
     }];
+  }
+
+  // The war's stated objectives, paid out the night they are first met. Unlike
+  // the sky, these do not come back: a destroyed program stays destroyed and a
+  // shattered military stays shattered, so each pays its approval bump once and
+  // the milestone flag makes sure of it. This is where "the target is fully
+  // destroyed" stops being a line on a BDA and becomes a political win.
+  function objectiveMilestones() {
+    const out = [];
+    if (!G.milestones.nukeGutted && G.nukeDegraded() >= 100) {
+      G.milestones.nukeGutted = true;
+      G.approval = clamp(G.approval + 8, 0, 100);
+      G.world = clamp(G.world + 4, 0, 100);
+      out.push({
+        cls: 'friendly', title: 'OBJECTIVE MET — IRANIAN NUCLEAR PROGRAM DESTROYED',
+        text: 'CENTCOM assesses the enrichment complex — Natanz and Fordow — as functionally destroyed. The ' +
+          'centrifuge halls are collapsed and the breakout timeline is gone. The reason the country went to ' +
+          'war has been achieved, and the country knows it.',
+        dApproval: 8, dWorld: 4,
+      });
+    }
+    if (!G.milestones.iranBroken && G.iranBroken()) {
+      G.milestones.iranBroken = true;
+      G.approval = clamp(G.approval + 6, 0, 100);
+      out.push({
+        cls: 'friendly', title: 'OBJECTIVE MET — IRAN\'S WAR MACHINE BROKEN',
+        text: 'The missile force is spent, the navy is on the bottom, and the IRGC command structure is rubble. ' +
+          'Iran can no longer wage the war it started. The threat to the Gulf and to American forces in theater ' +
+          'has been dismantled.',
+        dApproval: 6,
+      });
+    }
+    return out;
   }
 
   // ============================================================
@@ -1951,7 +2007,17 @@ const Game = (() => {
         const warPremium = 3 + warStr * 2.5; // ~3 when Iran is finished, ~13 at full strength
         const oilTarget = 88 + warPremium +
           (G.hormuz === 'CONTESTED' ? 14 : G.hormuz === 'CLOSED' ? 55 : 0);
-        G.oil = Math.max(60, G.oil + (oilTarget - G.oil) * 0.16);
+        // The market eases toward the target one night at a time, but not
+        // symmetrically: a fear premium spikes slowly and collapses fast. When
+        // the price is above target — the threat easing rather than building —
+        // it falls quicker, and quickest of all once the strait is reopened and
+        // the tankers are moving again. That is what lets reopening Hormuz
+        // actually be felt at the pump instead of bleeding off over a week.
+        const gap = oilTarget - G.oil;
+        const ease = gap >= 0 ? 0.16
+          : G.hormuz === 'OPEN' ? 0.38
+          : 0.24;
+        G.oil = Math.max(60, G.oil + gap * ease);
         G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
 
         if (G.hormuz === 'CLOSED') G.hormuzClosedTurns++;
@@ -1992,6 +2058,9 @@ const Game = (() => {
         // tonight's repair crews left it
         const phase = airPhaseEvents();
 
+        // campaign objectives crossed tonight pay their one-time approval bump
+        const objectives = objectiveMilestones();
+
         // the Hill votes once, in the middle of the second week
         const vote = warPowersVote();
         const cutoff = vote && vote.cutoff;
@@ -2012,7 +2081,7 @@ const Game = (() => {
 
         const day = Math.ceil(G.turn / 2);
         const all = [...bda, ...events, ...dispersals, ...(repairs ? [repairs] : []),
-          ...phase, ...basing, ...flow, ...(vote && !cutoff ? [vote] : []), ...fleet];
+          ...phase, ...objectives, ...basing, ...flow, ...(vote && !cutoff ? [vote] : []), ...fleet];
         UI.setTicker(IranAI.headlines(G, all));
         recordTurn(all);
         const result = cutoff ? buildResult('defeat', 'cutoff') : checkEnd();

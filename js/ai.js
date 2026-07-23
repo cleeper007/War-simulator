@@ -321,9 +321,14 @@ const IranAI = (() => {
       events.push({
         title: 'Strait of Hormuz reopened by force',
         text: nStr < 1
-          ? 'With Iranian naval bases in ruins, minesweepers and escorts cleared the channel. Convoys are moving under Fifth Fleet guns.'
-          : 'With minesweepers working and Iranian naval activity reduced, convoys are moving again under escort.',
-        hormuz: 'OPEN', dOil: -18,
+          ? 'With Iranian naval bases in ruins, minesweepers and escorts cleared the channel. Convoys are moving under Fifth Fleet guns, ' +
+            'a fifth of the world\'s oil is flowing again, and allied capitals are exhaling.'
+          : 'With minesweepers working and Iranian naval activity reduced, convoys are moving again under escort, and the shipping lanes are ' +
+            'reopening to global traffic.',
+        // reopening the strait is the de-escalation the whole world was waiting
+        // on: the immediate war premium comes off the barrel and standing abroad
+        // recovers as the shipping the closure threatened starts moving again.
+        hormuz: 'OPEN', dOil: -26, dWorld: 6,
       });
     }
 
