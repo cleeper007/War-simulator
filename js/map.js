@@ -589,14 +589,20 @@ const MapView = (() => {
   }
 
   // Killing a card also kills its rAF loops: every loop checks card._alive.
+  // Release this scope's hold on the jet radar-view chatter, once. Called when
+  // the strike video finishes (the primary cut) and again on card close as a
+  // fallback for sorties that miss and never play a strike video.
+  function stopMissionMusic(entry) {
+    if (entry && entry._missionMusic && typeof AudioSys !== 'undefined') {
+      entry._missionMusic = false;
+      AudioSys.missionMusicStop();
+    }
+  }
+
   function fsClose(entry, delay) {
     setTimeout(() => {
       entry._alive = false;
-      // Release this scope's hold on the jet radar-view music (once).
-      if (entry._missionMusic && typeof AudioSys !== 'undefined') {
-        entry._missionMusic = false;
-        AudioSys.missionMusicStop();
-      }
+      stopMissionMusic(entry);
       entry.remove();
       fsSync();
     }, delay || 0);
@@ -1183,7 +1189,8 @@ const MapView = (() => {
     const entry = [...document.querySelectorAll('.scope-card')]
       .find(e => e._alive && e.dataset.tgt === target.id);
     if (entry) overlayScopeClip(entry.querySelector('.scope-wrap'),
-      HIT_CLIPS[target.id] || 'video/strike-hit.mp4');
+      HIT_CLIPS[target.id] || 'video/strike-hit.mp4',
+      () => stopMissionMusic(entry));   // chatter cuts when the strike video ends
   }
 
   // ============================================================

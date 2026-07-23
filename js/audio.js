@@ -46,7 +46,7 @@ const AudioSys = (() => {
       try {
         const a = new Audio(`audio/${file}`);
         a.preload = 'auto';
-        a.loop = true;   // loops to cover the whole radar view
+        a.loop = false;   // plays through once — never repeats within a mission
         a.addEventListener('error', () => { const i = missionAudio.indexOf(a); if (i >= 0) missionAudio.splice(i, 1); });
         missionAudio.push(a);
       } catch (e) { /* no Audio support — game plays silent */ }
