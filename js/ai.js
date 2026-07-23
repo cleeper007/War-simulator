@@ -226,6 +226,36 @@ const IranAI = (() => {
     return null;
   }
 
+  // Thin a night's ballistic salvo by whatever the forward carrier group's
+  // Aegis escorts can intercept. Only strikes on the Gulf-side bases are in the
+  // engagement basket — the SM-3/SM-6 magazines sit on the Gulf approaches, not
+  // over the Iraqi interior — so Ain al-Asad is left to its own Patriots. Every
+  // qualifying strike is scaled down together: ~30% knocked down with one deck
+  // forward, ~60% with two, taking casualties, oil and approval damage with it.
+  function aegisIntercept(events, fwd) {
+    if (fwd <= 0) return;
+    const frac = Math.min(0.6, 0.3 * fwd);
+    // bases the naval BMD umbrella actually covers — the Gulf states, not Iraq
+    const covered = (ev) => {
+      if (!ev.attack) return false;
+      if (ev.attack.base) return ['udeid', 'dhafra'].includes(ev.attack.base);
+      if (ev.attack.bases) return ev.attack.bases.some(b => ['udeid', 'dhafra'].includes(b));
+      return false;
+    };
+    for (const ev of events) {
+      if (!covered(ev)) continue;
+      const before = ev.casualties || 0;
+      if (before > 0) ev.casualties = Math.round(before * (1 - frac));
+      if (ev.dOil) ev.dOil = Math.round(ev.dOil * (1 - frac));
+      if (ev.dApproval) ev.dApproval = Math.round(ev.dApproval * (1 - frac));
+      const saved = before - (ev.casualties || 0);
+      ev.text += ` Aegis destroyers of the carrier group standing off the Gulf ` +
+        `caught much of it in the midcourse — SM-3 and SM-6 intercepts thinned the raid ` +
+        `before it crossed the coast` +
+        (saved > 0 ? `, and an estimated ${saved} American lives were saved on the ramp.` : '.');
+    }
+  }
+
   // Decide Iran's response this turn. There is no abstract escalation ladder:
   // what Iran does is a function of what it has left (capacity), how far the
   // war machine has spun up (spool), and whether anyone is coordinating it.
@@ -249,6 +279,13 @@ const IranAI = (() => {
     // regime has left, more of it gets thrown, and some of it goes west
     const israelInPlay = G.israelPosture !== 'sidelined';
     const w = Math.min(1.3, coord * spool * (israelInPlay ? 1.2 : 1));
+    // Carrier presence forward in the North Arabian Sea: a wall of Aegis on the
+    // Gulf approaches and a standing threat to anything Iran sails at the strait.
+    // hormuzGuard scales down every attempt to close Hormuz — 1.0 with the decks
+    // back, ~0.65 with one forward, floored at 0.3 with the whole fleet on
+    // station, so the strait is never made unclosable, only expensive to close.
+    const fwd = Game.navalForward();
+    const hormuzGuard = Math.max(0.3, 1 - 0.35 * fwd);
     // Tehran's war plan, which the player cannot see until they buy it: the
     // same event pool, weighted toward the arm this regime has decided matters
     const P = posture();
@@ -272,9 +309,9 @@ const IranAI = (() => {
       if (struckNuclear && mStr > 0 && chance(0.5)) events.push(EV.missileBase(mStr));
       // the naval arm contests the strait
       if (nStr > 0) {
-        if (G.hormuz === 'OPEN' && nStr >= 1.5 && chance(0.2 * w * P.hormuz)) events.push(EV.hormuzClose());
+        if (G.hormuz === 'OPEN' && nStr >= 1.5 && chance(0.2 * w * P.hormuz * hormuzGuard)) events.push(EV.hormuzClose());
         else if (G.hormuz === 'OPEN' && chance(0.3 * w * P.naval)) events.push(EV.mineScare());
-        else if (G.hormuz === 'CONTESTED' && chance(0.35 * w * P.hormuz)) events.push(EV.hormuzClose());
+        else if (G.hormuz === 'CONTESTED' && chance(0.35 * w * P.hormuz * hormuzGuard)) events.push(EV.hormuzClose());
       }
       if (chance((israelInPlay ? 0.5 : 0.3) * w * P.ally)) events.push(EV.allyStrike(israelInPlay));
       // a sustained two-front fight needs a missile force that still exists
@@ -315,9 +352,17 @@ const IranAI = (() => {
     // rare enough that it cannot bleed a presidency out on its own.
     if (G.hostageCrisis && chance(0.22)) events.push(EV.hostageParade());
 
+    // Aegis over the Gulf: a carrier group forward puts SM-3/SM-6 shooters on
+    // the ballistic approaches to the Gulf-state bases, and they knock down part
+    // of every salvo aimed there. Applied after the missile events are built so
+    // it thins whatever Tehran actually threw tonight — fewer dead, less damage
+    // on the ramp, a smaller political and economic bruise.
+    aegisIntercept(events, fwd);
+
     // Hormuz reopens the war-sim way: break Iran's navy and the Fifth Fleet
-    // clears the strait by force. While the navy fights, it mostly stays shut.
-    if (G.hormuz !== 'OPEN' && chance(nStr < 1 ? 0.65 : 0.12)) {
+    // clears the strait by force. While the navy fights, it mostly stays shut —
+    // though a carrier group forward escorting the convoys hurries it along.
+    if (G.hormuz !== 'OPEN' && chance(nStr < 1 ? 0.65 : 0.12 + 0.12 * fwd)) {
       events.push({
         title: 'Strait of Hormuz reopened by force',
         text: nStr < 1

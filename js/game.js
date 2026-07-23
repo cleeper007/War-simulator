@@ -767,6 +767,28 @@ const Game = (() => {
     return cv.posture === 'forward' ? 1 : 0;
   }
 
+  // ============================================================
+  // FORWARD PRESENCE
+  // ------------------------------------------------------------
+  // The strategic weight of a deck sitting forward in the North Arabian Sea,
+  // over and above the sorties it flies. A CSG that far up is a wall of Aegis
+  // escorts on the Gulf approaches and a standing threat to anything Iran sails
+  // at the strait — which reassures the oil market, makes the strait harder to
+  // close, and shoots down some of the ballistic salvo aimed at the Gulf-state
+  // bases. Zero when both decks are back, in transit, or gone; up to 2 with the
+  // whole fleet on station. A damaged deck counts half — she is still there,
+  // she is just fighting her own fires. Read by the economy (game.js oil model)
+  // and by Tehran's naval and missile decisions (ai.js).
+  function navalForward() {
+    let n = 0;
+    for (const cv of G.carriers) {
+      if (cv.lost || !cv.arrived || cv.moving) continue;
+      if (cv.posture !== 'forward') continue;
+      n += cv.damaged ? 0.5 : 1;
+    }
+    return n;
+  }
+
   // The theater's air order of battle: the decks, plus every land-based wing
   // the force flow has put on a ramp. The decks can be sunk or pulled back and
   // the land-based force cannot — which is why a war that runs long stops being
@@ -2005,7 +2027,13 @@ const Game = (() => {
         // the market eases toward the new target slowly, one night at a time.
         const warStr = IranAI.missileStrength() + IranAI.navalStrength(); // 0..4
         const warPremium = 3 + warStr * 2.5; // ~3 when Iran is finished, ~13 at full strength
-        const oilTarget = 88 + warPremium +
+        // A carrier group forward on the Gulf approaches is the market's
+        // reassurance that the shipping lanes are held and escorted — it shaves
+        // the crisis premium off the barrel, ~3 a deck, up to ~6 with the whole
+        // fleet on station. It does not fight the strait-closure premium below,
+        // which is a separate, larger shock; it just keeps the ambient fear down.
+        const carrierReassurance = navalForward() * 3;
+        const oilTarget = 88 + Math.max(0, warPremium - carrierReassurance) +
           (G.hormuz === 'CONTESTED' ? 14 : G.hormuz === 'CLOSED' ? 55 : 0);
         // The market eases toward the target one night at a time, but not
         // symmetrically: a fear premium spikes slowly and collapses fast. When
@@ -2435,7 +2463,7 @@ const Game = (() => {
   // airDefenseWeight is exported read-only for the tactical scope's threat ring —
   // the scope dramatizes the number, it never feeds back into the strike math.
   return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, israelStatus,
-    airDefenseWeight, orderCarrier, toggleCarrierPosture, carrierFactor, carrierExposure,
+    airDefenseWeight, orderCarrier, toggleCarrierPosture, carrierFactor, carrierExposure, navalForward,
     orderBombers, orderHeavies, transitCommitted, wearsDown,
     // the air-superiority ladder: what the sky is worth tonight, and what that
     // releases. pkgBlock is the single answer to "why can't I fly this".

@@ -267,7 +267,8 @@ const UI = (() => {
       return {
         label: 'ON STATION — N. ARABIAN SEA', cls: 'cv-forward',
         note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
-          'Full sortie generation. Under threat from Iranian anti-ship fires.',
+          'Full sortie generation. Aegis over the Gulf bases, weight on the strait, ' +
+          'a lid on the oil premium — and a hull inside Iranian anti-ship fires.',
       };
     }
     return {
@@ -394,8 +395,8 @@ const UI = (() => {
           : `SEND ${info.short} FORWARD TO THE NORTH ARABIAN SEA`) +
         `<span class="diplo-desc">` +
         (cv.moving ? 'The order is given. She is between stations until the end of the turn.'
-          : fwd ? 'Takes one turn at 50% capability, exposed until she is clear. Safe once there, at half the strike power.'
-          : 'Takes one turn at 50% capability. Full sortie generation once on station — and a hull inside Iran\'s anti-ship envelope.') +
+          : fwd ? 'Takes one turn at 50% capability, exposed until she is clear. Safe once there, at half the strike power — but the Aegis umbrella, the pressure on the strait, and the lid on oil all come off with her.'
+          : 'Takes one turn at 50% capability. Full sortie generation once on station — plus Aegis BMD over the Gulf-state bases, a harder strait to close, and a lower oil premium. The cost is a hull inside Iran\'s anti-ship envelope.') +
         `</span></button>`;
     }).join('');
 
