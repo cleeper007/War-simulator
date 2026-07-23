@@ -630,6 +630,13 @@ const MapView = (() => {
     helo: 'M0,-6.4 C2.7,-6.4 3.6,-4 3.6,-1.2 L3.6,2.4 L1.5,3.4 L1.2,8.8 ' +
           'L3.2,9.6 L3.2,10.8 L-1.2,10.8 L-1.2,9.6 L-1.4,3.4 L-3.6,2.4 ' +
           'L-3.6,-1.2 C-3.6,-4 -2.7,-6.4 0,-6.4 Z',
+    // MQ-9 Reaper: bulbous sensor nose, thin fuselage, very long straight
+    // high-aspect wings, and a downward-canted V-tail. Nothing about it reads
+    // as a fighter — it is the thing that just circles and watches.
+    reaper: 'M0,-8 C1.3,-7.8 1.6,-6.4 1.5,-5 L1,-2.2 L12,-0.7 L12,0.5 L1,-0.2 ' +
+            'L0.9,4.6 L4.8,8.2 L4.8,9 L0.8,6.6 L0,7 ' +
+            'L-0.8,6.6 L-4.8,9 L-4.8,8.2 L-0.9,4.6 L-1,-0.2 L-12,0.5 L-12,-0.7 ' +
+            'L-1,-2.2 L-1.5,-5 C-1.6,-6.4 -1.3,-7.8 0,-8 Z',
   };
   const BURNER = 'M-1.5,7 L1.5,7 L0.9,12.5 L-0.9,12.5 Z';
 
@@ -1501,7 +1508,10 @@ const MapView = (() => {
     edge: 214,                   // aircraft enter and leave off the bottom
   };
 
-  function csarOpen(header, crew, onSkip) {
+  function csarOpen(header, crew, onSkip, totalMs) {
+    // the Reaper covers exactly 1.5 orbits over the length of the mission, so it
+    // reads as a slow, patient wheel rather than a fighter racing around
+    const orbitRate = (1.5 * 360) / (totalMs || 66000);   // degrees per ms
     const { scope } = fsStacks();
     const entry = document.createElement('div');
     entry._alive = true;
@@ -1582,11 +1592,14 @@ const MapView = (() => {
       h.rotor.setAttribute('transform', `translate(0,-1) rotate(${h.spin.toFixed(1)})`);
     }
 
-    // the Sandy: a fixed-wing escort holding a wheel over the survivors, which
-    // is the one thing on this display that never stops moving
+    // the Reaper: a drone holding a slow wheel over the survivors, which is the
+    // one thing on this display that never stops moving. It flies the orbit as
+    // a flattened ellipse (perspective), and its nose tracks the tangent so it
+    // always looks like it is banking around the survivors, not sliding sideways.
+    const ORBIT_SQUASH = 0.8;  // vertical flattening that sells the "wheel"
     function makeSandy() {
       const g = el('g', { class: 'csar-sandy' });
-      g.appendChild(el('path', { class: 'csar-sandy-hull', d: SIL.fighter }));
+      g.appendChild(el('path', { class: 'csar-sandy-hull', d: SIL.reaper }));
       fx.appendChild(g);
       sandy = { g, ang: 200, r: 56, down: false, gone: false };
     }
@@ -1594,9 +1607,14 @@ const MapView = (() => {
       if (!sandy) return;
       const a = sandy.ang * Math.PI / 180;
       sandy.x = CS.surv.x + Math.cos(a) * sandy.r;
-      sandy.y = CS.surv.y + Math.sin(a) * sandy.r * 0.8;
+      sandy.y = CS.surv.y + Math.sin(a) * sandy.r * ORBIT_SQUASH;
+      // velocity tangent to the ellipse (d/da of the position above); the
+      // silhouette is drawn nose-up, so heading = atan2(vy,vx) + 90°
+      const vx = -Math.sin(a);
+      const vy = Math.cos(a) * ORBIT_SQUASH;
+      const heading = Math.atan2(vy, vx) * 180 / Math.PI + 90;
       sandy.g.setAttribute('transform',
-        `translate(${sandy.x.toFixed(2)},${sandy.y.toFixed(2)}) rotate(${(sandy.ang + 90).toFixed(1)})`);
+        `translate(${sandy.x.toFixed(2)},${sandy.y.toFixed(2)}) rotate(${heading.toFixed(1)})`);
     }
 
     (function spinLoop(last) {
@@ -1609,7 +1627,7 @@ const MapView = (() => {
           h.spin = (h.spin + dt * 1.6 * h.power) % 360;
           h.rotor.setAttribute('transform', `translate(0,-1) rotate(${h.spin.toFixed(1)})`);
         }
-        if (sandy && !sandy.down && !sandy.gone) { sandy.ang = (sandy.ang + dt * 0.055) % 360; placeSandy(); }
+        if (sandy && !sandy.down && !sandy.gone) { sandy.ang = (sandy.ang + dt * orbitRate) % 360; placeSandy(); }
         requestAnimationFrame(step);
       };
     })(performance.now())(performance.now());

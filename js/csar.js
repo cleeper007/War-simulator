@@ -546,7 +546,7 @@ const CSAR = (() => {
     const steps = INGRESS.concat(typeof tail === 'function' ? tail(d) : tail);
     const total = steps[steps.length - 1].t + 2500;
     const view = MapView.csarOpen(
-      `${d.callsign} RECOVERY · JOLLY 51 — ${d.loc.toUpperCase()}`, d.crew, () => finish(true));
+      `${d.callsign} RECOVERY · JOLLY 51 — ${d.loc.toUpperCase()}`, d.crew, () => finish(true), total);
 
     let phase = 'ALERT LAUNCH', contested = false, done = false;
     const timers = [];
