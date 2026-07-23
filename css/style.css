@@ -41,6 +41,19 @@ body {
   z-index: 100;
 }
 
+.version-badge {
+  position: fixed;
+  top: 14px;
+  left: 16px;
+  z-index: 101;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--dim);
+  border: 1px solid var(--line);
+  padding: 3px 8px;
+  background: rgba(3, 6, 12, 0.6);
+}
+
 .title-box {
   max-width: 640px;
   padding: 40px;
