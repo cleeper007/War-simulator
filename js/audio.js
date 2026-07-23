@@ -19,7 +19,7 @@ const AudioSys = (() => {
 
   // Mission tracks: looping background music that plays while a jet's radar
   // scope is on screen. One is picked at random each time the music starts.
-  const MISSION_TRACKS = ['mission-catalpa-1.m4a', 'mission-catalpa-2.m4a'];
+  const MISSION_TRACKS = ['radio-chatter-1.m4a', 'radio-chatter-2.m4a'];
 
   const MUTE_KEY = 'cic-muted';
   const clips = {};
@@ -57,6 +57,11 @@ const AudioSys = (() => {
   // playing, if muted, if audio isn't unlocked yet, or if no tracks loaded.
   function playMissionTrack() {
     if (missionCur || muted || !unlocked || !missionAudio.length) return;
+    // Only ever one chatter stream at a time: silence every track first so a
+    // big package launching several scopes at once can never stack audio.
+    for (const a of missionAudio) {
+      try { a.pause(); a.currentTime = 0; } catch (e) { /* silent */ }
+    }
     missionCur = missionAudio[Math.floor(Math.random() * missionAudio.length)];
     try {
       missionCur.currentTime = 0;
@@ -75,6 +80,16 @@ const AudioSys = (() => {
   function missionMusicStop() {
     if (missionCount > 0) missionCount--;
     if (missionCount > 0 || !missionCur) return;
+    const c = missionCur;
+    missionCur = null;
+    try { c.pause(); c.currentTime = 0; } catch (e) { /* silent */ }
+  }
+
+  // Kill the chatter outright regardless of how many scopes are open — used when
+  // the player skips the turn, which tears every live scope down at once.
+  function missionMusicStopAll() {
+    missionCount = 0;
+    if (!missionCur) return;
     const c = missionCur;
     missionCur = null;
     try { c.pause(); c.currentTime = 0; } catch (e) { /* silent */ }
@@ -138,5 +153,5 @@ const AudioSys = (() => {
     setMuted(muted);
   }
 
-  return { init, play, alertCheck, isMuted, setMuted, missionMusicStart, missionMusicStop };
+  return { init, play, alertCheck, isMuted, setMuted, missionMusicStart, missionMusicStop, missionMusicStopAll };
 })();

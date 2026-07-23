@@ -1174,6 +1174,9 @@ const MapView = (() => {
     // what lets that run reach its impact
     for (const end of [...clipEnders]) end();
     for (const end of [...skipEnders]) end();
+    // Every scope is being torn down at once — kill the radio chatter outright
+    // rather than leaning on each card's close to release it.
+    if (typeof AudioSys !== 'undefined') AudioSys.missionMusicStopAll();
   }
 
   // Some targets have their own hit clip; everything else uses the generic one.
