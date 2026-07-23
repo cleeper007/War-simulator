@@ -88,15 +88,15 @@ const SpecOps = (() => {
     status.style.color = '';
     const { p } = odds(G);
     const isrDone = G.isrPrep >= ISR_CAP;
-    const isrBlocked = G.diploUsed || isrDone;
+    const isrBlocked = G.intelUsed || isrDone;
     const buttons = [
       {
-        id: 'isr', name: 'ISR prep — shadow the leadership',
+        id: 'isr', name: 'Intelligence tasking — shadow the leadership',
         desc: isrDone
           ? 'Pattern-of-life picture is as good as it gets.'
-          : G.diploUsed
-            ? 'Uses this turn\'s action slot — already spent.'
-            : `Spend this turn's action slot building the intel picture. Next raid +12% (${G.isrPrep}/${ISR_CAP} used).`,
+          : G.intelUsed
+            ? 'Uses this turn\'s intelligence slot — already spent.'
+            : `Spend this turn's intelligence slot building the pattern-of-life picture. Next raid +12% (${G.isrPrep}/${ISR_CAP} used).`,
         disabled: isrBlocked,
       },
       {
@@ -114,11 +114,11 @@ const SpecOps = (() => {
     }
   }
 
-  // ---- ISR prep (spends the turn's diplomatic/action slot) ----
+  // ---- ISR prep (spends the turn's intelligence slot) ----
   function doIsrPrep() {
     const G = Game.G;
-    if (G.over || G.diploUsed || G.isrPrep >= ISR_CAP) return;
-    G.diploUsed = true;
+    if (G.over || G.intelUsed || G.isrPrep >= ISR_CAP) return;
+    G.intelUsed = true;
     G.isrPrep++;
     AudioSys.play('cable');
     UI.renderAll(G);

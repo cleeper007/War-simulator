@@ -247,10 +247,10 @@ const CSAR = (() => {
         id: 'isr', name: 'Push ISR — lock the position',
         desc: d.isr
           ? 'The position is locked and the on-scene commander has the picture.'
-          : G.diploUsed
-            ? 'Uses this turn\'s action slot — already spent.'
-            : 'Spend this turn\'s action slot retasking national assets onto the survivors. Recovery +10%, capture risk −8%.',
-        disabled: d.isr || G.diploUsed,
+          : G.intelUsed
+            ? 'Uses this turn\'s intelligence slot — already spent.'
+            : 'Spend this turn\'s intelligence slot retasking national assets onto the survivors. Recovery +10%, capture risk −8%.',
+        disabled: d.isr || G.intelUsed,
       },
       {
         id: 'go', name: 'LAUNCH THE RECOVERY — Sandy escort + Jolly package',
@@ -270,11 +270,11 @@ const CSAR = (() => {
     }
   }
 
-  // ---- ISR push (spends the turn's action slot) ----
+  // ---- ISR push (spends the turn's intelligence slot) ----
   function doIsr() {
     const G = Game.G;
-    if (G.over || running || !G.downed || G.downed.isr || G.diploUsed) return;
-    G.diploUsed = true;
+    if (G.over || running || !G.downed || G.downed.isr || G.intelUsed) return;
+    G.intelUsed = true;
     G.downed.isr = true;
     AudioSys.play('cable');
     UI.renderAll(G);

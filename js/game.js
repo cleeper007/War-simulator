@@ -75,7 +75,7 @@ const Game = (() => {
     missions: [],          // strike packages in flight: {targetId, pkg, eta}
     sanctions: 0, coalition: false, addressCooldown: 0, sprReleases: 0,
     negotiationsAccepted: false, negotiationMomentum: 0,
-    diploUsed: false, over: false,
+    diploUsed: false, intelUsed: false, over: false,
     // Israel: a semi-autonomous actor, not an American asset. Sidelined by
     // default; coordinate with them and the war widens, ignore them and they
     // eventually go alone on a timetable you do not control.
@@ -207,13 +207,13 @@ const Game = (() => {
     // no `downed` field and a stats block missing three counters — retired
     // rather than migrated, the same as every version before it.
     const KEY = 'cic-save-v9';   // bump the version to invalidate old saves
-    const VERSION = 9;
+    const VERSION = 10;
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
       'strikesThisTurn', 'struckThisTurn', 'missions', 'sanctions', 'coalition',
       'addressCooldown', 'sprReleases', 'negotiationsAccepted', 'negotiationMomentum',
-      'diploUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep', 'downed',
+      'diploUsed', 'intelUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep', 'downed',
       'israelPosture', 'israelPatience', 'israelStrikesUsed', 'israelJointAvailable',
       'regimeChaosTurns', 'regimeErratic', 'hostageCrisis', 'stats',
       'carriers', 'secondCarrierOrdered', 'secondCarrierEta', 'alliedFighters',
@@ -1583,8 +1583,13 @@ const Game = (() => {
   }
 
   // ---- diplomacy ----
+  // Intelligence taskings and diplomacy draw from two separate one-per-turn
+  // slots: knowing and doing no longer compete for the same action.
+  const INTEL_ACTIONS = ['bda', 'hunt', 'assess-nuclear', 'assess-intent'];
   function doDiplo(action) {
-    if (G.over || G.diploUsed || busy()) return;
+    if (G.over || busy()) return;
+    const isIntel = INTEL_ACTIONS.includes(action);
+    if (isIntel ? G.intelUsed : G.diploUsed) return;
     const events = [];
 
     switch (action) {
@@ -1716,9 +1721,9 @@ const Game = (() => {
       }
 
       // ---- intelligence taskings ----
-      // These compete for the same single action slot as diplomacy, the raid's
-      // ISR prep and a recovery push. That contention is the point: knowing
-      // what is happening costs exactly as much as doing something about it.
+      // These share the intelligence slot with the raid's ISR prep and a
+      // recovery push — one intel tasking per turn, run independently of
+      // whatever State is doing with the diplomatic slot.
       case 'bda': {
         // sharpen the picture on whatever the analysts are least sure about
         const stale = TARGETS
@@ -1790,15 +1795,14 @@ const Game = (() => {
       default: return;
     }
 
-    G.diploUsed = true;
+    if (isIntel) G.intelUsed = true; else G.diploUsed = true;
     G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
     AudioSys.play('cable');
     UI.renderAll(G);
-    // an intelligence tasking comes back as a product, not a cable — it is the
-    // same action slot, but the player should be able to tell at a glance which
-    // of the two they spent it on
-    const INTEL_ACTIONS = ['bda', 'hunt', 'assess-nuclear', 'assess-intent'];
-    UI.showReport(INTEL_ACTIONS.includes(action) ? 'INTELLIGENCE PRODUCT' : 'DIPLOMATIC CABLE',
+    // an intelligence tasking comes back as a product, not a cable — it spends
+    // the intel slot rather than the diplomatic one, and the player should be
+    // able to tell at a glance which of the two they spent
+    UI.showReport(isIntel ? 'INTELLIGENCE PRODUCT' : 'DIPLOMATIC CABLE',
       events, afterAction);
   }
 
@@ -2059,6 +2063,7 @@ const Game = (() => {
     if (G.addressCooldown > 0) G.addressCooldown--;
     if (G.regimeChaosTurns > 0) G.regimeChaosTurns--;
     G.diploUsed = false;
+    G.intelUsed = false;
     G.strikesThisTurn = 0;
     G.struckThisTurn = [];
     G.raidThisTurn = false;

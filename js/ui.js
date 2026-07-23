@@ -527,13 +527,13 @@ const UI = (() => {
   }
 
   // ---- intelligence tasking ----
-  // Same action slot as diplomacy, different currency: these buy knowing
+  // Its own one-per-turn slot, separate from diplomacy: these buy knowing
   // instead of doing. The panel leads with the collection picture — what is
   // currently known, and how firmly — because every one of these orders is a
-  // decision to spend the night's slot moving one of those lines. Reading the
-  // state out of four paragraphs of button text was the wrong shape for it.
+  // decision to spend the night's intel slot moving one of those lines. Reading
+  // the state out of four paragraphs of button text was the wrong shape for it.
   function renderIntel(G) {
-    const used = G.diploUsed;
+    const used = G.intelUsed;
     $('intel-status').textContent = used ? '— SLOT SPENT THIS TURN' : '';
 
     const hidden = IranAI.liveTels().filter(t => !t.located).length;
