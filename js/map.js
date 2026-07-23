@@ -31,6 +31,11 @@ const MapView = (() => {
     { name: 'UAE', x: 563, y: 600 },
     { name: 'TURKEY', x: 67, y: 34 },
     { name: 'SYRIA', x: 33, y: 170 },
+    { name: 'YEMEN', x: 290, y: 900 },
+    { name: 'JORDAN', x: -55, y: 308 },
+    { name: 'ISRAEL', x: -112, y: 290 },
+    { name: 'LEBANON', x: -88, y: 205 },
+    { name: 'BAHRAIN', x: 401, y: 508 },
   ];
 
   const SEAS = [
