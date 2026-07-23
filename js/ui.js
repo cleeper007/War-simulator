@@ -230,8 +230,9 @@ const UI = (() => {
     const tkCls = tk <= 2 ? 'crit' : tk <= 5 ? 'warn' : '';
     html += `<div class="res-row tanker-row"><span>Tanker tracks tonight</span>` +
       `<span class="res-count ${tkCls}">${tk} / ${cap}</span></div>`;
-    html += `<div class="res-note dim">Fighter package: littoral 3 · interior 4 · deep 5 · ` +
-      `heavies one more apiece · B-2 mission 4 · Tomahawks fly unrefuelled.` +
+    html += `<div class="res-note dim">Fighters: littoral unrefuelled · interior 4 · deep 5. ` +
+      `Bombers tank at every depth — B-1/B-52 littoral 4 · interior 5 · deep 6 · ` +
+      `B-2 mission 4 · Tomahawks fly unrefuelled.` +
       (!G.basing.gulf ? ' <span class="crit">Gulf ramps closed — nothing deep is reachable.</span>'
         : !G.basing.nato ? ' <span class="warn">NATO and Saudi tracks withdrawn.</span>' : '') +
       `</div>`;

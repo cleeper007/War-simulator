@@ -7,8 +7,10 @@
 // packages: valid strike options {asset, qty, base (success), label}
 // depth:   how far inside Iran the target sits, which is what a strike package
 //          actually costs in tanker tracks (see TANKER_COST). 1 = the Gulf
-//          littoral, reachable on a short leg; 2 = the interior; 3 = the far
-//          northwest and the Caspian, where the tanker chain is the mission.
+//          littoral, a short leg fighters fly unrefuelled; 2 = the interior;
+//          3 = the far northwest and the Caspian, where the tanker chain is the
+//          mission. Fighters only book tankers at depth 2+ — deep, past Abadan
+//          and Nojeh; the bombers book them everywhere.
 const TARGETS = [
   {
     id: 'ad-tehran', name: 'Tehran Air Defense Network', short: 'AD TEHRAN',
@@ -354,9 +356,17 @@ const PKG_DAMAGE = 55;
 // `weight` — condition taken off a site that wears down, on full effects
 // `tanker` — tracks booked, as a function of target depth
 // `needs`  — the air-superiority phase this platform will not be tasked below
+//
+// TANKER RULE. Fighters fly the Gulf littoral (depth 1 — the coast up to
+// Abadan) unrefuelled: a Strike Eagle or a Hornet has the legs to hit Bandar
+// Abbas, Bushehr or Kharg off the deck or the Gulf ramps and come home dry.
+// They only book tankers once the target sits deep — the interior and the
+// northwest, everything north of Abadan and west of Nojeh (depth 2+). The
+// bombers are the opposite: a B-1, B-52 or B-2 is on the tanker every night, at
+// every depth, because it is staging from Diego Garcia in the first place.
 const AIR_ASSETS = {
-  f35:     { ad: 0.02, loss: 0.015, weight: 45, tanker: (d) => 2 + d },
-  fighter: { ad: 0.11, loss: 0.060, weight: 62, tanker: (d) => 2 + d, needs: 'degraded' },
+  f35:     { ad: 0.02, loss: 0.015, weight: 45, tanker: (d) => d >= 2 ? 2 + d : 0 },
+  fighter: { ad: 0.11, loss: 0.060, weight: 62, tanker: (d) => d >= 2 ? 2 + d : 0, needs: 'degraded' },
   heavy:   { ad: 0.20, loss: 0.090, weight: 92, tanker: (d) => 3 + d, needs: 'superiority' },
   stealth: { ad: 0.02, loss: 0,     weight: 55, tanker: () => 4 },
   cruise:  { ad: 0,    loss: 0,     weight: 55, tanker: () => 0 },
@@ -428,8 +438,11 @@ const HEAVY_READY = 2;      // generated and ready the turn they land
 // ------------------------------------------------------------
 // The binding constraint on an air campaign flown from the sea against a
 // country the size of Iran is not aircraft and it is not weapons — it is fuel
-// in the air. Every manned package books tanker tracks out of a nightly theater
-// total; Tomahawks book none, because a missile does not refuel. What this buys
+// in the air. Deep packages book tanker tracks out of a nightly theater total;
+// Tomahawks book none, because a missile does not refuel — and fighters on the
+// littoral book none either, because they have the legs to reach the coast and
+// come home dry. It is depth that starts the meter: fighters pay once the target
+// is past Abadan and Nojeh, the bombers pay everywhere. What this buys
 // the war is geography: Tabriz and the Caspian cost most of a night's tanker
 // plan, so the decision "two targets on the littoral or one in the far
 // northwest" is a real one every turn. The heavies book the most of anyone —
