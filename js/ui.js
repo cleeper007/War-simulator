@@ -590,6 +590,12 @@ const UI = (() => {
       },
     ];
 
+    // the leadership raid's ISR prep is an intelligence tasking: it lives here
+    // now, not in Special Operations. SpecOps hands back the button (or null
+    // once there is no raid left to prepare for).
+    const isr = SpecOps.isrTasking(G);
+    if (isr) intel.push(isr);
+
     $('intel-buttons').innerHTML = picture + actionButtons(intel, used);
     wireActions('#intel-buttons');
   }

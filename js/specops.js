@@ -1,5 +1,6 @@
 // ============================================================
-// specops.js — special forces: ISR prep + leadership raid
+// specops.js — special forces: leadership raid (its ISR prep is rendered as an
+// intelligence tasking in the Intelligence Tasking panel; state lives here)
 // ============================================================
 // One Tier-1 task force for the whole game (G.res.specops, never
 // replenished). The raid is not a strike: no package math, no strike
@@ -87,18 +88,13 @@ const SpecOps = (() => {
     status.textContent = '';
     status.style.color = '';
     const { p } = odds(G);
-    const isrDone = G.isrPrep >= ISR_CAP;
-    const isrBlocked = G.intelUsed || isrDone;
+    // The raid is the only order given from this panel now; its ISR prep is an
+    // intelligence tasking and lives in the Intelligence Tasking panel, but the
+    // odds it buys are shown here where the raid is launched.
+    const isrNote = G.isrPrep >= ISR_CAP
+      ? `Pattern-of-life ISR complete (${ISR_CAP}/${ISR_CAP}) — odds are as good as they get.`
+      : `Pattern-of-life ISR run ${G.isrPrep}/${ISR_CAP} times. Run more from the Intelligence Tasking panel — each adds +12%.`;
     const buttons = [
-      {
-        id: 'isr', name: 'Intelligence tasking — shadow the leadership',
-        desc: isrDone
-          ? 'Pattern-of-life picture is as good as it gets.'
-          : G.intelUsed
-            ? 'Uses this turn\'s intelligence slot — already spent.'
-            : `Spend this turn's intelligence slot building the pattern-of-life picture. Next raid +12% (${G.isrPrep}/${ISR_CAP} used).`,
-        disabled: isrBlocked,
-      },
       {
         id: 'raid', name: 'LEADERSHIP DECAPITATION — launch raid',
         desc: `One task force, one attempt, ever. Current success estimate: ${Math.round(p * 100)}%. Win or lose, the world will know — and Tehran will answer.`,
@@ -108,24 +104,43 @@ const SpecOps = (() => {
     ];
     box.innerHTML = buttons.map(b =>
       `<button data-specops="${b.id}" ${b.disabled ? 'disabled' : ''} class="${b.danger ? 'specops-danger' : ''}">` +
-      `${b.name}<span class="diplo-desc">${b.desc}</span></button>`).join('');
+      `${b.name}<span class="diplo-desc">${b.desc}</span></button>`).join('') +
+      `<div class="dim" style="font-size:11px;margin-top:6px">${isrNote}</div>`;
     for (const btn of box.querySelectorAll('button')) {
-      btn.addEventListener('click', () => btn.dataset.specops === 'isr' ? doIsrPrep() : openModal());
+      btn.addEventListener('click', openModal);
     }
   }
 
-  // ---- ISR prep (spends the turn's intelligence slot) ----
-  function doIsrPrep() {
-    const G = Game.G;
-    if (G.over || G.intelUsed || G.isrPrep >= ISR_CAP) return;
-    G.intelUsed = true;
+  // ---- ISR prep ----
+  // Now an intelligence tasking: the Intelligence Tasking panel renders the
+  // button (via isrTasking) and Game.doDiplo spends the intel slot, but the
+  // state and its raid payoff stay here with the mission they feed.
+  // Returns the button descriptor, or null when there is no raid left to prep.
+  function isrTasking(G) {
+    if (running || G.raid !== 'none') return null;
+    const done = G.isrPrep >= ISR_CAP;
+    return {
+      id: 'isr-prep', name: 'Shadow the leadership — pattern-of-life',
+      current: done
+        ? `Pattern-of-life picture complete (${ISR_CAP}/${ISR_CAP}).`
+        : `${G.isrPrep}/${ISR_CAP} taskings run — each adds +12% to a leadership raid.`,
+      desc: done
+        ? 'As good as overhead and the source network can make it. No further ISR will improve the raid.'
+        : 'National assets shadow the leadership\'s movements, comms and security rotations. Builds the ' +
+          'picture a decapitation raid needs to bring the operators home.',
+      disabled: done,
+    };
+  }
+
+  // Runs the tasking itself, called from Game.doDiplo on the intel slot.
+  function runIsrPrep(G, events) {
+    if (G.isrPrep >= ISR_CAP) return false;
     G.isrPrep++;
-    AudioSys.play('cable');
-    UI.renderAll(G);
-    UI.showReport('SPECIAL OPERATIONS — ISR TASKING', [{
+    events.push({
       cls: 'friendly', title: 'Pattern-of-life surveillance expanded',
       text: 'National assets are retasked against the leadership\'s movements, communications, and security detail rotations. The picture sharpens. If the raid ever goes, this is what brings the operators home.',
-    }], () => Game.afterAction());
+    });
+    return true;
   }
 
   // ---- mission modal ----
@@ -487,5 +502,5 @@ const SpecOps = (() => {
     $('btn-confirm-raid').addEventListener('click', executeRaid);
   }
 
-  return { init, renderPanel, odds, busy: () => running };
+  return { init, renderPanel, odds, isrTasking, runIsrPrep, busy: () => running };
 })();

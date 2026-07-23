@@ -1585,7 +1585,7 @@ const Game = (() => {
   // ---- diplomacy ----
   // Intelligence taskings and diplomacy draw from two separate one-per-turn
   // slots: knowing and doing no longer compete for the same action.
-  const INTEL_ACTIONS = ['bda', 'hunt', 'assess-nuclear', 'assess-intent'];
+  const INTEL_ACTIONS = ['bda', 'hunt', 'assess-nuclear', 'assess-intent', 'isr-prep'];
   function doDiplo(action) {
     if (G.over || busy()) return;
     const isIntel = INTEL_ACTIONS.includes(action);
@@ -1778,6 +1778,12 @@ const Game = (() => {
               `from a device, ${est.conf} confidence. The Director was careful to say that the band is ` +
               `the honest part of the answer.`,
         });
+        break;
+      }
+      case 'isr-prep': {
+        // pattern-of-life ISR feeding the leadership raid; logic lives in
+        // SpecOps, but it spends the intel slot like any other tasking
+        if (!SpecOps.runIsrPrep(G, events)) return;
         break;
       }
       case 'assess-intent': {
