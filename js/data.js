@@ -184,6 +184,64 @@ const TARGETS = [
       { asset: 'heavy', qty: 2, base: 0.76, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, the whole refinery train' },
     ],
   },
+  {
+    id: 'arak', name: 'Arak Heavy-Water Reactor', short: 'ARAK IR-40',
+    type: 'nuclear', x: 363, y: 199, depth: 2, hardened: true,
+    desc: 'The plutonium road to a bomb — a heavy-water research reactor that breeds weapons-grade material a uranium centrifuge never touches. The reactor hall is a hardened concrete shell; cruise missiles scar it, but only a penetrator reaches the core. Killing it closes the second path to a weapon.',
+    world: -4,
+    packages: [
+      { asset: 'stealth', qty: 1, base: 0.86, label: 'B-2 mission — GBU-57 penetrator into the reactor hall' },
+      { asset: 'f35', qty: 2, base: 0.60, label: 'F-35 strike — 2 sorties (limited vs the hardened core)' },
+      { asset: 'cruise', qty: 4, base: 0.55, label: 'Saturation TLAM strike — surface plant only' },
+    ],
+  },
+  {
+    id: 'bushehr-npp', name: 'Bushehr Nuclear Power Plant', short: 'BUSHEHR NPP',
+    type: 'nuclear', x: 430, y: 415, depth: 1,
+    desc: 'A live civilian reactor on the Gulf coast, run under Russian contract with Russian technicians on site. It makes no bomb fuel — but cracking a fuelled core seeds a radiological plume across the Gulf and puts Moscow\'s people under American ordnance. The most diplomatically ruinous aimpoint in Iran, and militarily the least worth it.',
+    world: -10,
+    packages: [
+      { asset: 'cruise', qty: 3, base: 0.80, label: 'TLAM salvo — switchyard and auxiliaries, not the core' },
+      { asset: 'f35', qty: 2, base: 0.75, label: 'F-35 strike package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.70, label: 'Air strike — 3 F-15E sorties' },
+    ],
+  },
+  {
+    id: 'naval-chabahar', name: 'Chabahar Naval Base — Konarak', short: 'NAV CHABAHAR',
+    type: 'naval', x: 680, y: 540, depth: 1,
+    desc: 'Iran\'s deep-water port on the Gulf of Oman, east of Hormuz and wide open to the Indian Ocean. It is where the surface fleet runs to when the Gulf ports are held at risk, and the one base from which Iran reaches blue water. Far to the east, but on the coast and inside the carrier\'s reach.',
+    world: -2,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.80, label: 'F-35 strike package — 2 sorties' },
+      { asset: 'fighter', qty: 2, base: 0.75, label: 'Air strike — 2 F/A-18E sorties' },
+      { asset: 'cruise', qty: 2, base: 0.82, label: 'TLAM salvo — 2 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.79, label: 'HEAVY BOMBER STRIKE — 2 B-1B sorties, naval mining and JDAM' },
+    ],
+  },
+  {
+    id: 'nojeh-ab', name: 'Shahid Nojeh Air Base — Hamadan', short: 'NOJEH AB',
+    type: 'airbase', x: 327, y: 159, depth: 2,
+    desc: 'Third Tactical Air Base in the western highlands — F-4 Phantom and Su-24 squadrons covering the approaches from Iraq, and a primary dispersal field for aircraft flown out of the interior when it is struck. Cratering the runways grounds the wing until the fill sets.',
+    world: -2,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.74, label: 'F-35 strike package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.69, label: 'Air strike — 3 F-15E sorties' },
+      { asset: 'cruise', qty: 3, base: 0.80, label: 'TLAM salvo — 3 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.72, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, runway and ramp' },
+    ],
+  },
+  {
+    id: 'msl-khorramabad', name: 'Khorramabad Missile Base', short: 'MSL KHORRAMABAD',
+    type: 'missile', x: 321, y: 221, depth: 2,
+    desc: 'An underground "missile city" tunnelled into the Zagros — launch cells and reload magazines behind blast doors deep in the rock, ranging every US base in Iraq and the northern Gulf. The tunnel portals are the only thing to hit, and hitting them buries launchers rather than destroying them. Reduces the weight of Iranian missile retaliation.',
+    world: -2,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.72, label: 'F-35 strike package — 2 sorties (tunnel portals)' },
+      { asset: 'fighter', qty: 3, base: 0.67, label: 'Air strike — 3 F-15E sorties' },
+      { asset: 'cruise', qty: 3, base: 0.78, label: 'TLAM salvo — 3 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.72, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, portals and support area' },
+    ],
+  },
 
   // ---- dispersed missile brigades (TELs) ----
   // These are not on the map when the war opens and they cannot be planned
@@ -728,6 +786,7 @@ const IRAN_LAUNCH_SITES = {
   missile: [
     { x: 285, y: 196, tgtId: 'msl-kermanshah' },
     { x: 469, y: 374, tgtId: 'msl-shiraz' },
+    { x: 321, y: 221, tgtId: 'msl-khorramabad' },
     { x: 434, y: 152 },
   ],
   drone: [
