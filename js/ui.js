@@ -582,12 +582,17 @@ const UI = (() => {
       },
       {
         id: 'assess-intent', name: 'Assess Iranian war plan',
-        current: posture ? `Assessed: ${posture.name}.` : 'Never assessed.',
+        current: posture
+          ? `Assessed: ${posture.name}.`
+          : (G.turn <= 3 ? `Locked until turn 4 (currently turn ${G.turn}).` : 'Never assessed.'),
         desc: posture
           ? posture.brief
-          : 'The Agency can tell you which arm Tehran has decided to fight this war with — and therefore ' +
-            'which one is worth spending the campaign destroying. One tasking, permanent answer.',
-        disabled: G.postureKnown,
+          : (G.turn <= 3
+            ? 'The Agency needs time on the target before it can read Tehran’s intent. The tasking ' +
+              'opens up after the first three turns of the campaign.'
+            : 'The Agency can tell you which arm Tehran has decided to fight this war with — and therefore ' +
+              'which one is worth spending the campaign destroying. One tasking, permanent answer.'),
+        disabled: G.postureKnown || G.turn <= 3,
       },
     ];
 
