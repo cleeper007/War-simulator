@@ -592,6 +592,11 @@ const MapView = (() => {
   function fsClose(entry, delay) {
     setTimeout(() => {
       entry._alive = false;
+      // Release this scope's hold on the jet radar-view music (once).
+      if (entry._missionMusic && typeof AudioSys !== 'undefined') {
+        entry._missionMusic = false;
+        AudioSys.missionMusicStop();
+      }
       entry.remove();
       fsSync();
     }, delay || 0);
@@ -977,9 +982,16 @@ const MapView = (() => {
     // Start the terminal run. For a TLAM the launch clip plays first and in full
     // — the flight (and the radar) only begins once the clip is done, so the clip
     // never cuts into radar time. Every other asset starts its run immediately.
+    // Manned-aircraft sorties (fighters, F-35s, B-2s, heavy bombers) carry the
+    // radar-view background music; TLAMs — cruise or sub-launched — don't.
+    const isJet = !cruise && !sub;
     function startFlight() {
       t0 = performance.now();
       lastFrame = t0;
+      if (isJet && typeof AudioSys !== 'undefined') {
+        entry._missionMusic = true;
+        AudioSys.missionMusicStart();
+      }
       requestAnimationFrame(frame);
     }
     // Front-loaded launch clip (plays in full before the run, gating the flight
