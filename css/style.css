@@ -731,13 +731,13 @@ button { font-family: var(--mono); }
 .csar-surv-safe path { fill: var(--blue); }
 .csar-surv-taken path { fill: var(--amber); }
 
-/* the search party, and the search party after a gun run */
+/* the search party, and the search party after a Hellfire strike */
 .csar-hunter rect { fill: var(--red); }
 .csar-hunter-dead rect { fill: #4a2020; }
 
 /* the on-scene commander's wheel */
-.csar-sandy-hull { fill: #cfe0f5; }
-.csar-sandy-wreck .csar-sandy-hull { fill: var(--red); }
+.csar-mq9-hull { fill: #cfe0f5; }
+.csar-mq9-wreck .csar-mq9-hull { fill: var(--red); }
 .raid-helo.csar-hit .raid-hull { fill: var(--amber); }
 
 /* ---- isolated personnel on the strategic map ---- */

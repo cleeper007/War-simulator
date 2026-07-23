@@ -1572,7 +1572,7 @@ const MapView = (() => {
 
     // ---- aircraft ----
     const helos = [];
-    let sandy = null;
+    let mq9 = null;
 
     function makeHelo(id, x, y) {
       const g = el('g', { class: 'raid-helo' });
@@ -1597,24 +1597,24 @@ const MapView = (() => {
     // a flattened ellipse (perspective), and its nose tracks the tangent so it
     // always looks like it is banking around the survivors, not sliding sideways.
     const ORBIT_SQUASH = 0.8;  // vertical flattening that sells the "wheel"
-    function makeSandy() {
-      const g = el('g', { class: 'csar-sandy' });
-      g.appendChild(el('path', { class: 'csar-sandy-hull', d: SIL.reaper }));
+    function makeMq9() {
+      const g = el('g', { class: 'csar-mq9' });
+      g.appendChild(el('path', { class: 'csar-mq9-hull', d: SIL.reaper }));
       fx.appendChild(g);
-      sandy = { g, ang: 200, r: 56, down: false, gone: false };
+      mq9 = { g, ang: 200, r: 56, down: false, gone: false };
     }
-    function placeSandy() {
-      if (!sandy) return;
-      const a = sandy.ang * Math.PI / 180;
-      sandy.x = CS.surv.x + Math.cos(a) * sandy.r;
-      sandy.y = CS.surv.y + Math.sin(a) * sandy.r * ORBIT_SQUASH;
+    function placeMq9() {
+      if (!mq9) return;
+      const a = mq9.ang * Math.PI / 180;
+      mq9.x = CS.surv.x + Math.cos(a) * mq9.r;
+      mq9.y = CS.surv.y + Math.sin(a) * mq9.r * ORBIT_SQUASH;
       // velocity tangent to the ellipse (d/da of the position above); the
       // silhouette is drawn nose-up, so heading = atan2(vy,vx) + 90°
       const vx = -Math.sin(a);
       const vy = Math.cos(a) * ORBIT_SQUASH;
       const heading = Math.atan2(vy, vx) * 180 / Math.PI + 90;
-      sandy.g.setAttribute('transform',
-        `translate(${sandy.x.toFixed(2)},${sandy.y.toFixed(2)}) rotate(${heading.toFixed(1)})`);
+      mq9.g.setAttribute('transform',
+        `translate(${mq9.x.toFixed(2)},${mq9.y.toFixed(2)}) rotate(${heading.toFixed(1)})`);
     }
 
     (function spinLoop(last) {
@@ -1627,7 +1627,7 @@ const MapView = (() => {
           h.spin = (h.spin + dt * 1.6 * h.power) % 360;
           h.rotor.setAttribute('transform', `translate(0,-1) rotate(${h.spin.toFixed(1)})`);
         }
-        if (sandy && !sandy.down && !sandy.gone) { sandy.ang = (sandy.ang + dt * orbitRate) % 360; placeSandy(); }
+        if (mq9 && !mq9.down && !mq9.gone) { mq9.ang = (mq9.ang + dt * orbitRate) % 360; placeMq9(); }
         requestAnimationFrame(step);
       };
     })(performance.now())(performance.now());
@@ -1694,12 +1694,12 @@ const MapView = (() => {
 
       phase(p, label, contested) { setProgress(entry, p, label, contested); },
 
-      // two Jollies and the Sandy flight run in from the south
+      // two Jollies and the MQ-9 flight run in from the south
       ingress(ms) {
         const j1 = makeHelo('jolly1', CS.hold.x - 30, CS.edge);
         const j2 = makeHelo('jolly2', CS.hold.x + 6, CS.edge + 24);
-        makeSandy();
-        placeSandy();
+        makeMq9();
+        placeMq9();
         const a0 = { x: j1.x, y: j1.y }, b0 = { x: j2.x, y: j2.y };
         const a1 = { x: CS.hold.x - 26, y: CS.hold.y + 10 };
         tween(ms, (p) => {
@@ -1718,7 +1718,7 @@ const MapView = (() => {
 
       searchers(ms, from) { makeHunters(from || 'east', ms); },
 
-      // Sandy strafes the gap between the search party and the survivors
+      // MQ-9 puts a Hellfire into the gap between the search party and the survivors
       gunRun(kill) {
         const grp = hunters[hunters.length - 1];
         const at = grp ? { x: grp.x, y: grp.y } : { x: CS.east.x, y: CS.east.y };
@@ -1836,25 +1836,25 @@ const MapView = (() => {
       },
 
       // the on-scene commander is hit: the wheel stops turning
-      sandyDown() {
-        if (!sandy || sandy.down) return;
-        sandy.down = true;
-        const from = { x: sandy.x, y: sandy.y };
+      mq9Down() {
+        if (!mq9 || mq9.down) return;
+        mq9.down = true;
+        const from = { x: mq9.x, y: mq9.y };
         tween(1500, (p) => {
           const x = from.x + 18 * p, y = from.y - 26 * p;
-          sandy.g.setAttribute('transform', `translate(${x.toFixed(2)},${y.toFixed(2)}) rotate(${(p * 220).toFixed(1)})`);
+          mq9.g.setAttribute('transform', `translate(${x.toFixed(2)},${y.toFixed(2)}) rotate(${(p * 220).toFixed(1)})`);
           if (p >= 1) scopeBurst(fx, x, y, 'raid-blast', 18);
-        }, () => sandy.g.classList.add('csar-sandy-wreck'));
+        }, () => mq9.g.classList.add('csar-mq9-wreck'));
       },
 
       // whatever is still flying runs south off the display
       egress(ms) {
         for (const o of pjs) if (!o.hit && !o.frozen) o.g.classList.add('raid-op-gone');
-        if (sandy && !sandy.down) {
-          sandy.gone = true;
-          const from = { x: sandy.x, y: sandy.y };
+        if (mq9 && !mq9.down) {
+          mq9.gone = true;
+          const from = { x: mq9.x, y: mq9.y };
           tween(ms, (p) => {
-            sandy.g.setAttribute('transform',
+            mq9.g.setAttribute('transform',
               `translate(${(from.x - 10 * p).toFixed(2)},${(from.y + (CS.edge + 20 - from.y) * p).toFixed(2)}) rotate(180)`);
           });
         }

@@ -253,9 +253,9 @@ const CSAR = (() => {
         disabled: d.isr || G.intelUsed,
       },
       {
-        id: 'go', name: 'LAUNCH THE RECOVERY — Sandy escort + Jolly package',
+        id: 'go', name: 'LAUNCH THE RECOVERY — MQ-9 overwatch + Jolly package',
         desc: noEscort
-          ? 'No fighter sorties left to fly the Sandy escort. Nothing goes in over that ground unescorted.'
+          ? 'No fighter sorties left to escort the package in. Nothing goes in over that ground unescorted.'
           : `Costs 1 fighter sortie. Current recovery estimate: ${Math.round(p * 100)}%. ` +
             `Waiting makes it worse — and the alternative to going is a broadcast.`,
         disabled: noEscort,
@@ -297,7 +297,7 @@ const CSAR = (() => {
     $('csar-brief-text').textContent =
       `${d.callsign} — ${d.type} — went down ${d.loc}. ${d.crew === 2 ? 'Two aircrew are' : 'One aviator is'} ` +
       `on the ground and authenticated. The package is a pair of HH-60W Jolly Green IIs with a ` +
-      `pararescue team aboard, an A-10 Sandy flight as on-scene commander, and tankers holding off the ` +
+      `pararescue team aboard, an armed MQ-9 Reaper flying overwatch and precision fires, and tankers holding off the ` +
       `coast. It is the most exposed thing the Air Force does, it is flown into an alerted area, and ` +
       `nobody in this building will tell you not to go.`;
     let html = parts.map(([label, v]) =>
@@ -305,7 +305,7 @@ const CSAR = (() => {
     html += `EST. PROBABILITY OF RECOVERY: <span class="${sCls}">${pct}%</span><br>` +
       `<span class="dim">The recovery runs about seventy seconds. It is narrated live in the tactical panel.</span><br>` +
       `<span class="est-good">Bringing them home is worth more at home than any target on the map.</span><br>` +
-      `<span class="est-warn">Costs 1 fighter sortie for the Sandy escort. There is one attempt.</span><br>` +
+      `<span class="est-warn">Costs 1 fighter sortie for the escort. There is one attempt.</span><br>` +
       `<span class="est-bad">Short of success, aircrew — and possibly a rescue crew — go into IRGC custody.</span>`;
     $('csar-estimate').innerHTML = html;
     $('csar-modal').classList.remove('hidden');
@@ -337,12 +337,12 @@ const CSAR = (() => {
 
   const INGRESS = [
     { t: 0, phase: 'ALERT LAUNCH', audio: 'launch',
-      text: 'JOLLY 51 and 52 off the alert pad — SANDY flight leading them in',
+      text: 'JOLLY 51 and 52 off the alert pad — REAPER 01 already on station overhead',
       fx: (v) => v.ingress(26000) },
     { t: 4500, text: '{cs} is up on guard — survival radio contact, weak but readable' },
     { t: 9000, kind: 'good', text: 'Authentication passed against the ISOPREP file. It is them.',
       fx: (v) => v.beacon() },
-    { t: 13500, text: 'SANDY 01 takes the on-scene commander role — marking the position off a smoke' },
+    { t: 13500, text: 'REAPER 01 holds the wheel overhead — sparkling the position with its targeting pod' },
     { t: 18000, kind: 'problem', contested: true,
       text: 'Vehicles on the track east of the position — dismounts, moving to search',
       fx: (v) => v.searchers(30000) },
@@ -353,7 +353,7 @@ const CSAR = (() => {
     // ---- everyone comes home ----
     clean: [
       { t: 26000, phase: 'RECOVERY', audio: 'impact',
-        text: 'SANDY 01 in hot — gun run between the search party and the survivors',
+        text: 'REAPER 01 in hot — Hellfire between the search party and the survivors',
         fx: (v) => v.gunRun(true) },
       { t: 30000, kind: 'good', contested: false,
         text: 'Search party broken up. Nobody is walking onto that position now.' },
@@ -364,14 +364,14 @@ const CSAR = (() => {
       { t: 44000, kind: 'good', audio: 'impact', text: 'ALL SURVIVORS ABOARD — nobody left in that wadi' },
       { t: 48000, phase: 'EGRESS', text: 'JOLLY 51 off the deck — nose down, running for the coast',
         fx: (v) => v.egress(11000) },
-      { t: 53000, text: 'SANDY flight covering the egress. Nothing coming off the track behind them.' },
+      { t: 53000, text: 'REAPER 01 covering the egress. Nothing coming off the track behind them.' },
       { t: 58000, kind: 'good', text: 'Feet wet. Both engines good, no holes worth counting.' },
       { t: 63000, phase: 'RECOVERY COMPLETE', text: 'Aircrew recovered. Medical is meeting them on the ramp.' },
     ],
 
     // ---- everyone comes home and the rescue force pays for it ----
     costly: [
-      { t: 26000, phase: 'RECOVERY', audio: 'impact', text: 'SANDY 01 in hot — gun run short of the position',
+      { t: 26000, phase: 'RECOVERY', audio: 'impact', text: 'REAPER 01 in hot — Hellfire short of the position',
         fx: (v) => v.gunRun(false) },
       { t: 30000, kind: 'problem', text: 'They went to ground and kept shooting. This is not a clean pattern.' },
       { t: 34000, kind: 'bad', audio: 'aircraftLost',
@@ -382,7 +382,7 @@ const CSAR = (() => {
       { t: 44000, kind: 'good', audio: 'impact', text: 'SURVIVORS ABOARD — thirty-one seconds on the ground' },
       { t: 48000, phase: 'EGRESS', kind: 'problem', text: 'JOLLY 51 lifting heavy — number two engine degraded',
         fx: (v) => v.egress(12000) },
-      { t: 53000, kind: 'problem', text: 'Trailing fuel and losing pressure. SANDY flight is walking them out.' },
+      { t: 53000, kind: 'problem', text: 'Trailing fuel and losing pressure. REAPER 01 is walking them out.' },
       { t: 58000, kind: 'good', text: 'Feet wet — they made the water and put down on a destroyer\'s deck.' },
       { t: 63000, phase: 'RECOVERY COMPLETE — CASUALTIES',
         text: 'Aircrew recovered. The pararescueman who went out first did not come back.' },
@@ -391,7 +391,7 @@ const CSAR = (() => {
     // ---- the recovery force comes out without all of them ----
     // The night forks on how many people were down there to begin with.
     partial: (d) => d.crew === 2 ? [
-      { t: 26000, phase: 'RECOVERY', text: 'SANDY 01 in hot — gun run on the track',
+      { t: 26000, phase: 'RECOVERY', text: 'REAPER 01 in hot — Hellfire on the track',
         fx: (v) => v.gunRun(false) },
       { t: 30000, kind: 'bad', text: 'Second element on foot from the north. They had this position before we did.',
         fx: (v) => v.searchers(26000, 'north') },
@@ -408,7 +408,7 @@ const CSAR = (() => {
       { t: 61000, kind: 'bad', text: 'Nothing further from the second beacon. It is in their hands now.' },
       { t: 66000, phase: 'RECOVERY ENDED', text: 'One aircrew aboard. One on that hillside.' },
     ] : [
-      { t: 26000, phase: 'RECOVERY', text: 'SANDY 01 in hot — gun run on the track',
+      { t: 26000, phase: 'RECOVERY', text: 'REAPER 01 in hot — Hellfire on the track',
         fx: (v) => v.gunRun(false) },
       { t: 30000, kind: 'bad', text: 'Second element on foot from the north. They had this position before we did.',
         fx: (v) => v.searchers(26000, 'north') },
@@ -434,8 +434,8 @@ const CSAR = (() => {
         fx: (v) => v.heloDown('jolly1', true) },
       { t: 35000, kind: 'bad', text: 'Rescue crew is out of the wreck and pinned in the open',
         fx: (v) => v.crewHit() },
-      { t: 39000, kind: 'bad', text: 'SANDY 01 down as well — MANPADS off the ridge line',
-        fx: (v) => v.sandyDown() },
+      { t: 39000, kind: 'bad', text: 'REAPER 01 knocked down as well — MANPADS off the ridge line',
+        fx: (v) => v.mq9Down() },
       { t: 44000, kind: 'bad', text: 'JOLLY 52 is taking fire in the hold and cannot get in' },
       { t: 49000, phase: 'DANGER CLOSE', kind: 'bad',
         text: 'Aircrew, pararescuemen and a helicopter crew are all on that ground now' },
@@ -520,7 +520,7 @@ const CSAR = (() => {
       events.push({
         cls: 'iran', title: 'RECOVERY FORCE DESTROYED — THE RESCUE IS NOW THE STORY',
         text: `The beacon was a trap and the package flew into it. A Jolly went in on short final with a ` +
-          `pararescue team aboard, the Sandy on-scene commander was taken by a shoulder-launched missile ` +
+          `pararescue team aboard, the MQ-9 flying overwatch was knocked out of the sky by a shoulder-launched missile ` +
           `over the ridge, and the second helicopter could not get in to either of them. ${c} Americans ` +
           `are dead. ${d.crew === 2 ? 'The aircrew and' : 'The aviator and'} the survivors of the ` +
           `helicopter crew are in IRGC custody — more prisoners than the shootdown created, taken by the ` +
@@ -591,7 +591,7 @@ const CSAR = (() => {
     const d = G.downed;
     const branch = pickBranch(G);   // decided here, before anything is drawn
 
-    G.res.fighters -= 1;            // the Sandy escort is a real sortie
+    G.res.fighters -= 1;            // the fighter escort is a real sortie
     G.downed = null;                // one attempt: the situation resolves tonight
     syncMap(G);
     lock(true);
