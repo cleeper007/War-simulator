@@ -1408,7 +1408,7 @@ const Game = (() => {
     G.strikesThisTurn++;
     G.stats.strikes++;
     G.missions.push({ targetId: target.id, pkg: { ...pkg }, eta: pkg.eta || MISSION_ETA[pkg.asset] });
-    AudioSys.play('launch');
+    AudioSys.play('targetMarked');
     UI.renderAll(G);
     Save.write();
   }
