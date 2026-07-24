@@ -2073,121 +2073,139 @@ const Game = (() => {
       // before any repositioning ordered this turn completes below
       for (const ev of carrierRisk()) events.unshift(ev);
       if (israeli) events.unshift(israeli);
-      if (events.some(ev => ev.casualties || ev.hormuz === 'CLOSED')) AudioSys.play('retaliation');
 
-      // Iran's salvos fly on the map — missiles, drone swarms, intercepts —
-      // before the battle report lands and covers the screen
-      MapView.animateIranianAttacks(events, () => {
-        // repair runs before the night's events land, so anything an Israeli
-        // counter-strike catches in the open stays caught for the turn
-        const repairs = repairTargets();
-        for (const ev of events) applyEvent(ev);
+      const day = Math.ceil(G.turn / 2);
 
-        // launchers scatter out of the bases the BDA just confirmed destroyed
-        const dispersals = [];
-        for (const ev of bda) {
-          if (!ev.disperse) continue;
-          const d = disperseFrom(ev.disperse, ev.disperseFrac);
-          if (d) dispersals.push(d);
-        }
+      // The night comes back in two halves. First, what tonight's packages did:
+      // the BDA lands on its own, with nothing else on the page to read it
+      // against. Only when the president has closed it does Tehran get to
+      // answer — the salvo flies, and the battle report carries the rest of the
+      // night. Everything below is already decided either way; the split is
+      // about what the player is looking at when.
+      MapView.whenFootageDone(() => {
+        if (!bda.length) { iranianResponse(); return; }
+        UI.showReport(`BATTLE DAMAGE ASSESSMENT — DAY ${day}, TURN ${G.turn}`, bda, iranianResponse);
+      });
 
-        // economy: oil carries a war premium set by Iran's remaining ability
-        // to threaten the Gulf, plus the state of the strait. The premium scales
-        // with what Iran can still do rather than snapping between two values, so
-        // grinding the missile and naval forces down is visible at the pump — and
-        // the market eases toward the new target slowly, one night at a time.
-        const warStr = IranAI.missileStrength() + IranAI.navalStrength(); // 0..4
-        const warPremium = 3 + warStr * 2.5; // ~3 when Iran is finished, ~13 at full strength
-        // A carrier group forward on the Gulf approaches is the market's
-        // reassurance that the shipping lanes are held and escorted — it shaves
-        // the crisis premium off the barrel, ~3 a deck, up to ~6 with the whole
-        // fleet on station. It does not fight the strait-closure premium below,
-        // which is a separate, larger shock; it just keeps the ambient fear down.
-        const carrierReassurance = navalForward() * 3;
-        const oilTarget = 88 + Math.max(0, warPremium - carrierReassurance) +
-          (G.hormuz === 'CONTESTED' ? 14 : G.hormuz === 'CLOSED' ? 55 : 0);
-        // The market eases toward the target one night at a time, but not
-        // symmetrically: a fear premium spikes slowly and collapses fast. When
-        // the price is above target — the threat easing rather than building —
-        // it falls quicker, and quickest of all once the strait is reopened and
-        // the tankers are moving again. That is what lets reopening Hormuz
-        // actually be felt at the pump instead of bleeding off over a week.
-        const gap = oilTarget - G.oil;
-        const ease = gap >= 0 ? 0.16
-          : G.hormuz === 'OPEN' ? 0.38
-          : 0.24;
-        G.oil = Math.max(60, G.oil + gap * ease);
-        G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
+      function iranianResponse() {
+        if (events.some(ev => ev.casualties || ev.hormuz === 'CLOSED')) AudioSys.play('retaliation');
 
-        if (G.hormuz === 'CLOSED') G.hormuzClosedTurns++;
-        else G.hormuzClosedTurns = 0;
+        // Iran's salvos fly on the map — missiles, drone swarms, intercepts —
+        // before the battle report lands and covers the screen
+        MapView.animateIranianAttacks(events, () => {
+          // repair runs before the night's events land, so anything an Israeli
+          // counter-strike catches in the open stays caught for the turn
+          const repairs = repairTargets();
+          for (const ev of events) applyEvent(ev);
 
-        // domestic drift: the country reacts to the price at the pump. Expensive
-        // gas and a long war bleed approval; cheap, calm markets let it recover a
-        // little on its own — the one lever the president can always turn.
-        if (G.oil >= 150) G.approval = clamp(G.approval - 2, 0, 100);
-        else if (G.oil >= 125) G.approval = clamp(G.approval - 1, 0, 100);
-        else if (G.oil <= 95) G.approval = clamp(G.approval + 1, 0, 100);
-        if (G.turn > WEARINESS_TURN) G.approval = clamp(G.approval - 0.5, 0, 100);
+          // launchers scatter out of the bases the BDA just confirmed destroyed
+          const dispersals = [];
+          for (const ev of bda) {
+            if (!ev.disperse) continue;
+            const d = disperseFrom(ev.disperse, ev.disperseFrac);
+            if (d) dispersals.push(d);
+          }
 
-        // the centrifuges ran again tonight, whatever else happened
-        breakoutTick();
+          // economy: oil carries a war premium set by Iran's remaining ability
+          // to threaten the Gulf, plus the state of the strait. The premium scales
+          // with what Iran can still do rather than snapping between two values, so
+          // grinding the missile and naval forces down is visible at the pump — and
+          // the market eases toward the new target slowly, one night at a time.
+          const warStr = IranAI.missileStrength() + IranAI.navalStrength(); // 0..4
+          const warPremium = 3 + warStr * 2.5; // ~3 when Iran is finished, ~13 at full strength
+          // A carrier group forward on the Gulf approaches is the market's
+          // reassurance that the shipping lanes are held and escorted — it shaves
+          // the crisis premium off the barrel, ~3 a deck, up to ~6 with the whole
+          // fleet on station. It does not fight the strait-closure premium below,
+          // which is a separate, larger shock; it just keeps the ambient fear down.
+          const carrierReassurance = navalForward() * 3;
+          const oilTarget = 88 + Math.max(0, warPremium - carrierReassurance) +
+            (G.hormuz === 'CONTESTED' ? 14 : G.hormuz === 'CLOSED' ? 55 : 0);
+          // The market eases toward the target one night at a time, but not
+          // symmetrically: a fear premium spikes slowly and collapses fast. When
+          // the price is above target — the threat easing rather than building —
+          // it falls quicker, and quickest of all once the strait is reopened and
+          // the tankers are moving again. That is what lets reopening Hormuz
+          // actually be felt at the pump instead of bleeding off over a week.
+          const gap = oilTarget - G.oil;
+          const ease = gap >= 0 ? 0.16
+            : G.hormuz === 'OPEN' ? 0.38
+            : 0.24;
+          G.oil = Math.max(60, G.oil + gap * ease);
+          G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
 
-        // ---- the news cycle moves on ----
-        // Standing abroad has to recover on its own or it is not a resource, it
-        // is a ratchet: every strike costs a point or two, so without drift the
-        // basing tiers are not consequences a player can manage, they are a
-        // schedule. Recovery is real but slow, it pulls toward a baseline rather
-        // than toward full, and it stops entirely while Israel is in the war on
-        // its own account — that is the one thing the world does not get over.
-        if (G.israelPosture !== 'unilateral') {
-          const baseline = G.coalition ? 58 : 50;
-          if (G.world < baseline) G.world = Math.min(baseline, G.world + 2.5);
-        }
+          if (G.hormuz === 'CLOSED') G.hormuzClosedTurns++;
+          else G.hormuzClosedTurns = 0;
 
-        // standing abroad is a permission slip, and it is checked nightly
-        const basing = syncBasing();
+          // domestic drift: the country reacts to the price at the pump. Expensive
+          // gas and a long war bleed approval; cheap, calm markets let it recover a
+          // little on its own — the one lever the president can always turn.
+          if (G.oil >= 150) G.approval = clamp(G.approval - 2, 0, 100);
+          else if (G.oil >= 125) G.approval = clamp(G.approval - 1, 0, 100);
+          else if (G.oil <= 95) G.approval = clamp(G.approval + 1, 0, 100);
+          if (G.turn > WEARINESS_TURN) G.approval = clamp(G.approval - 0.5, 0, 100);
 
-        // the machine spins up: deploying squadrons close on whatever ramps the
-        // politics have left open. Checked after basing, so a wave that arrives
-        // the same night access is revoked correctly finds nowhere to land.
-        const flow = forceFlowTick();
+          // the centrifuges ran again tonight, whatever else happened
+          breakoutTick();
 
-        // and the sky changes hands, in whichever direction tonight's BDA and
-        // tonight's repair crews left it
-        const phase = airPhaseEvents();
+          // ---- the news cycle moves on ----
+          // Standing abroad has to recover on its own or it is not a resource, it
+          // is a ratchet: every strike costs a point or two, so without drift the
+          // basing tiers are not consequences a player can manage, they are a
+          // schedule. Recovery is real but slow, it pulls toward a baseline rather
+          // than toward full, and it stops entirely while Israel is in the war on
+          // its own account — that is the one thing the world does not get over.
+          if (G.israelPosture !== 'unilateral') {
+            const baseline = G.coalition ? 58 : 50;
+            if (G.world < baseline) G.world = Math.min(baseline, G.world + 2.5);
+          }
 
-        // campaign objectives crossed tonight pay their one-time approval bump
-        const objectives = objectiveMilestones();
+          // standing abroad is a permission slip, and it is checked nightly
+          const basing = syncBasing();
 
-        // the Hill votes once, in the middle of the second week
-        const vote = warPowersVote();
-        const cutoff = vote && vote.cutoff;
+          // the machine spins up: deploying squadrons close on whatever ramps the
+          // politics have left open. Checked after basing, so a wave that arrives
+          // the same night access is revoked correctly finds nowhere to land.
+          const flow = forceFlowTick();
 
-        // fleet movement closes the turn: decks that spent it repositioning are
-        // on their new stations, and the second carrier is one leg closer
-        const fleet = checkCarrierTransit();
-        const arrival = checkCarrierArrival();
-        if (arrival) fleet.push(arrival);
-        const bombers = checkBomberArrival();
-        if (bombers) fleet.push(bombers);
-        const heavies = checkHeavyArrival();
-        if (heavies) fleet.push(heavies);
+          // and the sky changes hands, in whichever direction tonight's BDA and
+          // tonight's repair crews left it
+          const phase = airPhaseEvents();
 
-        // and the coast works up tomorrow night's shot, in the open, on purpose
-        const threat = raiseThreat();
-        if (threat) fleet.push(threat);
+          // campaign objectives crossed tonight pay their one-time approval bump
+          const objectives = objectiveMilestones();
 
-        const day = Math.ceil(G.turn / 2);
-        const all = [...bda, ...events, ...dispersals, ...(repairs ? [repairs] : []),
-          ...phase, ...objectives, ...basing, ...flow, ...(vote && !cutoff ? [vote] : []), ...fleet];
-        UI.setTicker(IranAI.headlines(G, all));
-        recordTurn(all);
-        const result = cutoff ? buildResult('defeat', 'cutoff') : checkEnd();
+          // the Hill votes once, in the middle of the second week
+          const vote = warPowersVote();
+          const cutoff = vote && vote.cutoff;
 
-        // hold the battle report until every strike clip has finished playing
-        MapView.whenFootageDone(() => {
-          UI.showReport(`BATTLE REPORT — DAY ${day}, TURN ${G.turn}`, all, () => {
+          // fleet movement closes the turn: decks that spent it repositioning are
+          // on their new stations, and the second carrier is one leg closer
+          const fleet = checkCarrierTransit();
+          const arrival = checkCarrierArrival();
+          if (arrival) fleet.push(arrival);
+          const bombers = checkBomberArrival();
+          if (bombers) fleet.push(bombers);
+          const heavies = checkHeavyArrival();
+          if (heavies) fleet.push(heavies);
+
+          // and the coast works up tomorrow night's shot, in the open, on purpose
+          const threat = raiseThreat();
+          if (threat) fleet.push(threat);
+
+          // the ticker and the after-action record still see the whole night —
+          // the split is only in how it is read back to the president
+          const rest = [...events, ...dispersals, ...(repairs ? [repairs] : []),
+            ...phase, ...objectives, ...basing, ...flow, ...(vote && !cutoff ? [vote] : []), ...fleet];
+          const all = [...bda, ...rest];
+          UI.setTicker(IranAI.headlines(G, all));
+          recordTurn(all);
+          const result = cutoff ? buildResult('defeat', 'cutoff') : checkEnd();
+
+          // the second half of the night: Tehran's answer and everything the war
+          // did around it. The BDA has already been read and dismissed, so this
+          // report carries the rest on its own.
+          UI.showReport(`BATTLE REPORT — DAY ${day}, TURN ${G.turn}`, rest, () => {
             // the turn is over: the map animates at speed again and the button
             // goes back to END TURN for the next one
             MapView.setFastForward(false);
@@ -2196,7 +2214,7 @@ const Game = (() => {
             nextTurn();
           });
         });
-      });
+      }
     });
   }
 
