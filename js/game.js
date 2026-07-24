@@ -2058,53 +2058,92 @@ const Game = (() => {
     G.turnStartHp = {};
     for (const t of TARGETS) G.turnStartHp[t.id] = t.hp;
 
-    // strike packages arrive first — BDA lands, then Iran answers with
-    // whatever the volley left standing
+    // The night comes back in two halves, and the player answers for each one
+    // separately. First the allied side of it: what tonight's packages did to
+    // the target set, what Israel did, and what the machine around the campaign
+    // did in response. Only once that has been read and dismissed does Tehran
+    // get to answer — the salvo flies on the map, and a second report assesses
+    // the damage it did to us.
+    //
+    // Everything Tehran's answer feeds — standing abroad, the basing tiers the
+    // force flow depends on, and the Hill's count of the dead — is deliberately
+    // still resolved in the second half, after the salvo lands. Iran hitting
+    // Haifa tonight has to be able to cost you Incirlik tonight, not next turn.
     resolveMissions((bda) => {
       // Israel moves between the BDA and Iran's answer — if they went tonight,
       // Tehran is responding to their strike as much as to yours
       const israeli = israelTurn();
+      // Tehran's answer is written now, against the state tonight's packages
+      // left, and held until the first report is closed. Generating it here and
+      // firing it later is what keeps the split cosmetic: the salvo is not
+      // decided by anything the player reads in between.
       const events = IranAI.respond(G);
       // any aircrew still on the ground get another night of being hunted —
       // resolved after the BDA that may have just put them there
       const csar = CSAR.turnTick(G);
       if (csar) events.unshift(csar);
       // anti-ship fires are resolved against wherever the decks sat THIS turn,
-      // before any repositioning ordered this turn completes below
-      for (const ev of carrierRisk()) events.unshift(ev);
-      if (israeli) events.unshift(israeli);
+      // before any repositioning ordered this turn completes below. The hit
+      // itself lands here — carriers are marked lost as the salvo is resolved,
+      // not when the report is read — so the transits below see the real fleet.
+      const shipRisk = carrierRisk();
+
+      // ---- half one: the allied night ----
+      // repair runs before the night's events land, so anything an Israeli
+      // counter-strike catches in the open stays caught for the turn
+      const repairs = repairTargets();
+      // an ally's strike package lands like a strike package, with the rest of
+      // the allied action rather than inside Tehran's answer to it
+      if (israeli) applyEvent(israeli);
+
+      // launchers scatter out of the bases the BDA just confirmed destroyed
+      const dispersals = [];
+      for (const ev of bda) {
+        if (!ev.disperse) continue;
+        const d = disperseFrom(ev.disperse, ev.disperseFrac);
+        if (d) dispersals.push(d);
+      }
+
+      // the sky changes hands, in whichever direction tonight's BDA and
+      // tonight's repair crews left it
+      const phase = airPhaseEvents();
+
+      // campaign objectives crossed tonight pay their one-time approval bump
+      const objectives = objectiveMilestones();
+
+      // fleet movement closes the allied half: decks that spent it repositioning
+      // are on their new stations, and the second carrier is one leg closer
+      const fleet = checkCarrierTransit();
+      const arrival = checkCarrierArrival();
+      if (arrival) fleet.push(arrival);
+      const bombers = checkBomberArrival();
+      if (bombers) fleet.push(bombers);
+      const heavies = checkHeavyArrival();
+      if (heavies) fleet.push(heavies);
+
+      // and the coast works up tomorrow night's shot, in the open, on purpose —
+      // read after carrierRisk consumed tonight's, and shown with Tehran's half
+      const threat = raiseThreat();
 
       const day = Math.ceil(G.turn / 2);
+      const ours = [...bda, ...(israeli ? [israeli] : []), ...dispersals,
+        ...(repairs ? [repairs] : []), ...phase, ...objectives, ...fleet];
 
-      // The night comes back in two halves. First, what tonight's packages did:
-      // the BDA lands on its own, with nothing else on the page to read it
-      // against. Only when the president has closed it does Tehran get to
-      // answer — the salvo flies, and the battle report carries the rest of the
-      // night. Everything below is already decided either way; the split is
-      // about what the player is looking at when.
       MapView.whenFootageDone(() => {
-        if (!bda.length) { iranianResponse(); return; }
-        UI.showReport(`BATTLE DAMAGE ASSESSMENT — DAY ${day}, TURN ${G.turn}`, bda, iranianResponse);
+        if (!ours.length) { iranianResponse(); return; }
+        UI.showReport(`BATTLE DAMAGE ASSESSMENT — DAY ${day}, TURN ${G.turn}`, ours, iranianResponse);
       });
 
+      // ---- half two: Tehran answers ----
       function iranianResponse() {
+        for (const ev of shipRisk) events.unshift(ev);
+        if (threat) events.push(threat);
         if (events.some(ev => ev.casualties || ev.hormuz === 'CLOSED')) AudioSys.play('retaliation');
 
         // Iran's salvos fly on the map — missiles, drone swarms, intercepts —
-        // before the battle report lands and covers the screen
+        // before the damage assessment lands and covers the screen
         MapView.animateIranianAttacks(events, () => {
-          // repair runs before the night's events land, so anything an Israeli
-          // counter-strike catches in the open stays caught for the turn
-          const repairs = repairTargets();
           for (const ev of events) applyEvent(ev);
-
-          // launchers scatter out of the bases the BDA just confirmed destroyed
-          const dispersals = [];
-          for (const ev of bda) {
-            if (!ev.disperse) continue;
-            const d = disperseFrom(ev.disperse, ev.disperseFrac);
-            if (d) dispersals.push(d);
-          }
 
           // economy: oil carries a war premium set by Iran's remaining ability
           // to threaten the Gulf, plus the state of the strait. The premium scales
@@ -2168,51 +2207,33 @@ const Game = (() => {
           // the same night access is revoked correctly finds nowhere to land.
           const flow = forceFlowTick();
 
-          // and the sky changes hands, in whichever direction tonight's BDA and
-          // tonight's repair crews left it
-          const phase = airPhaseEvents();
-
-          // campaign objectives crossed tonight pay their one-time approval bump
-          const objectives = objectiveMilestones();
-
-          // the Hill votes once, in the middle of the second week
+          // the Hill votes once, in the middle of the second week — after the
+          // salvo, so it is counting tonight's dead and not last night's
           const vote = warPowersVote();
           const cutoff = vote && vote.cutoff;
 
-          // fleet movement closes the turn: decks that spent it repositioning are
-          // on their new stations, and the second carrier is one leg closer
-          const fleet = checkCarrierTransit();
-          const arrival = checkCarrierArrival();
-          if (arrival) fleet.push(arrival);
-          const bombers = checkBomberArrival();
-          if (bombers) fleet.push(bombers);
-          const heavies = checkHeavyArrival();
-          if (heavies) fleet.push(heavies);
-
-          // and the coast works up tomorrow night's shot, in the open, on purpose
-          const threat = raiseThreat();
-          if (threat) fleet.push(threat);
-
+          // What the night cost us. Tehran's salvo, what it did to the fleet and
+          // to the aircrew still on the ground, and the political ground it took
+          // out from under the campaign — the basing and the Hill are here
+          // because they are reading the damage on this page.
+          const theirs = [...events, ...basing, ...flow, ...(vote && !cutoff ? [vote] : [])];
           // the ticker and the after-action record still see the whole night —
           // the split is only in how it is read back to the president
-          const rest = [...events, ...dispersals, ...(repairs ? [repairs] : []),
-            ...phase, ...objectives, ...basing, ...flow, ...(vote && !cutoff ? [vote] : []), ...fleet];
-          const all = [...bda, ...rest];
+          const all = [...ours, ...theirs];
           UI.setTicker(IranAI.headlines(G, all));
           recordTurn(all);
           const result = cutoff ? buildResult('defeat', 'cutoff') : checkEnd();
 
-          // the second half of the night: Tehran's answer and everything the war
-          // did around it. The BDA has already been read and dismissed, so this
-          // report carries the rest on its own.
-          UI.showReport(`BATTLE REPORT — DAY ${day}, TURN ${G.turn}`, rest, () => {
+          const close = () => {
             // the turn is over: the map animates at speed again and the button
             // goes back to END TURN for the next one
             MapView.setFastForward(false);
             setResolving(false);
             if (result) { finish(result); return; }
             nextTurn();
-          });
+          };
+          if (!theirs.length) { close(); return; }
+          UI.showReport(`IRANIAN RETALIATION — DAY ${day}, TURN ${G.turn}`, theirs, close);
         });
       }
     });
