@@ -2022,7 +2022,14 @@ const Game = (() => {
     if (skip.disabled) return;      // already skipping; the report is on its way
     skip.disabled = true;
     skip.textContent = 'RESOLVING…';
+    // Flag first, clip second: cutting the call hands straight on to
+    // resolveTurn, and fast-forward has to already be up when it does or the
+    // first animation it starts plays at full length before the flag lands.
     MapView.setFastForward(true);
+    // The night's opening call may still be holding the turn — a skip cuts it
+    // rather than making the player sit through five seconds they've heard
+    // every turn of the war.
+    AudioSys.cut('strikeForce');
   }
 
   // Pressing END TURN opens with the watch floor's call, and nothing flies

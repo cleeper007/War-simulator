@@ -124,6 +124,10 @@ const AudioSys = (() => {
     delayMs > 0 ? setTimeout(go, delayMs) : go();
   }
 
+  // Finishers for the clips currently gating something, keyed by clip name, so
+  // a clip can be cut short and hand straight on to whatever was waiting on it.
+  const pendingThen = {};
+
   // Play a clip and run `cb` once it has finished — for the places where the
   // audio has to clear before the next thing starts rather than run under it.
   //
@@ -140,10 +144,12 @@ const AudioSys = (() => {
     const finish = () => {
       if (done) return;
       done = true;
+      if (pendingThen[name] === finish) delete pendingThen[name];
       c.removeEventListener('ended', finish);
       c.removeEventListener('error', finish);
       go();
     };
+    pendingThen[name] = finish;
     c.addEventListener('ended', finish);
     c.addEventListener('error', finish);
     try {
@@ -153,6 +159,17 @@ const AudioSys = (() => {
     } catch (e) { finish(); return; }
     const dur = isFinite(c.duration) && c.duration > 0 ? c.duration : 10;
     setTimeout(finish, dur * 1000 + 1000);
+  }
+
+  // Cut a playThen clip short: silence it and hand straight on to whatever was
+  // waiting on it. A skip is the player saying they have heard this one — the
+  // clip should get out of the way rather than be the thing they wait out.
+  // Safe to call when the clip isn't playing, or was never gating anything.
+  function cut(name) {
+    const c = clips[name];
+    if (c) { try { c.pause(); c.currentTime = 0; } catch (e) { /* silent */ } }
+    const finish = pendingThen[name];
+    if (finish) finish();
   }
 
   // Klaxon on the moments that change the war: the strait slams shut, or
@@ -202,5 +219,5 @@ const AudioSys = (() => {
     setMuted(muted);
   }
 
-  return { init, play, playThen, alertCheck, isMuted, setMuted, missionMusicStart, missionMusicStop, missionMusicStopAll };
+  return { init, play, playThen, cut, alertCheck, isMuted, setMuted, missionMusicStart, missionMusicStop, missionMusicStopAll };
 })();
