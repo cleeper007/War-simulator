@@ -938,7 +938,7 @@ const Game = (() => {
     G.caps.stealth = BOMBER_CAP;
     G.res.stealth = BOMBER_READY;
     syncBomberMap();
-    AudioSys.play('cable');
+    AudioSys.play('b2Arrival');
     return {
       cls: 'friendly', title: 'B-2 FORCE IN THEATER — DIEGO GARCIA',
       text: 'The 509th Bomb Wing flew from Whiteman with the tanker force strung out behind it across the Pacific, and the aircraft are on the ramp at Diego Garcia under cover. Munitions handlers are building up GBU-57s tonight. From here the Massive Ordnance Penetrator is on the table — which means Fordow is finally a target and not a briefing slide.',
@@ -1060,7 +1060,7 @@ const Game = (() => {
     G.tlamPool = (G.tlamPool || 0) + 10;
     syncFleetCaps();
     MapView.setCarrierPosture(ford);
-    AudioSys.play('cable');
+    AudioSys.play('fordArrival');
     return {
       cls: 'friendly', title: 'FORD ON STATION — DEEP ARABIAN SEA',
       text: 'The USS Gerald R. Ford Carrier Strike Group has come up out of the Indian Ocean into the deep Arabian Sea and checked in with Fifth Fleet. Her full air wing is available from standoff — bring her northwest into the North Arabian Sea box and she flies the same sorties, now with her Aegis escorts over the Gulf bases, weight on the strait, and a lid on the oil premium, on the same terms as every other hull that far forward.',
@@ -2031,6 +2031,7 @@ const Game = (() => {
     // and the turn breaks
     if (G.over || busy()) return;
     setResolving(true);
+    AudioSys.play('strikeForce');   // the night steps off
 
     // How much of each brigade was alive when tonight's packages started
     // arriving. Dispersal is measured against THIS, not against what the third

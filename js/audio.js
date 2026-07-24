@@ -16,6 +16,18 @@ const AudioSys = (() => {
     sonarPing: 'sonar-ping.wav',    // Mk-48 seeker going active on the sonar scope
     victory: 'victory.wav',
     defeat: 'defeat.wav',
+    // Voice traffic — watch-floor calls on the moments that change the board.
+    fordArrival: 'ford-arrival.mp3',            // Ford checks in with Fifth Fleet
+    b2Arrival: 'b2-arrival.mp3',                // 509th on the ramp at Diego Garcia
+    strikeForce: 'strike-force-initiated.mp3',  // the night's packages step off
+    hormuzClosure: 'hormuz-closure.mp3',        // the strait slams shut
+  };
+
+  // Per-clip playback level, 0..1. Anything not listed plays at full volume.
+  // The klaxon rides under the Hormuz closure call rather than over it — at
+  // full gain it buried the voice and simply hurt.
+  const VOLUME = {
+    klaxon: 0.25,
   };
 
   // Mission tracks: looping background music that plays while a jet's radar
@@ -39,6 +51,7 @@ const AudioSys = (() => {
       try {
         const a = new Audio(`audio/${file}`);
         a.preload = 'auto';
+        if (VOLUME[name] !== undefined) a.volume = VOLUME[name];
         a.addEventListener('error', () => delete clips[name]);
         clips[name] = a;
       } catch (e) { /* no Audio support — game plays silent */ }
@@ -115,7 +128,10 @@ const AudioSys = (() => {
   // Called from the HUD render so every state change passes through it.
   let lastHormuz = null, lastCas = null;
   function alertCheck(G) {
-    if (lastHormuz !== null && lastHormuz !== 'CLOSED' && G.hormuz === 'CLOSED') play('klaxon');
+    if (lastHormuz !== null && lastHormuz !== 'CLOSED' && G.hormuz === 'CLOSED') {
+      play('klaxon');
+      play('hormuzClosure', 400);   // alarm first, then the watch floor says it
+    }
     if (lastCas !== null && lastCas < 100 && G.casualties.us >= 100) play('klaxon');
     lastHormuz = G.hormuz;
     lastCas = G.casualties.us;
