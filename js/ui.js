@@ -117,7 +117,7 @@ const UI = (() => {
     // against that limit the same way casualties are counted against theirs.
     const hz = $('hormuz-value');
     hz.textContent = G.hormuz === 'CLOSED' && G.hormuzClosedTurns > 0
-      ? `CLOSED ${G.hormuzClosedTurns}/5` : G.hormuz;
+      ? `CLOSED ${G.hormuzClosedTurns}/7` : G.hormuz;
     hz.className = 'stat-value big ' + (G.hormuz === 'CLOSED' ? 'crit' : G.hormuz === 'CONTESTED' ? 'warn' : 'good') +
       (G.hormuz === 'CLOSED' && G.hormuzClosedTurns >= 3 ? ' pulsing' : '');
 
@@ -876,13 +876,15 @@ const UI = (() => {
     $('btn-restart').addEventListener('click', () => window.location.reload());
   }
 
-  // ---- first-war primer ----
+  // ---- primer ----
   // Reuses the report modal to teach the one thing the advisors cannot say
   // loudly enough: the war is fought in the sidebar as much as on the map.
-  // Gated on a localStorage flag so a returning player never sees it twice.
-  const PRIMER_KEY = 'cic-primer-seen';
-  function showPrimerOnce() {
-    try { if (localStorage.getItem(PRIMER_KEY)) return; } catch (e) {}
+  // Shown at the start of every war on easy and normal — the reminder is cheap
+  // and the mistake it heads off is the most common one there is. Never shown on
+  // hard: a player who has chosen the hardest setting does not need the tutorial,
+  // and the difficulty description already warns them the staff refuses nothing.
+  function showPrimer() {
+    if ((Game.G.difficulty || 'normal') === 'hard') return;
     const panels = [
       { cls: 'friendly', title: 'COMMAND IS MORE THAN AIRSTRIKES',
         text: 'Click any Iranian target on the map to plan a strike — but that is only half the job. ' +
@@ -899,8 +901,7 @@ const UI = (() => {
           'intent. Fight the war in front of you, not the one you expected.' },
     ];
     showReport('PRESIDENTIAL PRIMER — HOW THIS WAR IS FOUGHT', panels, null);
-    try { localStorage.setItem(PRIMER_KEY, '1'); } catch (e) {}
   }
 
-  return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport, showEndgame, showPrimerOnce };
+  return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport, showEndgame, showPrimer };
 })();

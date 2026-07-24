@@ -2222,7 +2222,7 @@ const Game = (() => {
     // the losses are military and political:
     if (G.casualties.us >= casualtyLimit()) return buildResult('defeat', 'casualties');
     if (G.approval <= 20) return buildResult('defeat', 'impeachment');
-    if (G.hormuzClosedTurns >= 5 || G.oil >= 240) return buildResult('defeat', 'economy');
+    if (G.hormuzClosedTurns >= 7 || G.oil >= 240) return buildResult('defeat', 'economy');
     return null;
   }
 
@@ -2369,7 +2369,7 @@ const Game = (() => {
     // fighting this as a pure targeting game and never touching the free action
     // slots that actually hold approval, oil and the coalition together. Shown
     // once, ever — dismissed and never seen again.
-    if (!resume) UI.showPrimerOnce();
+    if (!resume) UI.showPrimer();
   }
 
   function restoreAndStart(data) {
