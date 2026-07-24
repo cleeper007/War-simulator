@@ -315,11 +315,23 @@ sense the war cares about; she is on the bottom, or she is still shooting at you
 package that achieves effects sinks her outright, there is no partial result to follow
 up, and nothing about a sunk hull ever comes back. Which makes the **submarine attack**
 the cheapest shot in the game: USS *Toledo* is on patrol in the Gulf of Oman, and one
-maritime-strike Tomahawk out of her tubes kills a hull as dead as a two-missile salvo
-does. It costs a single TLAM out of the same theater magazine everything else draws on,
-puts no aircrew at risk, and gives Iran no warning — paid for with **two turns**, because
-the boat has to close the range submerged before she shoots. The Caspian flotilla is the
-exception and always will be: no submarine has ever reached a landlocked sea.
+**Mk-48 ADCAP** heavyweight out of her tubes kills a hull as dead as a two-missile salvo
+does. It is the only package in the war that spends nothing off the theater magazine —
+the weapon is already aboard — puts no aircrew at risk, teaches Iran nothing (she is
+never held on sonar, and a pattern nobody can observe is a pattern nobody can counter),
+and gives no warning at all. What it costs is **two turns**, because the boat has to
+close inside firing range submerged first, and **one of four war shots**: nobody reloads
+a boat on patrol. The Caspian flotilla is the exception and always will be: no submarine
+has ever reached a landlocked sea.
+
+The run is fought on its own display — a sonar plot, not a radar scope. There is nothing
+to shoot back with, so there is no threat ring and no sweep; there is a weapon walking
+down a guidance wire at 40 knots while the boat holds the solution passive, a
+bearing-time recorder writing the picture down as it comes in, and then **ENABLE**: the
+wire parts, the seeker goes active, and the ping rate climbs the whole way in. If she
+hears it in time she puts a noisemaker over the side and turns away, and the weapon
+reattacks around the false target. What ends it is an under-keel detonation — the
+warhead does not touch the hull, it takes the water out from under it.
 
 ### Each turn you can
 

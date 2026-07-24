@@ -688,6 +688,17 @@ const MapView = (() => {
     // TLAM: a body and two stub fins, deliberately not a jet
     cruise: 'M0,-7 L1.2,-3.5 L1.2,3.2 L2.9,6.2 L1.2,5.6 L1.2,7 L-1.2,7 L-1.2,5.6 ' +
             'L-2.9,6.2 L-1.2,3.2 L-1.2,-3.5 Z',
+    // Mk-48 ADCAP: rounded nose on a parallel body, cruciform fins aft and a
+    // pump-jet tail. Slimmer than the cruise body and blunt where the missile
+    // is pointed — at this size that is the whole difference between a weapon
+    // that flies and a weapon that swims.
+    torpedo: 'M0,-7 C0.95,-7 1.25,-6.1 1.25,-5 L1.25,3.2 L3.3,4.5 L3.3,5.5 ' +
+             'L1.25,5.1 L1.25,6.8 L-1.25,6.8 L-1.25,5.1 L-3.3,5.5 L-3.3,4.5 ' +
+             'L-1.25,3.2 L-1.25,-5 C-1.25,-6.1 -0.95,-7 0,-7 Z',
+    // Los Angeles-class: teardrop hull, tapered tail, drawn bow-up. The sail is
+    // a separate rectangle so the boat reads as a boat at eight pixels.
+    ssn: 'M0,-10 C2.3,-10 3.1,-6 3.1,-1.5 L3.1,5.4 C3.1,8.2 1.7,10 0,10 ' +
+         'C-1.7,10 -3.1,8.2 -3.1,5.4 L-3.1,-1.5 C-3.1,-6 -2.3,-10 0,-10 Z',
     // assault helo: blunt cabin, long tail boom, canted tail fin — read at a
     // glance as "not a jet", which is the only job it has in the raid scope
     helo: 'M0,-6.4 C2.7,-6.4 3.6,-4 3.6,-1.2 L3.6,2.4 L1.5,3.4 L1.2,8.8 ' +
@@ -825,9 +836,8 @@ const MapView = (() => {
     // both bomber tiers stage off the Diego Garcia ramp and neither of them is
     // a fighter, so they share the origin and most of the presentation
     const fromRamp = stealth || heavy;
-    // a submarine shot is the cruise magazine fired from a different hull: same
-    // weapon on the scope, different designation and a bearing off the boat
-    const sub = !!(pkg && pkg.sub);
+    // (the submarine shot never reaches here — it is a torpedo on a sonar
+    // display, and animateStrike sends it to animateSonar instead)
     // Half of all fighter sorties are flown off the carrier strike groups:
     // pick the carrier/land group at 50/50, then a random airframe within it.
     // Which pool it comes from is the tier — a 5th-gen package is never a
@@ -836,12 +846,10 @@ const MapView = (() => {
     const pool = assetType === 'f35' ? F35_TYPES : FIGHTER_TYPES;
     const ft = stealth ? { type: 'B-2', cs: 'SPIRIT' }
       : heavy ? pick(HEAVY_TYPES)
-      : sub ? { type: 'UGM-109 TLAM', cs: 'MAKO' }
       : cruise ? { type: 'RGM-109 TLAM', cs: 'ARSENAL' }
       : pick(pool.filter(f => f.from === fromGroup));
     // TLAMs come off whichever strike group is actually in the water
     const origin = fromRamp ? US_ASSETS.find(a => a.id === 'diego')
-      : sub ? US_ASSETS.find(a => a.id === STRIKE_ORIGINS.sub)
       : cruise ? (US_ASSETS.find(a => a.id === STRIKE_ORIGINS.cruise && a.active !== false)
           || nearestSortieBase(target, true))
       : nearestSortieBase(target, ft.from === 'carrier');
@@ -910,7 +918,7 @@ const MapView = (() => {
     // line written for "fighter" plays for both manned fighter tiers and a line
     // written for "heavy" plays only for the bomber cells
     const family = fromRamp ? 'stealth' : 'fighter';
-    const evs = (sub ? SUB_EVENTS : cruise ? CRUISE_EVENTS : FLIGHT_EVENTS)
+    const evs = (cruise ? CRUISE_EVENTS : FLIGHT_EVENTS)
       .filter(e => !e.only || e.only === assetType || e.only === family)
       .sort((a, b) => a.at - b.at);
     let evIdx = 0;
@@ -1059,8 +1067,8 @@ const MapView = (() => {
     // — the flight (and the radar) only begins once the clip is done, so the clip
     // never cuts into radar time. Every other asset starts its run immediately.
     // Manned-aircraft sorties (fighters, F-35s, B-2s, heavy bombers) carry the
-    // radar-view background music; TLAMs — cruise or sub-launched — don't.
-    const isJet = !cruise && !sub;
+    // radar-view background music; TLAMs don't.
+    const isJet = !cruise;
     function startFlight() {
       t0 = performance.now();
       lastFrame = t0;
@@ -1160,7 +1168,9 @@ const MapView = (() => {
     // skipped: the package still flies and still resolves, it just never draws
     if (ff) { once(); return; }
     try {
-      animateScope(assetType, target, once, count, pkg);
+      // the submarine attack is not flown, it is fired — its own display
+      if (pkg && pkg.sub) animateSonar(target, once);
+      else animateScope(assetType, target, once, count, pkg);
     } catch (e) {
       // a broken animation must never hold up the war
       console.error('scope animation failed', e);
@@ -1255,15 +1265,375 @@ const MapView = (() => {
     'naval-bandar': 'video/naval-bandar-hit.mp4',
     'tabriz-ab': 'video/tabriz-hit.mp4',
   };
+  // The weapon can outrank the target: a torpedo hit is a column of water going
+  // up under a hull, and no aimpoint footage says that.
+  const TORPEDO_CLIP = 'video/torpedo-hit.mp4';
 
   // Called by game.js only when BDA confirms a successful hit (destroyed/damaged).
   // Plays in the same window as the radar, then fades out to reveal the BDA state.
-  function playStrikeHit(target) {
+  function playStrikeHit(target, pkg) {
     const entry = [...document.querySelectorAll('.scope-card')]
       .find(e => e._alive && e.dataset.tgt === target.id);
     if (entry) overlayScopeClip(entry.querySelector('.scope-wrap'),
-      HIT_CLIPS[target.id] || 'video/strike-hit.mp4',
+      (pkg && pkg.sub) ? TORPEDO_CLIP : (HIT_CLIPS[target.id] || 'video/strike-hit.mp4'),
       () => stopMissionMusic(entry));   // chatter cuts when the strike video ends
+  }
+
+  // ============================================================
+  // SONAR SCOPE — the submarine attack, run on the boat's display
+  // ------------------------------------------------------------
+  // Same card and the same contract as the radar scope — `done` fires exactly
+  // once, at detonation, and nothing in here decides an outcome — but none of
+  // it is a radar picture. There is no sweep, no threat ring and no SAM,
+  // because there is nothing to shoot back with: the only two things in the
+  // water are a weapon walking down a guidance wire and a hull that does not
+  // know about it yet. The whole shape of the display is that silence, and
+  // then the moment it ends — ENABLE, when the seeker goes active and starts
+  // pinging, and the ping rate climbs the whole way in.
+  // ============================================================
+  const SN = {
+    C: 100, RING: 70, EDGE: 92,
+    ENABLE: 0.62,     // wire cut, seeker active — the run stops being quiet
+    ACQUIRE: 0.86,    // seeker has the hull; no more searching
+    CM_AT: 0.70,      // if she hears it at all, this is when she answers
+    CM_END: 0.93,     // and this is where the weapon is back on the hull
+  };
+
+  // yards, at the moment of firing. Nowhere near the map plot: the boat spent
+  // two turns closing, and this is what she closed to.
+  const TORP_RANGE = () => 9200 + Math.round(Math.random() * 4200);
+
+  const PHASES_SUB = [
+    [0.06, 'TUBE LAUNCH'], [SN.ENABLE, 'WIRE-GUIDED RUN'], [SN.ACQUIRE, 'SEEKER ACTIVE'],
+    [0.99, 'TERMINAL'], [1.01, 'DETONATION'],
+  ];
+  function subPhase(p) {
+    for (const [at, name] of PHASES_SUB) if (p < at) return name;
+    return 'BDA';
+  }
+
+  // ---- the display's static furniture ----
+  // Polar plot with the target dead centre, same as every other scope in the
+  // game, plus the two things that make it a sonar display instead of a radar
+  // one: corner readouts in yards and knots, and a bearing-time strip along the
+  // bottom where the passive picture is written down as it comes in.
+  const BTR = { x0: 34, y0: 175, cols: 22, rows: 5, cw: 6, rh: 3.6 };
+
+  function buildSonarView(entry, target) {
+    const svg = el('svg', { class: 'scope-view sonar-view', viewBox: '0 0 200 200' });
+    const C = SN.C;
+
+    const grid = el('g', { class: 'scope-grid' });
+    for (const r of [26, 48, SN.RING]) grid.appendChild(el('circle', { cx: C, cy: C, r }));
+    for (let a = 0; a < 360; a += 30) {
+      if (a >= 60 && a <= 120) continue;          // the bottom arc belongs to the BTR
+      const rad = a * Math.PI / 180;
+      const inner = a % 90 === 0 ? 82 : 88;
+      grid.appendChild(el('line', {
+        x1: C + Math.cos(rad) * inner, y1: C + Math.sin(rad) * inner,
+        x2: C + Math.cos(rad) * 94, y2: C + Math.sin(rad) * 94,
+      }));
+    }
+    svg.appendChild(grid);
+
+    // TARGET at dead centre, same glyph it wears on the map, blown up 2x
+    const tg = el('g', { class: `target ${target.status || 'intact'} scope-tgt`, transform: `translate(${C},${C})` });
+    const inner = el('g', { transform: 'scale(2)' });
+    inner.appendChild(el('circle', { class: 'tgt-ring', r: 9 }));
+    inner.appendChild(targetCore(target.type));
+    tg.appendChild(inner);
+    const lbl = el('text', { y: 34 });
+    lbl.textContent = target.short;
+    tg.appendChild(lbl);
+    svg.appendChild(tg);
+
+    // ---- bearing-time recorder: the passive picture, written down ----
+    // Columns are bearing, rows are time, and time runs downward, so a contact
+    // holding a steady bearing draws a straight vertical trace. That trace is
+    // the whole reason the boat has a firing solution at all.
+    const btrG = el('g', { class: 'sonar-btr' });
+    btrG.appendChild(el('rect', {
+      class: 'sonar-btr-frame', x: BTR.x0 - 1.5, y: BTR.y0 - 1.5,
+      width: BTR.cols * BTR.cw + 3, height: BTR.rows * BTR.rh + 3,
+    }));
+    const cells = [];
+    for (let r = 0; r < BTR.rows; r++) {
+      const row = [];
+      for (let c = 0; c < BTR.cols; c++) {
+        const rect = el('rect', {
+          class: 'sonar-btr-cell', x: BTR.x0 + c * BTR.cw, y: BTR.y0 + r * BTR.rh,
+          width: BTR.cw - 0.7, height: BTR.rh - 0.7, opacity: 0,
+        });
+        btrG.appendChild(rect);
+        row.push(rect);
+      }
+      cells.push(row);
+    }
+    svg.appendChild(btrG);
+
+    // ---- corner readouts ----
+    const readout = (x, y, anchor, cls) => {
+      const t = el('text', { class: `sonar-readout ${cls || ''}`, x, y, 'text-anchor': anchor });
+      svg.appendChild(t);
+      return t;
+    };
+    const rng = readout(6, 11, 'start');
+    const brg = readout(194, 11, 'end');
+    const spd = readout(6, 190, 'start');
+    const wire = readout(194, 190, 'end');
+
+    const fx = el('g', { class: 'scope-fx' });
+    svg.appendChild(fx);
+
+    entry.querySelector('.scope-wrap').appendChild(svg);
+    return { svg, fx, tg, cells, rng, brg, spd, wire };
+  }
+
+  function animateSonar(target, done) {
+    const boat = US_ASSETS.find(a => a.id === STRIKE_ORIGINS.sub);
+    const baseName = boat ? boat.short : 'TOLEDO (SSN)';
+    const callsign = `MAKO ${rand(1, 9)}${rand(1, 9)}`;
+    const entry = scopeCard(`${callsign} · Mk-48 ADCAP — ${baseName} → ${target.short}`);
+    entry.dataset.tgt = target.id;          // lets playStrikeHit() find this scope
+    entry.classList.add('sonar-card');
+    const view = buildSonarView(entry, target);
+    const C = SN.C;
+
+    // Real bearing off the boat, same convention the radar scope uses: the
+    // weapon runs in along it, and the compass reading in the corner is that
+    // same angle converted to degrees true.
+    const bearing = boat ? Math.atan2(boat.y - target.y, boat.x - target.x) : -2.4;
+    const brgTrue = Math.round(((Math.atan2(-Math.cos(bearing), Math.sin(bearing)) * 180 / Math.PI) + 360) % 360);
+    view.brg.textContent = `BRG ${String(brgTrue).padStart(3, '0')}`;
+    const perpX = -Math.sin(bearing), perpY = Math.cos(bearing);
+
+    // OWN SHIP: parked at the edge on the firing bearing, bow toward the datum.
+    // She is drawn once and never moves — after the shot the only thing she does
+    // is hold the wire and wait, which is exactly what the display should say.
+    const ownHeading = Math.atan2(-Math.cos(bearing), Math.sin(bearing)) * 180 / Math.PI;
+    const ox = C + Math.cos(bearing) * SN.EDGE, oy = C + Math.sin(bearing) * SN.EDGE;
+    const own = el('g', { class: 'sonar-own', transform: `translate(${ox.toFixed(2)},${oy.toFixed(2)}) rotate(${ownHeading.toFixed(1)})` });
+    const hull = el('g', { transform: 'scale(0.7)' });
+    hull.appendChild(el('path', { class: 'sonar-hull', d: SIL.ssn }));
+    hull.appendChild(el('rect', { class: 'sonar-sail', x: -1.4, y: -4.2, width: 2.8, height: 5.2 }));
+    own.appendChild(hull);
+    view.fx.appendChild(own);
+
+    // the wire, the weapon, and the weapon's own seeker beam
+    const wire = el('line', { class: 'sonar-wire', x1: ox, y1: oy, x2: ox, y2: oy });
+    view.fx.appendChild(wire);
+    const wpn = el('g', { class: 'sonar-weapon' });
+    const cone = el('g', { class: 'sonar-cone-g', opacity: 0 });
+    const CONE_R = 34, CONE_A = 17 * Math.PI / 180;
+    cone.appendChild(el('path', {
+      class: 'sonar-cone',
+      d: `M0,-4 L${(Math.sin(-CONE_A) * CONE_R).toFixed(2)},${(-Math.cos(-CONE_A) * CONE_R).toFixed(2)} ` +
+         `A${CONE_R},${CONE_R} 0 0 1 ${(Math.sin(CONE_A) * CONE_R).toFixed(2)},${(-Math.cos(CONE_A) * CONE_R).toFixed(2)} Z`,
+    }));
+    wpn.appendChild(cone);
+    // the weapon reads smaller than the boat that fired it, which is the one
+    // thing about the scale that has to be right
+    const torpG = el('g', { transform: 'scale(0.72)' });
+    torpG.appendChild(el('path', { class: 'sonar-torp', d: SIL.torpedo }));
+    wpn.appendChild(torpG);
+    view.fx.appendChild(wpn);
+
+    // ---- countermeasures: the one thing that can happen to the run ----
+    // Decided up front so the picture and the status line are the same event —
+    // the noisemaker in the water IS the line that gets written.
+    const cm = Math.random() < 0.45;
+    const cmSide = Math.random() < 0.5 ? 1 : -1;
+    let cmDropped = false, decoy = null;
+
+    const subs = { '{cs}': callsign, '{base}': baseName, '{tgt}': target.short };
+    const fill = (s) => s.replace(/\{cs\}|\{base\}|\{tgt\}/g, (m) => subs[m]);
+    const evs = SUB_EVENTS.slice().sort((a, b) => a.at - b.at);
+    let evIdx = 0;
+    const fireUpTo = (prog) => {
+      while (evIdx < evs.length && evs[evIdx].at <= prog) {
+        const e = evs[evIdx++];
+        if (e.kind === 'problem' && Math.random() > e.chance) continue;
+        fsLine(entry, fill(pick(e.msgs)), e.kind === 'problem');
+      }
+    };
+
+    // ---- the seeker's ping: a ring off the weapon, and the return off the hull ----
+    function ping(x, y) {
+      const c = el('circle', { class: 'sonar-ping', cx: x, cy: y, r: 2 });
+      view.fx.appendChild(c);
+      const PING_R = 150, PING_MS = 950;
+      const t0 = performance.now();
+      (function step(now) {
+        if (!entry._alive) { c.remove(); return; }
+        const p = Math.min(1, (now - t0) / PING_MS);
+        c.setAttribute('r', (2 + p * PING_R).toFixed(1));
+        c.setAttribute('opacity', (0.5 * (1 - p) * (1 - p)).toFixed(3));
+        if (p < 1) { requestAnimationFrame(step); return; }
+        c.remove();
+      })(performance.now());
+      if (typeof AudioSys !== 'undefined') AudioSys.play('sonarPing');
+      // the return: the hull lights up when the wavefront actually reaches it,
+      // not when the ping goes out — the delay is the range, and it shortens
+      const d = Math.hypot(C - x, C - y);
+      setTimeout(() => {
+        if (!entry._alive) return;
+        view.tg.classList.add('sonar-return');
+        setTimeout(() => view.tg.classList.remove('sonar-return'), 150);
+      }, Math.max(0, (d - 2) / PING_R * PING_MS));
+    }
+
+    // ---- bearing-time recorder ----
+    // One row per tick, scrolling down. The target holds a near-steady bearing
+    // (that is why there is a firing solution); everything else is sea noise —
+    // until she drops a noisemaker, and a second trace opens up beside her.
+    const tgtCol = (BTR.cols - 1) / 2;
+    let btrRows = Array.from({ length: BTR.rows }, () => new Array(BTR.cols).fill(0));
+    let btrDrift = 0, lastBtr = 0;
+    function btrTick(p) {
+      btrDrift += (Math.random() - 0.5) * 0.06;
+      btrDrift = Math.max(-1.4, Math.min(1.4, btrDrift));
+      const row = new Array(BTR.cols);
+      for (let c = 0; c < BTR.cols; c++) row[c] = Math.random() * 0.16;
+      const paint = (col, gain) => {
+        for (let c = 0; c < BTR.cols; c++) {
+          const d = Math.abs(c - col);
+          if (d < 2.2) row[c] = Math.max(row[c], gain * Math.exp(-d * d * 1.1));
+        }
+      };
+      paint(tgtCol + btrDrift, 0.95);
+      // the weapon's own noise, opening away from the target's bearing as it runs
+      if (p > 0.05) paint(tgtCol + btrDrift + (p - 0.05) * 2.4 * cmSide * -1, 0.3);
+      if (cmDropped) paint(tgtCol + btrDrift + 2.6 * cmSide, 0.8);
+      btrRows.pop();
+      btrRows.unshift(row);
+      for (let r = 0; r < BTR.rows; r++) {
+        for (let c = 0; c < BTR.cols; c++) {
+          view.cells[r][c].setAttribute('opacity', btrRows[r][c].toFixed(2));
+        }
+      }
+    }
+
+    // ---- wake: the bubble trail, dropped behind the weapon and dissipating ----
+    let lastWake = 0;
+    function wake(x, y) {
+      const b = el('circle', { class: 'sonar-wake', cx: x, cy: y, r: 0.8 });
+      view.fx.insertBefore(b, wpn);
+      const t0 = performance.now();
+      (function step(now) {
+        if (!entry._alive) { b.remove(); return; }
+        const p = Math.min(1, (now - t0) / 1800);
+        b.setAttribute('r', (0.8 + p * 1.9).toFixed(2));
+        b.setAttribute('opacity', (0.5 * (1 - p)).toFixed(2));
+        if (p < 1) { requestAnimationFrame(step); return; }
+        b.remove();
+      })(performance.now());
+    }
+
+    const range0 = TORP_RANGE();
+    let lastPing = 0, prev = { x: ox, y: oy }, t0 = 0;
+    const dur = FLIGHT_DUR.sub || 13000;
+
+    function frame(now) {
+      if (!entry._alive) return;
+      if (ff) { detonate(); return; }   // skipped mid-run: go straight to the hit
+      const p = Math.min(1, (now - t0) / dur);
+
+      // the run-in: straight down the bearing, with one deviation in it if she
+      // manages to put something in the water worth chasing. It starts clear of
+      // the boat rather than on top of her — the weapon swam out of the tube
+      // before the display was worth looking at.
+      const r = (SN.EDGE - 16) * (1 - p);
+      let x = C + Math.cos(bearing) * r, y = C + Math.sin(bearing) * r;
+      if (cm && p > SN.CM_AT) {
+        const w = Math.min(1, (p - SN.CM_AT) / (SN.CM_END - SN.CM_AT));
+        const lat = 15 * Math.sin(Math.PI * w) * cmSide;
+        x += perpX * lat; y += perpY * lat;
+      }
+      // heading comes off the actual velocity, so the weapon leans into the
+      // reattack instead of sliding sideways down a fixed bearing
+      const vx = x - prev.x, vy = y - prev.y;
+      const head = (vx || vy) ? Math.atan2(vx, -vy) * 180 / Math.PI
+        : Math.atan2(-Math.cos(bearing), Math.sin(bearing)) * 180 / Math.PI;
+      prev = { x, y };
+      wpn.setAttribute('transform', `translate(${x.toFixed(2)},${y.toFixed(2)}) rotate(${head.toFixed(1)})`);
+
+      // the wire pays out behind it, then parts at ENABLE
+      if (p < SN.ENABLE) {
+        wire.setAttribute('x2', x.toFixed(2));
+        wire.setAttribute('y2', y.toFixed(2));
+      } else if (!wire.classList.contains('cut')) {
+        wire.classList.add('cut');
+        scopeBurst(view.fx, x, y, 'sonar-enable', 16);
+      }
+
+      // seeker: searching side to side, then dead ahead once it has the hull
+      if (p >= SN.ENABLE) {
+        const acq = p >= SN.ACQUIRE;
+        cone.setAttribute('opacity', acq ? 0.95 : 0.7);
+        cone.classList.toggle('locked', acq);
+        cone.setAttribute('transform', acq ? 'rotate(0)'
+          : `rotate(${(Math.sin((now - t0) / 260) * 26).toFixed(1)})`);
+        // ping rate climbs the whole way in — the last few seconds are a rattle
+        const interval = 1250 - 950 * Math.min(1, (p - SN.ENABLE) / (1 - SN.ENABLE));
+        if (now - lastPing > interval) { lastPing = now; ping(x, y); }
+      }
+
+      // countermeasures: a can of noise over the side, and a bloom in the seeker
+      if (cm && !cmDropped && p >= SN.CM_AT) {
+        cmDropped = true;
+        // dropped off her beam and a little back along the bearing: close
+        // enough to the hull to be worth chasing, which is the entire idea
+        const dx = C + perpX * 26 * cmSide + Math.cos(bearing) * 12;
+        const dy = C + perpY * 26 * cmSide + Math.sin(bearing) * 12;
+        decoy = el('circle', { class: 'sonar-decoy', cx: dx, cy: dy, r: 2.6 });
+        view.fx.insertBefore(decoy, wpn);
+        scopeBurst(view.fx, dx, dy, 'sonar-decoy-ring', 22);
+        setTimeout(() => { if (entry._alive) scopeBurst(view.fx, dx, dy, 'sonar-decoy-ring', 22); }, 700);
+        fsLine(entry, fill(pick(TORPEDO_CM_LINES)), true);
+      }
+
+      if (now - lastWake > 55) { lastWake = now; wake(x, y); }
+      if (now - lastBtr > 190) { lastBtr = now; btrTick(p); }
+
+      // readouts: range closing to zero, speed stepping up at enable, and the
+      // wire going from good, to cut, to a seeker that has stopped searching
+      const yds = Math.max(0, Math.round(range0 * (1 - p) / 50) * 50);
+      view.rng.textContent = `RNG ${yds.toLocaleString()}Y`;
+      view.spd.textContent = p >= SN.ENABLE ? '55 KT' : '40 KT';
+      view.wire.textContent = p >= SN.ACQUIRE ? 'ACQUIRED' : p >= SN.ENABLE ? 'WIRE CUT' : 'WIRE GOOD';
+      view.wire.classList.toggle('hot', p >= SN.ACQUIRE);
+
+      fireUpTo(p);
+      setProgress(entry, p, subPhase(p), cm && p >= SN.CM_AT && p < SN.CM_END);
+
+      if (p < 1) { requestAnimationFrame(frame); return; }
+      detonate();
+    }
+
+    // Under-keel detonation: the warhead does not touch the hull, it takes the
+    // water out from under it. Which is why the burst is at the target and not
+    // on it, and why the shock ring is the biggest thing on the display.
+    function detonate() {
+      if (!skipEnders.delete(forceDetonate)) return;   // once, however it got here
+      wpn.setAttribute('opacity', 0);
+      wire.setAttribute('opacity', 0);
+      if (decoy) decoy.setAttribute('opacity', 0);
+      view.tg.classList.add('scope-hit');
+      scopeBurst(view.fx, C, C, 'impact-flash', 40);
+      scopeBurst(view.fx, C, C, 'sonar-shock', 96);
+      setProgress(entry, 1, 'BDA', false);
+      fireUpTo(1);
+      done();                 // BDA resolves now — everything after is cosmetic
+      targetPulse(target);
+      // held open long enough for the torpedo footage to play out in full
+      fsClose(entry, ff ? 0 : 8800);
+    }
+    const forceDetonate = () => { if (entry._alive) detonate(); else skipEnders.delete(forceDetonate); };
+    skipEnders.add(forceDetonate);
+
+    t0 = performance.now();
+    btrTick(0);
+    requestAnimationFrame(frame);
   }
 
   // ============================================================

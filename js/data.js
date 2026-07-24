@@ -133,10 +133,11 @@ const TARGETS = [
       { asset: 'f35', qty: 2, base: 0.85, label: 'F-35 maritime strike — 2 sorties' },
       { asset: 'fighter', qty: 2, base: 0.80, label: 'Air strike — 2 F/A-18E sorties' },
       { asset: 'cruise', qty: 2, base: 0.84, label: 'TLAM salvo — 2 cruise missiles' },
-      // The cheapest shot in the game and the slowest: one weapon, no aircrew,
-      // nothing on anyone's radar — but the boat has to close the range first.
+      // The cheapest shot in the game and the slowest: one weapon out of the
+      // boat's own tubes, no aircrew, nothing on anyone's radar — but she has to
+      // close inside torpedo range submerged first.
       { asset: 'cruise', qty: 1, base: 0.88, eta: 2, sub: true,
-        label: 'SUBMARINE ATTACK — 1 maritime-strike Tomahawk (2 turns to get on station)' },
+        label: 'SUBMARINE ATTACK — 1 Mk-48 ADCAP heavyweight torpedo (2 turns to close the range)' },
     ],
   },
   {
@@ -572,7 +573,7 @@ const US_ASSETS = [
   // theater magazine everything else does — a submarine shot is not a free shot,
   // it is the same missile fired from somewhere nobody is looking.
   { id: 'ssn-toledo', name: 'USS Toledo — Gulf of Oman', short: 'TOLEDO (SSN)', x: 655, y: 545, kind: 'submarine',
-    desc: 'Los Angeles-class attack submarine on patrol in the Gulf of Oman. She carries maritime-strike Tomahawks and nothing on the Iranian side has ever held her on sonar. Against a hull at sea she is the cheapest weapon in the theater — one missile, no aircrew, no warning — and the slowest, because she has to close the range submerged before she shoots.' },
+    desc: 'Los Angeles-class attack submarine on patrol in the Gulf of Oman. Four tubes of Mk-48 ADCAP, and nothing on the Iranian side has ever held her on sonar. Against a hull at sea she is the cheapest weapon in the theater — one torpedo out of her own load, no aircrew, no warning, nothing off the theater magazine — and the slowest, because she has to close inside firing range submerged before she shoots.' },
 
   // -- forward basing layer (projected from real coordinates; toggle in map header) --
   { id: 'arifjan', name: 'Camp Arifjan — Kuwait', short: 'ARIFJAN', x: 322, y: 401, kind: 'logistics',
@@ -647,6 +648,12 @@ const STRIKE_ORIGINS = {
   stealth: 'diego', heavy: 'diego', sub: 'ssn-toledo',
 };
 
+// The boat's own war shots. A submarine attack is the one package in the game
+// that spends nothing off the theater magazine — the weapon is already in her
+// tubes, and when the four are gone there is no reloading her mid-war.
+const TORPEDO_LOAD = 4;
+const SUB_WEAPON_NAME = 'Mk-48 ADCAP heavyweight torpedo, out of the boat\'s own tubes';
+
 const ASSET_NAMES = {
   f35: '5th-gen sorties (F-35/F-22)',
   fighter: '4th-gen sorties (F-15E/F-16/F-18)',
@@ -668,7 +675,10 @@ const MISSILE_RANGES = [
 
 // ---- flight animation config ----
 // Animation length (ms) for each strike asset's map animation
-const FLIGHT_DUR = { f35: 10500, fighter: 10500, stealth: 16000, heavy: 14000, cruise: 6500 };
+// `sub` is not an asset type — it is the submarine shot, keyed separately
+// because a torpedo runs to the datum at 55 knots, not at 500, and the sonar
+// display is worth the extra seconds on screen.
+const FLIGHT_DUR = { f35: 10500, fighter: 10500, stealth: 16000, heavy: 14000, cruise: 6500, sub: 13000 };
 
 // Airframes by tier: a random one flies each package. cs is the callsign root;
 // from decides whether it launches off a carrier or a land base. The split is
@@ -765,21 +775,40 @@ const CRUISE_EVENTS = [
 
 // A submarine shot is a different kind of quiet. There is no tanker, no
 // formation and nothing for Iran to see coming — the whole event is a boat
-// holding a firing solution long enough to take the shot and then going deep.
+// holding a firing solution long enough to put one heavyweight in the water,
+// steering it down the wire, and then going deep. The weapon runs for minutes,
+// not seconds, and the target never hears it until the seeker goes active.
 const SUB_EVENTS = [
   { at: 0.02, kind: 'status', msgs: [
-    '{base} at launch depth — {cs} away, one weapon',
-    'Firing solution good — {cs} clear of the tube out of {base}',
+    '{base} at firing depth — tube one, {cs} away, wire good',
+    'Firing solution good — {cs} swimming out of tube one, {base} steering',
   ] },
-  { at: 0.3, kind: 'status', msgs: [
-    'Breach and boost — {cs} on the deck, running to the datum',
-    '{cs} sea-skimming inbound — nothing radiating, nothing to warn her',
+  { at: 0.22, kind: 'status', msgs: [
+    'Weapon running normal — 40 knots on the wire, medium speed to the datum',
+    '{cs} on course down the wire — {base} holding the solution passive',
   ] },
-  { at: 0.68, kind: 'problem', chance: 0.25, msgs: [
-    'Target maneuvered off the firing solution — weapon re-attacking on its own seeker',
-    'Merchant traffic in the terminal basket — discrimination is on the seeker now',
+  { at: 0.46, kind: 'status', msgs: [
+    'Steering correction sent — {cs} coming right onto the updated track',
+    'Passive bearing drift on {tgt} — wire correction away to the weapon',
   ] },
-  { at: 0.99, kind: 'status', msgs: ['TERMINAL — {tgt} impact'] },
+  { at: 0.62, kind: 'status', msgs: [
+    'ENABLE — {cs} going active, seeker searching',
+    'Wire cut — {cs} enabled on its own sonar, autonomous from here',
+  ] },
+  { at: 0.86, kind: 'status', msgs: [
+    'ACQUISITION — {cs} has the hull, closing at 55 knots',
+    'Seeker locked on {tgt} — weapon in terminal, going under the keel',
+  ] },
+  { at: 0.99, kind: 'status', msgs: ['UNDER-KEEL DETONATION — {tgt}'] },
+];
+
+// Written the moment the noisemaker actually goes in the water, so the line and
+// the false target on the sonar display are the same event — the same contract
+// SAM_LINES has with the streak on a radar scope.
+const TORPEDO_CM_LINES = [
+  'Countermeasures — {tgt} put a noisemaker over the side and turned away',
+  '{tgt} at flank, knuckle in the water — {cs} reattacking around the false target',
+  'Decoy blooming in the seeker picture — {cs} sorting the hull out of the noise',
 ];
 
 // Fired into the scope's status lines the moment a SAM actually leaves the ring,

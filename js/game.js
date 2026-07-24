@@ -59,6 +59,11 @@ const Game = (() => {
     // refill, so the Tomahawk stops being the free answer to every aimpoint and
     // becomes a thing that has to be rationed once the war runs long.
     tlamPool: 20,
+    // ---- USS Toledo's war shots ----
+    // The submarine attack is the one package that spends nothing off the
+    // theater magazine: the Mk-48s are already in her tubes. Four of them, and
+    // nobody reloads a boat on patrol — see TORPEDO_LOAD.
+    torpedoes: TORPEDO_LOAD,
     // The fleet. One deck to start; the second has to be sent for. Only mutable
     // state lives here — names come from CARRIER_INFO by id, so a restored save
     // can never carry a stale ship name back into the war.
@@ -237,7 +242,7 @@ const Game = (() => {
       'heaviesOrdered', 'heavyEta', 'heaviesArrived', 'forceFlow', 'airPhaseSeen',
       'milestones', 'difficulty', 'iranPosture', 'postureKnown', 'breakout', 'intel',
       'tankers', 'tankerCap', 'basing', 'basingDebt', 'warPowers', 'addresses', 'threat',
-      'timeline', 'adapt', 'adaptSeen', 'turnStartHp', 'tlamPool',
+      'timeline', 'adapt', 'adaptSeen', 'turnStartHp', 'tlamPool', 'torpedoes',
     ];
 
     function write() {
@@ -1228,6 +1233,13 @@ const Game = (() => {
   const resKey = (asset) => asset === 'fighter' ? 'fighters' : asset;
   const assetProfile = (asset) => AIR_ASSETS[asset] || AIR_ASSETS.cruise;
 
+  // What a package is actually drawn from. Everything on the board comes out of
+  // a ready magazine indexed by tier — except the submarine shot, which comes
+  // out of the boat's own torpedo room and touches no theater stock at all.
+  // It still flies as `cruise` for the strike math: an Mk-48 against a hull is
+  // the same arithmetic as a maritime-strike Tomahawk, unseen and unopposed.
+  const pkgStock = (pkg) => pkg.sub ? (G.torpedoes ?? 0) : (G.res[resKey(pkg.asset)] ?? 0);
+
   // The smallest package a tier can be tasked in, anywhere on the board.
   // The assets panel counts SORTIES and the strike modal spends PACKAGES, and
   // the two are not the same number: a magazine holding two sorties against a
@@ -1304,6 +1316,15 @@ const Game = (() => {
     'Hard maneuver and a full decoy spread — chaff and corner reflectors in the air — and the weapon took the false picture. No damage assessed.',
   ];
 
+  // Why a heavyweight comes up dry. Nothing here is about air defense — a
+  // torpedo is beaten by the water, by the target's own wake, or by a can of
+  // noise dropped over the side at the right moment.
+  const TORPEDO_MISS_REASONS = [
+    'The weapon enabled on a knuckle. She went to flank and put her rudder over the moment the seeker went active, and the torpedo ran through the churn where she had been. It ran to fuel exhaustion and sank; she is still afloat, and now she knows there is a boat out there.',
+    'Countermeasures defeated the shot — a noisemaker over the side and a hard turn away, and the seeker took the false target. No detonation on the hull.',
+    'The wire parted early and the weapon enabled on the last solution instead of the current one. She had drawn off the datum by then. No damage assessed.',
+  ];
+
   // Flying a tier into airspace it was never meant to see. Only reachable on
   // hard, where the gate is advice rather than law — and the price is set so
   // that doing it is a real decision and not a free shortcut past two phases of
@@ -1321,7 +1342,9 @@ const Game = (() => {
     const dmgBonus = target.hp < 100 ? 0.15 : 0;
     // What Iran has learned about the way this campaign is being flown. Fly one
     // platform into the ground and this is the bill for it (see IranAI.adaptStep).
-    const adaptPenalty = IranAI.adaptPenalty(pkg.asset);
+    // Nothing is learned from a submarine attack: decoys and dispersal are an
+    // answer to weapons somebody saw coming, and nobody has ever seen this one.
+    const adaptPenalty = pkg.sub ? 0 : IranAI.adaptPenalty(pkg.asset);
     const success = clamp(pkg.base - adPenalty - adaptPenalty + dmgBonus, 0.05, 0.95);
     // A packed bomber cell over a live SAM belt is not a risk, it is a funeral —
     // hence the higher cap when the tier is being flown outside its phase.
@@ -1354,8 +1377,7 @@ const Game = (() => {
 
   function executeStrike(target, pkg) {
     if (G.over || busy()) return;
-    const key = resKey(pkg.asset);
-    if (G.res[key] < pkg.qty) return;
+    if (pkgStock(pkg) < pkg.qty) return;
     // a launcher group nobody has found is not a target, and a deep target is
     // not reachable without the northern tanker tracks
     if (target.type === 'tel' && (!target.dispersed || !target.located)) return;
@@ -1365,17 +1387,24 @@ const Game = (() => {
     // fuel in the air is booked before anything leaves the deck
     const { cost, ok } = tankersFor(target, pkg);
     if (!ok) return;
-    G.res[key] -= pkg.qty;
-    // Tomahawks come out of the finite theater reservoir as well as the ready
-    // launchers — every round fired is one the war will never have again.
-    if (pkg.asset === 'cruise') G.tlamPool = Math.max(0, (G.tlamPool || 0) - pkg.qty);
+    // The boat pays for her own shot out of her tubes; everything else comes off
+    // the theater magazine. Tomahawks come out of the finite reservoir as well
+    // as the ready launchers — every round fired is one the war never gets back.
+    if (pkg.sub) {
+      G.torpedoes = Math.max(0, (G.torpedoes ?? 0) - pkg.qty);
+    } else {
+      G.res[resKey(pkg.asset)] -= pkg.qty;
+      if (pkg.asset === 'cruise') G.tlamPool = Math.max(0, (G.tlamPool || 0) - pkg.qty);
+    }
     G.tankers -= cost;
 
     // the joint option is one-shot: committing it against either site spends it
     if (pkg.joint) { G.israelJointAvailable = false; syncJointPackages(); }
 
-    // every package is logged by platform: this is what Iran adapts to
-    G.adapt[pkg.asset] = (G.adapt[pkg.asset] || 0) + 1;
+    // every package is logged by platform: this is what Iran adapts to. The
+    // submarine shot is not logged at all — she is never held on sonar, and a
+    // pattern nobody can observe is a pattern nobody can counter.
+    if (!pkg.sub) G.adapt[pkg.asset] = (G.adapt[pkg.asset] || 0) + 1;
     G.strikesThisTurn++;
     G.stats.strikes++;
     G.missions.push({ targetId: target.id, pkg: { ...pkg }, eta: pkg.eta || MISSION_ETA[pkg.asset] });
@@ -1457,7 +1486,9 @@ const Game = (() => {
     } else {
       G.approval = clamp(G.approval - 2, 0, 100);
       ev.dApproval = -2;
-      text = est.oneShot
+      text = pkg.sub
+        ? TORPEDO_MISS_REASONS[Math.floor(Math.random() * TORPEDO_MISS_REASONS.length)]
+        : est.oneShot
         ? SHIP_MISS_REASONS[Math.floor(Math.random() * SHIP_MISS_REASONS.length)]
         : pkg.asset === 'cruise'
           ? TLAM_MISS_REASONS[Math.floor(Math.random() * TLAM_MISS_REASONS.length)]
@@ -1524,8 +1555,9 @@ const Game = (() => {
         AudioSys.play('impact');
         const batchEvents = batch.map(bm => resolveImpact(target, bm.pkg));
         for (const ev of batchEvents) events.push(ev);
-        // a successful hit plays the strike clip in the target's radar window
-        if (batchEvents.some(ev => ev.hit)) MapView.playStrikeHit(target);
+        // a successful hit plays the strike clip in the target's radar window —
+        // the package decides which clip, so a torpedo lands as a torpedo
+        if (batchEvents.some(ev => ev.hit)) MapView.playStrikeHit(target, head.pkg);
         UI.renderAll(G);
         next();
       };
@@ -1534,8 +1566,12 @@ const Game = (() => {
       // flight (TLAMs always, carrier fighter sorties sometimes), so allow extra
       // time before force-resolving. Fighters can't be told apart here, so the
       // allowance is applied to all of them — it only delays the stall fallback.
-      const launchClip = head.pkg.asset === 'cruise' || head.pkg.asset === 'fighter' ? 5000 : 0;
-      setTimeout(finishBatch, (FLIGHT_DUR[head.pkg.asset] || 1000) + launchClip + 3500);
+      // the submarine shot runs on its own (longer) clock and plays no launch
+      // clip — a torpedo swims out of the tube, it doesn't breach and boost
+      const launchClip = head.pkg.sub ? 0
+        : head.pkg.asset === 'cruise' || head.pkg.asset === 'fighter' ? 5000 : 0;
+      const runDur = FLIGHT_DUR[head.pkg.sub ? 'sub' : head.pkg.asset] || 1000;
+      setTimeout(finishBatch, runDur + launchClip + 3500);
     };
     next();
   }
@@ -2383,6 +2419,9 @@ const Game = (() => {
       const ford = G.carriers && G.carriers.find(c => c.id === 'csg-ford');
       G.tlamPool = 20 + (ford && ford.arrived ? 10 : 0);
     }
+    // a save written while the submarine shot was still a Tomahawk restores
+    // with the boat's tubes full — she was never spending torpedoes before
+    if (typeof G.torpedoes !== 'number') G.torpedoes = TORPEDO_LOAD;
     for (const t of TARGETS) {
       const rec = data.targets[t.id] || {};
       t.hp = typeof rec.hp === 'number' ? rec.hp : (t.dispersal ? 0 : 100);
@@ -2451,6 +2490,7 @@ const Game = (() => {
     G.caps.heavy = 0; G.res.heavy = 0;
     // the Lincoln's war-load of Tomahawks; the Ford adds 10 more if she is sent for
     G.tlamPool = 20;
+    G.torpedoes = TORPEDO_LOAD;   // Toledo sails with her tubes full
     syncFleetCaps();
     G.res.f35 = G.caps.f35;
     G.airPhaseSeen = airPhase();
@@ -2500,7 +2540,7 @@ const Game = (() => {
     orderBombers, orderHeavies, transitCommitted, wearsDown,
     // the air-superiority ladder: what the sky is worth tonight, and what that
     // releases. pkgBlock is the single answer to "why can't I fly this".
-    airSuperiority, airPhase, phaseAtLeast, pkgBlock, PHASE_LABEL, minPackage, resKey,
+    airSuperiority, airPhase, phaseAtLeast, pkgBlock, PHASE_LABEL, minPackage, resKey, pkgStock,
     // the uncertainty layer: everything the player sees goes through these
     estimate, condition, breakoutEstimate, barred, canReach, tankersFor, tankerCapacity,
     casualtyLimit, difficulty: diff,

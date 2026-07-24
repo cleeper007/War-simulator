@@ -13,6 +13,7 @@ const AudioSys = (() => {
     retaliation: 'retaliation.wav', // Iranian retaliation alert
     klaxon: 'klaxon.wav',           // Hormuz closes / casualties cross 100
     cable: 'cable.wav',             // diplomatic cable
+    sonarPing: 'sonar-ping.wav',    // Mk-48 seeker going active on the sonar scope
     victory: 'victory.wav',
     defeat: 'defeat.wav',
   };

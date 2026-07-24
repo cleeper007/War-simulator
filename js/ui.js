@@ -229,6 +229,10 @@ const UI = (() => {
       ['4th-gen sorties (F-15E/F-16)', `${G.res.fighters} / ${G.caps.fighters}`,
         held('degraded', true) || short('fighter', true)],
       ['Cruise missiles (TLAM)', `${G.res.cruise} / ${G.caps.cruise}`, short('cruise', true) + tlamReserve()],
+      // The boat's own load — it is not a theater magazine and it never refills,
+      // so it is counted here rather than hidden inside the strike modal.
+      ['Mk-48 torpedoes (Toledo)', `${G.torpedoes ?? 0} / ${TORPEDO_LOAD}`,
+        (G.torpedoes ?? 0) === 0 ? ' <span class="res-gate crit">TUBES DRY</span>' : ''],
       ['B-2 missions (GBU-57)', b2, short('stealth', G.bombersArrived)],
       ['Heavy bombers (B-1/B-52)', hv,
         held('superiority', G.heaviesArrived) || short('heavy', G.heaviesArrived)],
@@ -679,7 +683,9 @@ const UI = (() => {
     }
 
     target.packages.forEach((pkg) => {
-      const have = G.res[Game.resKey(pkg.asset)] ?? 0;
+      // the submarine shot is counted out of the boat's tubes, not the theater
+      // magazine — same gate, different magazine, and it says which
+      const have = Game.pkgStock(pkg);
       const { cost, ok: fuelOk } = Game.tankersFor(target, pkg);
       const stockOk = have >= pkg.qty;
       // the air-superiority ladder outranks both magazines: a tier that has not
@@ -695,9 +701,11 @@ const UI = (() => {
       const fuelWhy = !fuelOk ? ' — NO TANKER TRACKS' : '';
       div.innerHTML = `<span class="pkg-name">${pkg.label}</span>` +
         (gate ? `<span class="pkg-detail pkg-gate">${gate}</span>` : '') +
-        `<span class="pkg-detail">Requires ${pkg.qty}× ${lcFirst(ASSET_NAMES[pkg.asset])} ` +
+        `<span class="pkg-detail">Requires ${pkg.qty}× ` +
+        `${pkg.sub ? SUB_WEAPON_NAME : lcFirst(ASSET_NAMES[pkg.asset])} ` +
         `(available: ${have})${why} · ${cost ? `${cost} tanker track${cost === 1 ? '' : 's'} ` +
-        `of ${G.tankers} left${fuelWhy}` : 'no tanker requirement'}</span>`;
+        `of ${G.tankers} left${fuelWhy}` : 'no tanker requirement'}` +
+        (pkg.sub ? ' · <span class="est-good">no theater magazine spent</span>' : '') + '</span>';
       if (ok) {
         div.addEventListener('click', () => {
           box.querySelectorAll('.pkg-option').forEach(el => el.classList.remove('selected'));

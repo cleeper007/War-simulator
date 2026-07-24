@@ -561,6 +561,43 @@ button { font-family: var(--mono); }
 .sam-trail { stroke: var(--red); stroke-width: 1.2; }
 .sam-flash { fill: var(--red); }
 
+/* ---- sonar scope: the submarine attack ----
+   Nothing here is red, because nothing here is shooting back. The display is
+   the boat's own green, and the only bright thing on it is the weapon. */
+.sonar-view { background: #04101a; }
+.sonar-readout {
+  font-family: var(--mono); font-size: 6px; letter-spacing: 0.6px;
+  fill: var(--green); opacity: 0.65;
+}
+.sonar-readout.hot { opacity: 1; font-weight: bold; }
+
+.sonar-own .sonar-hull { fill: var(--blue); opacity: 0.75; }
+.sonar-own .sonar-sail { fill: var(--blue); opacity: 0.95; }
+
+/* the guidance wire: live while the boat is still steering, gone once cut.
+   Drawn brighter than the wake so the two never read as the same thing. */
+.sonar-wire { stroke: var(--blue); stroke-width: 0.8; opacity: 0.8; stroke-dasharray: 4 3; }
+.sonar-wire.cut { opacity: 0; }
+
+.sonar-torp { fill: #fff; }
+.sonar-cone { fill: var(--green); opacity: 0.16; }
+.sonar-cone-g.locked .sonar-cone { opacity: 0.34; }
+.sonar-ping { fill: none; stroke: var(--green); stroke-width: 1.1; }
+.sonar-enable { fill: var(--green); }
+.sonar-wake { fill: var(--dim); opacity: 0.35; }
+
+/* the hull lighting up when a ping actually gets back to the weapon */
+.scope-tgt.sonar-return .tgt-core { fill: var(--green); }
+.scope-tgt.sonar-return .tgt-ring { stroke: var(--green); stroke-width: 2; }
+
+.sonar-decoy { fill: var(--amber); opacity: 0.8; }
+.sonar-decoy-ring { fill: none; stroke: var(--amber); stroke-width: 1; opacity: 0.5; }
+.sonar-shock { fill: none; stroke: #fff; stroke-width: 2.2; }
+
+/* bearing-time recorder: bearing across, time downward */
+.sonar-btr-frame { fill: rgba(0, 0, 0, 0.35); stroke: var(--line); stroke-width: 0.6; }
+.sonar-btr-cell { fill: var(--green); }
+
 /* mission progress */
 .progress-row {
   display: flex; justify-content: space-between; align-items: baseline;
