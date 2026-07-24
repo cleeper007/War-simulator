@@ -106,13 +106,20 @@ const UI = (() => {
     ap.textContent = `${Math.round(G.approval)}%`;
     ap.className = 'stat-value big ' + (G.approval < 30 ? 'crit' : G.approval < 45 ? 'warn' : 'good');
 
+    // Oil defeats the war outright at $240; pulse the number once it is close
+    // enough that the next spike could end it, so the loss never arrives unseen.
     const oil = $('oil-value');
     oil.textContent = `$${Math.round(G.oil)}`;
-    oil.className = 'stat-value big ' + (G.oil >= 150 ? 'crit' : G.oil >= 110 ? 'warn' : '');
+    oil.className = 'stat-value big ' + (G.oil >= 150 ? 'crit' : G.oil >= 110 ? 'warn' : '') +
+      (G.oil >= 190 ? ' pulsing' : '');
 
+    // A closed Strait breaks the economy after five turns shut. Show the count
+    // against that limit the same way casualties are counted against theirs.
     const hz = $('hormuz-value');
-    hz.textContent = G.hormuz;
-    hz.className = 'stat-value big ' + (G.hormuz === 'CLOSED' ? 'crit' : G.hormuz === 'CONTESTED' ? 'warn' : 'good');
+    hz.textContent = G.hormuz === 'CLOSED' && G.hormuzClosedTurns > 0
+      ? `CLOSED ${G.hormuzClosedTurns}/5` : G.hormuz;
+    hz.className = 'stat-value big ' + (G.hormuz === 'CLOSED' ? 'crit' : G.hormuz === 'CONTESTED' ? 'warn' : 'good') +
+      (G.hormuz === 'CLOSED' && G.hormuzClosedTurns >= 3 ? ' pulsing' : '');
 
     const w = $('world-value');
     w.textContent = Math.round(G.world);
@@ -209,11 +216,19 @@ const UI = (() => {
       return min && have > 0 && have < min
         ? ` <span class="res-gate crit">SHORT OF A PACKAGE (${min} NEEDED)</span>` : '';
     };
+    // The Tomahawk reservoir is finite for the whole war (Lincoln 20, Ford +10).
+    // Show what is left in theater behind the ready launchers, and escalate the
+    // styling as it runs down — the point of the number is that it must be rationed.
+    const tlamReserve = () => {
+      const n = G.tlamPool ?? 0;
+      const cls = n <= 4 ? 'res-gate crit' : n <= 10 ? 'res-gate warn' : 'res-gate';
+      return ` <span class="${cls}">${n} IN THEATER</span>`;
+    };
     const rows = [
       ['5th-gen sorties (F-35/F-22)', `${G.res.f35} / ${G.caps.f35}`, short('f35', true)],
       ['4th-gen sorties (F-15E/F-16)', `${G.res.fighters} / ${G.caps.fighters}`,
         held('degraded', true) || short('fighter', true)],
-      ['Cruise missiles (TLAM)', `${G.res.cruise} / ${G.caps.cruise}`, short('cruise', true)],
+      ['Cruise missiles (TLAM)', `${G.res.cruise} / ${G.caps.cruise}`, short('cruise', true) + tlamReserve()],
       ['B-2 missions (GBU-57)', b2, short('stealth', G.bombersArrived)],
       ['Heavy bombers (B-1/B-52)', hv,
         held('superiority', G.heaviesArrived) || short('heavy', G.heaviesArrived)],
@@ -861,5 +876,31 @@ const UI = (() => {
     $('btn-restart').addEventListener('click', () => window.location.reload());
   }
 
-  return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport, showEndgame };
+  // ---- first-war primer ----
+  // Reuses the report modal to teach the one thing the advisors cannot say
+  // loudly enough: the war is fought in the sidebar as much as on the map.
+  // Gated on a localStorage flag so a returning player never sees it twice.
+  const PRIMER_KEY = 'cic-primer-seen';
+  function showPrimerOnce() {
+    try { if (localStorage.getItem(PRIMER_KEY)) return; } catch (e) {}
+    const panels = [
+      { cls: 'friendly', title: 'COMMAND IS MORE THAN AIRSTRIKES',
+        text: 'Click any Iranian target on the map to plan a strike — but that is only half the job. ' +
+          'Every turn you also get TWO free actions in the sidebar: one INTELLIGENCE tasking and one ' +
+          'DIPLOMATIC action. They win wars as often as bombs do. Open those panels early and keep using them.' },
+      { cls: '', title: 'THE FOUR NUMBERS THAT BEAT YOU',
+        text: 'Watch approval, oil, world opinion and casualties along the bottom bar. When approval slips, ' +
+          'ADDRESS THE NATION. When oil spikes, release the STRATEGIC PETROLEUM RESERVE. When allies drift, ' +
+          'build a COALITION or take it to the UN. A war that is being won on the map is routinely lost at ' +
+          'home by a president who never touched these levers.' },
+      { cls: 'iran', title: 'AND A WAR PLAN YOU CANNOT SEE',
+        text: 'Tehran has chosen a hidden strategy — strangle the Strait, bleed you with missiles, or sprint ' +
+          'for a bomb. Read it off what Iran actually does, or spend an intelligence slot to assess their ' +
+          'intent. Fight the war in front of you, not the one you expected.' },
+    ];
+    showReport('PRESIDENTIAL PRIMER — HOW THIS WAR IS FOUGHT', panels, null);
+    try { localStorage.setItem(PRIMER_KEY, '1'); } catch (e) {}
+  }
+
+  return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport, showEndgame, showPrimerOnce };
 })();

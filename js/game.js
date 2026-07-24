@@ -21,9 +21,12 @@ const Game = (() => {
   const diff = () => DIFFICULTY[G.difficulty] || DIFFICULTY.normal;
   const casualtyLimit = () => diff().casualties;
 
-  // The congressional clock. Somewhere in the middle of the second week the
-  // authorization the war has been running on runs out and the Hill votes.
-  const WAR_POWERS_TURN = 13;
+  // The congressional clock. Early in the second week the authorization the war
+  // has been running on runs out and the Hill votes. Pulled forward from turn 13:
+  // most campaigns were being decided before the old date, so the vote — and its
+  // interesting middle outcome, a war that continues on a legally shortened
+  // target list — was content most players never reached.
+  const WAR_POWERS_TURN = 10;
 
   // ---- game state ----
   const G = {
@@ -47,6 +50,15 @@ const Game = (() => {
     // one is F-35s, Tomahawks, and a decision about how fast to spend them.
     res: { f35: 2, fighters: 3, cruise: 6, stealth: 0, heavy: 0, specops: 1 },
     caps: { f35: 2, fighters: 4, cruise: 8, stealth: 0, heavy: 0, specops: 1 },
+    // ---- the theater Tomahawk magazine ----
+    // res.cruise is what is CANISTER-LOADED and launchable tonight; this is the
+    // whole war's supply behind it. The Lincoln sails with 20 rounds aboard, the
+    // Ford brings 10 more when she arrives — 30 for the campaign, and no more.
+    // Nightly turnaround (repCruise) still tops the ready launchers off at the
+    // same rate, so the opening weeks feel unchanged; but the reservoir does not
+    // refill, so the Tomahawk stops being the free answer to every aimpoint and
+    // becomes a thing that has to be rationed once the war runs long.
+    tlamPool: 20,
     // The fleet. One deck to start; the second has to be sent for. Only mutable
     // state lives here — names come from CARRIER_INFO by id, so a restored save
     // can never carry a stale ship name back into the war.
@@ -210,8 +222,8 @@ const Game = (() => {
     // v5: downed aircrew and their recovery counters became state. A v4 save has
     // no `downed` field and a stats block missing three counters — retired
     // rather than migrated, the same as every version before it.
-    const KEY = 'cic-save-v9';   // bump the version to invalidate old saves
-    const VERSION = 10;
+    const KEY = 'cic-save-v10';  // bump the version to invalidate old saves
+    const VERSION = 11;
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -225,7 +237,7 @@ const Game = (() => {
       'heaviesOrdered', 'heavyEta', 'heaviesArrived', 'forceFlow', 'airPhaseSeen',
       'milestones', 'difficulty', 'iranPosture', 'postureKnown', 'breakout', 'intel',
       'tankers', 'tankerCap', 'basing', 'basingDebt', 'warPowers', 'addresses', 'threat',
-      'timeline', 'adapt', 'adaptSeen', 'turnStartHp',
+      'timeline', 'adapt', 'adaptSeen', 'turnStartHp', 'tlamPool',
     ];
 
     function write() {
@@ -839,7 +851,7 @@ const Game = (() => {
     G.caps.cruise = cap.cruise;
     G.res.f35 = Math.min(G.res.f35, G.caps.f35);
     G.res.fighters = Math.min(G.res.fighters, G.caps.fighters);
-    G.res.cruise = Math.min(G.res.cruise, G.caps.cruise);
+    G.res.cruise = Math.min(G.res.cruise, G.caps.cruise, G.tlamPool ?? Infinity);
   }
 
   // ============================================================
@@ -1038,6 +1050,9 @@ const Game = (() => {
     ford.arrived = true;
     ford.posture = 'back';
     ford.moving = null;
+    // she comes with her own war-load: another 10 Tomahawks into the theater
+    // reservoir, the only replenishment the campaign ever gets
+    G.tlamPool = (G.tlamPool || 0) + 10;
     syncFleetCaps();
     MapView.setCarrierPosture(ford);
     AudioSys.play('cable');
@@ -1351,6 +1366,9 @@ const Game = (() => {
     const { cost, ok } = tankersFor(target, pkg);
     if (!ok) return;
     G.res[key] -= pkg.qty;
+    // Tomahawks come out of the finite theater reservoir as well as the ready
+    // launchers — every round fired is one the war will never have again.
+    if (pkg.asset === 'cruise') G.tlamPool = Math.max(0, (G.tlamPool || 0) - pkg.qty);
     G.tankers -= cost;
 
     // the joint option is one-shot: committing it against either site spends it
@@ -2145,7 +2163,9 @@ const Game = (() => {
     const cap = fleetCapacity();
     G.res.f35 = Math.min(G.res.f35 + cap.repF35, G.caps.f35);
     G.res.fighters = Math.min(G.res.fighters + cap.repFighters, G.caps.fighters);
-    G.res.cruise = Math.min(G.res.cruise + cap.repCruise, G.caps.cruise);
+    // ready launchers reload at the same rate as ever — but never past what is
+    // still in the theater reservoir, so a drained magazine cannot be topped off
+    G.res.cruise = Math.min(G.res.cruise + cap.repCruise, G.caps.cruise, G.tlamPool);
     // the bombers only regenerate once there are bombers — turnaround at Diego
     // Garcia is three turns per airframe, and an empty ramp turns nothing around
     if (G.bombersArrived && G.turn % 3 === 0) {
@@ -2345,6 +2365,11 @@ const Game = (() => {
       UI.setTicker(IranAI.headlines(G, [{ title: 'USS MILIUS STRUCK IN STRAIT OF HORMUZ — SEVEN SAILORS DEAD' }]));
     }
     UI.renderAll(G);
+    // First-war primer: the single most common way a new player loses is by
+    // fighting this as a pure targeting game and never touching the free action
+    // slots that actually hold approval, oil and the coalition together. Shown
+    // once, ever — dismissed and never seen again.
+    if (!resume) UI.showPrimerOnce();
   }
 
   function restoreAndStart(data) {
@@ -2352,6 +2377,12 @@ const Game = (() => {
     // a save written before the levels were renamed still restores at the level
     // it was actually played at
     G.difficulty = DIFFICULTY_ALIAS[G.difficulty] || G.difficulty;
+    // a save written before the Tomahawk reservoir existed restores with a full
+    // war-load, plus the Ford's tranche if she is already on station
+    if (typeof G.tlamPool !== 'number') {
+      const ford = G.carriers && G.carriers.find(c => c.id === 'csg-ford');
+      G.tlamPool = 20 + (ford && ford.arrived ? 10 : 0);
+    }
     for (const t of TARGETS) {
       const rec = data.targets[t.id] || {};
       t.hp = typeof rec.hp === 'number' ? rec.hp : (t.dispersal ? 0 : 100);
@@ -2418,6 +2449,8 @@ const Game = (() => {
     G.forceFlow = { landed: [], f35: 0, fighters: 0, tanker: 0, rep: 0 };
     G.heaviesOrdered = false; G.heavyEta = 0; G.heaviesArrived = false;
     G.caps.heavy = 0; G.res.heavy = 0;
+    // the Lincoln's war-load of Tomahawks; the Ford adds 10 more if she is sent for
+    G.tlamPool = 20;
     syncFleetCaps();
     G.res.f35 = G.caps.f35;
     G.airPhaseSeen = airPhase();
