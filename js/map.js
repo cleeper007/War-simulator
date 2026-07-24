@@ -385,11 +385,12 @@ const MapView = (() => {
   }
 
   // convert client coords to svg user-space coords
-  function toSvgPoint(e) {
+  function clientToSvg(clientX, clientY) {
     const pt = svg.createSVGPoint();
-    pt.x = e.clientX; pt.y = e.clientY;
+    pt.x = clientX; pt.y = clientY;
     return pt.matrixTransform(svg.getScreenCTM().inverse());
   }
+  function toSvgPoint(e) { return clientToSvg(e.clientX, e.clientY); }
 
   function initPanZoom() {
     svg.addEventListener('wheel', (e) => {
@@ -420,6 +421,8 @@ const MapView = (() => {
       svg.classList.remove('panning');
     });
 
+    initTouch();
+
     document.getElementById('zoom-in').addEventListener('click', () => zoomAt(500, 350, 1.3));
     document.getElementById('zoom-out').addEventListener('click', () => zoomAt(500, 350, 1 / 1.3));
     document.getElementById('zoom-reset').addEventListener('click', () => {
@@ -431,6 +434,66 @@ const MapView = (() => {
       document.getElementById('forward-layer').classList.toggle('hidden', !forwardOn);
       document.getElementById('toggle-bases').classList.toggle('layer-on', forwardOn);
     });
+  }
+
+  // ---- touch: one finger pans, two fingers pinch-zoom ----
+  // Kept entirely separate from the mouse handlers above so desktop behaviour
+  // is untouched. A touch that never moves past the jitter threshold is left
+  // alone — the synthesized click falls through to the target's own handler, so
+  // tapping a target still opens strike planning exactly like a mouse click.
+  function initTouch() {
+    let tPan = null;   // { px, py, vx, vy } — active one-finger pan
+    let tPinch = null; // { dist } — active two-finger pinch
+    let moved = false; // has this gesture moved enough to stop being a tap?
+
+    const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    const mid = (a, b) => ({ x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 });
+
+    svg.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        tPinch = null; moved = false;
+        tPan = { px: e.touches[0].clientX, py: e.touches[0].clientY, vx: view.x, vy: view.y };
+      } else if (e.touches.length === 2) {
+        tPan = null; moved = true;   // a two-finger gesture is never a tap
+        tPinch = { dist: dist(e.touches[0], e.touches[1]) };
+        e.preventDefault();          // suppress the browser's own page pinch-zoom
+      }
+    }, { passive: false });
+
+    svg.addEventListener('touchmove', (e) => {
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return;
+      if (tPinch && e.touches.length === 2) {
+        e.preventDefault();
+        const nd = dist(e.touches[0], e.touches[1]);
+        const m = mid(e.touches[0], e.touches[1]);
+        const p = clientToSvg(m.x, m.y);       // pinch about the fingers' midpoint
+        if (tPinch.dist > 0 && nd > 0) zoomAt(p.x, p.y, nd / tPinch.dist);
+        tPinch.dist = nd;
+      } else if (tPan && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - tPan.px, dy = e.touches[0].clientY - tPan.py;
+        // let small jitter stay a tap so target selection survives a shaky finger
+        if (!moved && Math.hypot(dx, dy) < 6) return;
+        moved = true;
+        e.preventDefault();
+        svg.classList.add('panning');
+        view.x = tPan.vx + dx / ctm.a;
+        view.y = tPan.vy + dy / ctm.d;
+        applyView();
+      }
+    }, { passive: false });
+
+    const endTouch = (e) => {
+      if (e.touches.length === 0) {
+        tPan = null; tPinch = null; svg.classList.remove('panning');
+      } else if (e.touches.length === 1) {
+        // lifting one finger of a pinch — resume a clean pan from the survivor
+        tPinch = null;
+        tPan = { px: e.touches[0].clientX, py: e.touches[0].clientY, vx: view.x, vy: view.y };
+      }
+    };
+    svg.addEventListener('touchend', endTouch);
+    svg.addEventListener('touchcancel', endTouch);
   }
 
   // ---- visual state updates ----

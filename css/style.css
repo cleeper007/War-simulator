@@ -863,3 +863,109 @@ button { font-family: var(--mono); }
 .timeline-table td { padding: 3px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
 .timeline-table td:not(.tl-text) { color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .timeline-table .tl-text { color: var(--fg); width: 100%; }
+
+/* ============================================================
+   MOBILE / TOUCH — landscape-first
+   ------------------------------------------------------------
+   Everything below is gated on a coarse (touch) pointer or a short/narrow
+   viewport. A mouse-driven desktop matches none of these queries, so
+   computer play renders exactly as before. The design target is a phone
+   held sideways.
+   ============================================================ */
+
+/* The map owns its own gestures: no native page scroll/zoom fighting the
+   pan-zoom, no long-press text callouts or tap flashes on the icons. */
+#map { touch-action: none; }
+#map, .target, .us-asset, #map-zoom-controls button,
+.panel-head, #fleet-buttons button, #diplo-buttons button,
+#intel-buttons button, #specops-buttons button, #csar-buttons button {
+  -webkit-tap-highlight-color: transparent;
+}
+.target, .us-asset { -webkit-touch-callout: none; }
+
+/* ---- rotate lock: touch devices in portrait only ---- */
+#rotate-lock { display: none; }
+@media (orientation: portrait) and (pointer: coarse) {
+  #rotate-lock {
+    display: flex; position: fixed; inset: 0; z-index: 500;
+    background: var(--bg); color: var(--text);
+    align-items: center; justify-content: center; text-align: center; padding: 32px;
+  }
+  .rotate-inner { max-width: 360px; }
+  .rotate-icon {
+    font-size: 46px; color: var(--amber); margin-bottom: 18px;
+    animation: rotate-hint 2.4s ease-in-out infinite;
+  }
+  .rotate-title {
+    font-size: 15px; letter-spacing: 4px; color: #fff; margin-bottom: 12px;
+  }
+  .rotate-sub { font-size: 12px; line-height: 1.6; color: var(--dim); }
+}
+@keyframes rotate-hint {
+  0%, 55%, 100% { transform: rotate(0deg); }
+  75%, 90% { transform: rotate(-90deg); }
+}
+
+/* ---- fatter hit targets for fingers (any touch device) ---- */
+@media (pointer: coarse) {
+  #map-zoom-controls { gap: 8px; }
+  #map-zoom-controls button { width: 36px; height: 36px; font-size: 16px; }
+  #toggle-bases { height: 36px; }
+  #btn-mute { font-size: 18px; padding: 6px 10px; }
+  /* the sidebar taskings are the primary touch surface — give them room */
+  #fleet-buttons button, #diplo-buttons button, #intel-buttons button,
+  #specops-buttons button, #csar-buttons button { padding: 10px 12px; }
+  .panel-head { padding: 4px 0; }
+  .modal-close { font-size: 20px; padding: 4px 6px; }
+}
+
+/* ---- short viewport (landscape phones): reclaim vertical space ---- */
+@media (max-height: 540px) {
+  body { font-size: 12px; }
+  #map-header { padding: 5px 10px; gap: 10px; }
+  #map-header .panel-title { font-size: 10px; }
+
+  /* stats scroll sideways instead of crushing into each other */
+  #status-row { padding: 5px 10px; overflow-x: auto; overflow-y: hidden; }
+  .stat { flex: none; padding: 0 12px; }
+  .stat-value.big { font-size: 15px; }
+  .stat-label { font-size: 9px; }
+  #capacity-value { font-size: 13px; }
+  .defcon-meter .seg { width: 11px; height: 11px; }
+
+  #ticker { padding: 4px 0; }
+  #ticker-text { font-size: 11px; }
+
+  #sidebar { flex-basis: 300px; padding: 8px; gap: 8px; }
+  #sidebar-scroll { gap: 8px; }
+  .panel { padding: 8px 10px; }
+  #btn-end-turn, #btn-skip-turn { padding: 11px; }
+  #session-buttons button { padding: 8px; }
+}
+
+/* the shortest phones (e.g. iPhone SE landscape ~375px tall): drop the
+   scrolling news ticker entirely so the map keeps its height */
+@media (max-height: 430px) {
+  #ticker-row { display: none; }
+  #sidebar { flex-basis: 268px; }
+}
+
+/* ---- narrow viewport: keep the map usable beside the sidebar ---- */
+@media (max-width: 780px) {
+  #sidebar { flex-basis: 260px; }
+  #map-header { gap: 8px; }
+  #map-clock { font-size: 11px; }
+}
+
+/* ---- overlays & modals: let tall content scroll on a short screen instead
+        of being clipped by the centering flexbox ---- */
+@media (max-height: 620px) {
+  .overlay { align-items: flex-start; overflow-y: auto; padding: 14px 12px; }
+  .title-box { padding: 22px 24px; margin: auto; }
+  .title-box h1 { font-size: 26px; letter-spacing: 5px; }
+  .title-box h2 { font-size: 13px; letter-spacing: 4px; margin-bottom: 16px; }
+  .title-brief { line-height: 1.45; margin-bottom: 18px; }
+  .title-brief p { margin-bottom: 8px; }
+  #difficulty-select { margin: 12px 0 10px; }
+  .modal { max-height: 92vh; }
+}
