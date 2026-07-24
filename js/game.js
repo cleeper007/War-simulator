@@ -2025,14 +2025,23 @@ const Game = (() => {
     MapView.setFastForward(true);
   }
 
+  // Pressing END TURN opens with the watch floor's call, and nothing flies
+  // until it has finished. Resolution below fills the map with launch clips,
+  // missile runs and impacts within the first second; stacked underneath the
+  // voice that was just noise, so the call gets the room to itself and the war
+  // starts when it ends. The board is already locked by setResolving, and
+  // playThen falls straight through when the clip can't play — a muted game
+  // resolves with no pause at all.
   function endTurn() {
     // a task force or a recovery package is still on the objective — nothing
     // else moves until the mission resolves, or the sequencing of its debrief
     // and the turn breaks
     if (G.over || busy()) return;
     setResolving(true);
-    AudioSys.play('strikeForce');   // the night steps off
+    AudioSys.playThen('strikeForce', resolveTurn);   // the night steps off
+  }
 
+  function resolveTurn() {
     // How much of each brigade was alive when tonight's packages started
     // arriving. Dispersal is measured against THIS, not against what the third
     // package in the same volley found: launchers scatter when the base becomes

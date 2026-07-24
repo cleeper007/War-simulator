@@ -123,6 +123,37 @@ const AudioSys = (() => {
     delayMs > 0 ? setTimeout(go, delayMs) : go();
   }
 
+  // Play a clip and run `cb` once it has finished — for the places where the
+  // audio has to clear before the next thing starts rather than run under it.
+  //
+  // `cb` is always called exactly once, and never held hostage by the sound:
+  // if the clip can't play at all (muted, audio not unlocked yet, file missing,
+  // autoplay refused) it runs immediately, and a watchdog covers a clip that
+  // starts and then stalls — a background tab throttling the decode must not
+  // wedge a turn behind a sound effect.
+  function playThen(name, cb) {
+    const go = typeof cb === 'function' ? cb : () => {};
+    if (muted || !unlocked || !clips[name]) { go(); return; }
+    const c = clips[name];
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      c.removeEventListener('ended', finish);
+      c.removeEventListener('error', finish);
+      go();
+    };
+    c.addEventListener('ended', finish);
+    c.addEventListener('error', finish);
+    try {
+      c.currentTime = 0;
+      const p = c.play();
+      if (p && p.catch) p.catch(finish);
+    } catch (e) { finish(); return; }
+    const dur = isFinite(c.duration) && c.duration > 0 ? c.duration : 10;
+    setTimeout(finish, dur * 1000 + 1000);
+  }
+
   // Klaxon on the moments that change the war: the strait slams shut, or
   // the casualty count crosses what the home front will bear watching.
   // Called from the HUD render so every state change passes through it.
@@ -170,5 +201,5 @@ const AudioSys = (() => {
     setMuted(muted);
   }
 
-  return { init, play, alertCheck, isMuted, setMuted, missionMusicStart, missionMusicStop, missionMusicStopAll };
+  return { init, play, playThen, alertCheck, isMuted, setMuted, missionMusicStart, missionMusicStop, missionMusicStopAll };
 })();
