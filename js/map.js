@@ -1268,14 +1268,23 @@ const MapView = (() => {
   // The weapon can outrank the target: a torpedo hit is a column of water going
   // up under a hull, and no aimpoint footage says that.
   const TORPEDO_CLIP = 'video/torpedo-hit.mp4';
+  // A hit on a field can catch what is parked on it. Half the time it does, so
+  // the airbases keep a second clip and the coin decides which one you get —
+  // the same base struck twice should not look like the same footage twice.
+  const F14_CLIP = 'video/f14-hit.mp4';
+
+  function hitClip(target, pkg) {
+    if (pkg && pkg.sub) return TORPEDO_CLIP;
+    if (target.type === 'airbase' && Math.random() < 0.5) return F14_CLIP;
+    return HIT_CLIPS[target.id] || 'video/strike-hit.mp4';
+  }
 
   // Called by game.js only when BDA confirms a successful hit (destroyed/damaged).
   // Plays in the same window as the radar, then fades out to reveal the BDA state.
   function playStrikeHit(target, pkg) {
     const entry = [...document.querySelectorAll('.scope-card')]
       .find(e => e._alive && e.dataset.tgt === target.id);
-    if (entry) overlayScopeClip(entry.querySelector('.scope-wrap'),
-      (pkg && pkg.sub) ? TORPEDO_CLIP : (HIT_CLIPS[target.id] || 'video/strike-hit.mp4'),
+    if (entry) overlayScopeClip(entry.querySelector('.scope-wrap'), hitClip(target, pkg),
       () => stopMissionMusic(entry));   // chatter cuts when the strike video ends
   }
 
