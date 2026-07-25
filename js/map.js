@@ -1665,20 +1665,64 @@ const MapView = (() => {
   };
 
   function raidOpen(header, onSkip) {
-    const { scope } = fsStacks();
+    // The raid does not stack in the corner scope with the strikes: it mounts on
+    // its own stage in the middle of the board, split between the compound
+    // overhead and whatever the feed from the objective is carrying.
+    const stage = document.getElementById('raid-stage');
     const entry = document.createElement('div');
     entry._alive = true;
     entry.className = 'flight-entry raid-card';
     entry.innerHTML =
       `<div class="fs-head">${header}<button type="button" class="raid-skip">SKIP ▸</button></div>` +
-      `<div class="scope-wrap"></div>` +
-      `<div class="fs-lines raid-lines"></div>` +
+      `<div class="raid-split">` +
+        `<div class="raid-pane">` +
+          `<div class="raid-pane-label">TACTICAL — OBJECTIVE OVERHEAD</div>` +
+          `<div class="scope-wrap"></div>` +
+          `<div class="fs-lines raid-lines"></div>` +
+        `</div>` +
+        `<div class="raid-pane">` +
+          `<div class="raid-pane-label">FEED — NEPTUNE 01</div>` +
+          `<div class="raid-feed-wrap">` +
+            `<div class="raid-novisual">NO VISUAL</div>` +
+            `<video class="raid-feed-video" muted loop playsinline></video>` +
+          `</div>` +
+        `</div>` +
+      `</div>` +
       `<div class="progress-row"><span class="progress-phase">STANDING BY</span>` +
       `<span class="progress-pct">0%</span></div>` +
       `<div class="progress-bar"><div class="progress-fill"></div></div>`;
-    scope.appendChild(entry);
-    fsPanel().classList.remove('hidden');
+    stage.innerHTML = '';
+    stage.appendChild(entry);
+    stage.classList.remove('hidden');
     entry.querySelector('.raid-skip').addEventListener('click', () => { if (onSkip) onSkip(); });
+
+    // ---- the footage pane ----
+    // One <video> reused for the whole mission; steps swap its source. A source
+    // that will not decode is not an error worth surfacing mid-raid — the pane
+    // just falls back to NO VISUAL, which is also its resting state for every
+    // beat that has no footage cut yet.
+    const feedWrap = entry.querySelector('.raid-feed-wrap');
+    const feedVid = entry.querySelector('.raid-feed-video');
+    function feedDark() {
+      feedVid.classList.remove('live');
+      feedWrap.classList.remove('has-video');
+    }
+    feedVid.addEventListener('error', feedDark);
+    function feedPlay(src) {
+      if (!src) {
+        feedDark();
+        feedVid.pause();
+        feedVid.removeAttribute('src');
+        feedVid.load();
+        return;
+      }
+      feedVid.src = src;
+      feedVid.play().then(() => {
+        if (!entry._alive) return;
+        feedVid.classList.add('live');
+        feedWrap.classList.add('has-video');
+      }).catch(feedDark);
+    }
 
     const svg = el('svg', { class: 'scope-view raid-view', viewBox: '0 0 200 200' });
 
@@ -1809,6 +1853,11 @@ const MapView = (() => {
 
       phase(p, label, contested) { setProgress(entry, p, label, contested); },
 
+      // Swap the footage pane's source. Passing null parks it on NO VISUAL,
+      // which is where the mission sits from the objective onward until that
+      // footage is cut.
+      clip(src) { feedPlay(src); },
+
       // birds run in from off the bottom of the display and settle on the LZ
       infil(ms) {
         const assault = makeHelo('assault', RC.lz.x - 8, RC.edge);
@@ -1932,7 +1981,20 @@ const MapView = (() => {
         }
       },
 
-      close(delay) { fsClose(entry, delay || 0); },
+      // The stage comes down with the card — and the clip is stopped explicitly
+      // rather than left for the removal, so a skipped raid stops decoding now.
+      close(delay) {
+        setTimeout(() => {
+          entry._alive = false;
+          feedVid.pause();
+          feedVid.removeAttribute('src');
+          feedVid.load();
+          entry.remove();
+          const st = document.getElementById('raid-stage');
+          st.innerHTML = '';
+          st.classList.add('hidden');
+        }, delay || 0);
+      },
     };
 
     return handle;

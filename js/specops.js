@@ -186,23 +186,35 @@ const SpecOps = (() => {
   // ============================================================
   // THE SCRIPT
   // ============================================================
-  // Each step: { t (ms from launch), text, kind, phase, contested, audio, fx }
+  // Each step: { t (ms from launch), text, kind, phase, contested, audio, fx, clip }
   //   kind      'status' | 'problem' | 'good' | 'bad' — colours the feed line
   //   phase     progress-bar label; sticky until the next step sets one
   //   contested amber progress bar; sticky
   //   fx        (view) => … drives the tactical display
+  //   clip      footage for the feed pane; sticky until another step sets one,
+  //             and null parks the pane on NO VISUAL
   // Edit freely — nothing here is load-bearing except the timings' ordering.
+
+  // Footage lives beside the strike clips. Only the infil is cut so far; every
+  // beat from the objective onward runs NO VISUAL until it is shot. Adding a
+  // clip is one `clip:` field on the step it belongs to — nothing else changes.
+  const FOOTAGE = 'video/spec-ops%20infil/';
 
   // Every branch flies the same infil: the night is identical until the team
   // is on the ground, which is what makes the divergence land.
   const INFIL = [
     { t: 0, phase: 'INFIL', audio: 'launch', text: 'Flight of two off the deck — task force is airborne',
-      fx: (v) => v.infil(30000) },
-    { t: 4500, text: 'MH-47G carrying the assault element, MH-60M riding overwatch' },
-    { t: 9000, text: 'Feet dry south of Bushehr — nap-of-the-earth, terrain masking the run' },
-    { t: 14000, text: 'RC-135 on station: compound security posture unchanged' },
-    { t: 19000, text: 'Crossing the Zagros in the dark. No radar tracks on the corridor.' },
-    { t: 24000, text: 'Ten minutes. Assault element moving to the ramp.' },
+      clip: FOOTAGE + '1takeoff.mov', fx: (v) => v.infil(30000) },
+    { t: 4500, text: 'MH-47G carrying the assault element, MH-60M riding overwatch',
+      clip: FOOTAGE + '2twoheloformation.mov' },
+    { t: 9000, text: 'Feet dry south of Bushehr — nap-of-the-earth, terrain masking the run',
+      clip: FOOTAGE + '3inheloenroute.mov' },
+    { t: 14000, text: 'RC-135 on station: compound security posture unchanged',
+      clip: FOOTAGE + 'static%20overhead.mov' },
+    { t: 19000, text: 'Crossing the Zagros in the dark. No radar tracks on the corridor.',
+      clip: FOOTAGE + '5ridgelineterrain.mov' },
+    { t: 24000, text: 'Ten minutes. Assault element moving to the ramp.',
+      clip: FOOTAGE + '6Missionisgomov.mov' },
     { t: 28000, text: 'One minute. Green light.' },
   ];
 
@@ -210,7 +222,7 @@ const SpecOps = (() => {
     // ---- SUCCESS: the night everyone planned for ----
     clean: [
       { t: 30000, phase: 'ACTIONS ON OBJECTIVE', text: 'Fast rope — team on the deck outside the south wall',
-        fx: (v) => v.fastrope(6000, 6) },
+        clip: null, fx: (v) => v.fastrope(6000, 6) },
       { t: 35000, text: 'No reaction from the guard barracks. They are asleep.' },
       { t: 39000, audio: 'impact', text: 'Charge on the south wall — through the breach',
         fx: (v) => v.breach() },
@@ -234,7 +246,7 @@ const SpecOps = (() => {
     // ---- SUCCESS: a bird goes in and the assault presses anyway ----
     heloDown: [
       { t: 30000, phase: 'ACTIONS ON OBJECTIVE', text: 'Fast rope — team on the deck outside the south wall',
-        fx: (v) => v.fastrope(6000, 6) },
+        clip: null, fx: (v) => v.fastrope(6000, 6) },
       { t: 33000, kind: 'problem', contested: true, text: 'Overwatch bird losing tail rotor authority in the compound air' },
       { t: 36000, kind: 'bad', audio: 'aircraftLost', text: 'OVERWATCH BIRD IS DOWN — hard landing inside the wire',
         fx: (v) => v.heloDown('over') },
@@ -262,7 +274,7 @@ const SpecOps = (() => {
     // ---- MIXED: they get him, and they do not come home ----
     mixed: [
       { t: 30000, phase: 'ACTIONS ON OBJECTIVE', text: 'Fast rope — team on the deck outside the south wall',
-        fx: (v) => v.fastrope(6000, 6) },
+        clip: null, fx: (v) => v.fastrope(6000, 6) },
       { t: 34000, kind: 'problem', contested: true, audio: 'retaliation', text: 'Compound floodlights come on. They were waiting.' },
       { t: 38000, kind: 'bad', text: 'Charge on the south wall — through, into heavy fire',
         fx: (v) => { v.breach(); v.firefight(34000); } },
@@ -290,7 +302,7 @@ const SpecOps = (() => {
     // ---- FAILURE: everything ----
     failure: [
       { t: 30000, phase: 'ACTIONS ON OBJECTIVE', text: 'Fast rope — team going in short of the south wall',
-        fx: (v) => v.fastrope(6000, 6) },
+        clip: null, fx: (v) => v.fastrope(6000, 6) },
       { t: 33000, kind: 'bad', contested: true, audio: 'aircraftLost',
         text: 'ASSAULT BIRD TAKES A ZU-23 BURST ON SHORT FINAL — DOWN',
         fx: (v) => v.heloDown('assault', true) },
@@ -453,6 +465,8 @@ const SpecOps = (() => {
         if (step.phase) phase = step.phase;
         if (step.contested !== undefined) contested = step.contested;
         view.log(step.text, step.kind || 'status', step.t);
+        // a step without a clip field leaves the pane on whatever is running
+        if ('clip' in step) view.clip(step.clip);
         if (step.audio) AudioSys.play(step.audio);
         if (step.fx) { try { step.fx(view); } catch (e) { console.error('raid fx failed', e); } }
       }, step.t));
