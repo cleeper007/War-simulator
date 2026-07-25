@@ -22,6 +22,7 @@ const AudioSys = (() => {
     strikeForce: 'strike-force-initiated.mp3',  // the night's packages step off
     hormuzClosure: 'hormuz-closure.mp3',        // the strait slams shut
     targetMarked: 'target-marked.mp3',          // a package is authorized onto a target
+    bdaReport: 'bda-report.mp3',                // the damage assessment lands on the table
   };
 
   // Per-clip playback level, 0..1. Anything not listed plays at full volume.

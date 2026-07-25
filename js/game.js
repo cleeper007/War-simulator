@@ -2131,6 +2131,7 @@ const Game = (() => {
 
       MapView.whenFootageDone(() => {
         if (!ours.length) { iranianResponse(); return; }
+        AudioSys.play('bdaReport');   // the watch floor reads the night back to you
         UI.showReport(`BATTLE DAMAGE ASSESSMENT — DAY ${day}, TURN ${G.turn}`, ours, iranianResponse);
       });
 
