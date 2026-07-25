@@ -23,6 +23,10 @@ const AudioSys = (() => {
     hormuzClosure: 'hormuz-closure.mp3',        // the strait slams shut
     targetMarked: 'target-marked.mp3',          // a package is authorized onto a target
     bdaReport: 'bda-report.mp3',                // the damage assessment lands on the table
+    // Rotor wash and interphone under the JSOC infil. ~28s, which is the length
+    // of the infil sequence in specops.js — it runs out on its own as the team
+    // hits the ramp, so the branch beats after the objective play into silence.
+    raidInfil: 'spec-ops-infil.m4a',
   };
 
   // Per-clip playback level, 0..1. Anything not listed plays at full volume.
@@ -30,6 +34,9 @@ const AudioSys = (() => {
   // full gain it buried the voice and simply hurt.
   const VOLUME = {
     klaxon: 0.25,
+    // Ambience, not an event: the rotors sit under the launch SFX and the feed
+    // rather than on top of them.
+    raidInfil: 0.6,
   };
 
   // Mission tracks: looping background music that plays while a jet's radar

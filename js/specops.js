@@ -446,6 +446,10 @@ const SpecOps = (() => {
     const steps = INFIL.concat(BRANCHES[branch]);
     const total = steps[steps.length - 1].t + 2500;
     const view = MapView.raidOpen('NEPTUNE 01 · TF-11 — LEADERSHIP COMPOUND, TEHRAN', () => finish(true));
+    // Rotor wash and interphone under the whole infil. Started here rather than
+    // as a step `audio:` so a skip can cut it — the clip outlives the takeoff
+    // beat it belongs to, and would otherwise keep flying over the debrief.
+    AudioSys.play('raidInfil');
     // every clip in this branch starts buffering now, in script order, so the
     // beats cut to footage that has already arrived
     view.preload(steps.map(s => s.clip));
@@ -481,6 +485,7 @@ const SpecOps = (() => {
       if (done) return;
       done = true;
       for (const id of timers) clearTimeout(id);
+      AudioSys.cut('raidInfil');
       view.phase(1, skipped ? 'SKIPPED' : phase, false);
       view.close(skipped ? 300 : 4500);
       onDone();
