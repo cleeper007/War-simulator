@@ -8,20 +8,9 @@
 </head>
 <body>
 
-<!-- ============ ROTATE-TO-LANDSCAPE LOCK ============ -->
-<!-- Touch devices only (gated on pointer:coarse in CSS); never shown on a
-     mouse-driven screen, so desktop play is unaffected. -->
-<div id="rotate-lock">
-  <div class="rotate-inner">
-    <div class="rotate-icon">⟲</div>
-    <div class="rotate-title">ROTATE TO LANDSCAPE</div>
-    <div class="rotate-sub">The situation room is fought in landscape. Turn your device sideways to take command.</div>
-  </div>
-</div>
-
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.10</div>
+  <div class="version-badge">v1.11</div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -94,8 +83,11 @@
       </div>
     </div>
 
-    <!-- Situation Room sidebar -->
+    <!-- Situation Room sidebar. In portrait this is a drag-handled bottom
+         sheet over the chart; in landscape the handle is hidden and it is the
+         fixed right-hand column it has always been. -->
     <div id="sidebar">
+      <div id="sheet-handle" role="separator" aria-label="Drag to resize the situation room panel"></div>
       <div id="sidebar-scroll">
       <!-- Personnel recovery: this panel does not exist as a standing option.
            CSAR.renderPanel un-hides it only while aircrew are down, and hides

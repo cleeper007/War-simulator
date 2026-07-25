@@ -373,6 +373,9 @@ const MapView = (() => {
     world.setAttribute('transform', `translate(${view.x},${view.y}) scale(${view.k})`);
     // reveal each carrier's escort screen once zoomed way in
     svg.classList.toggle('map-deep-zoom', view.k >= 2.6);
+    // small/touch screens hide the site names until the chart is open enough
+    // for them not to overlap — see .map-far-zoom in the stylesheet
+    svg.classList.toggle('map-far-zoom', view.k < 1.7);
   }
 
   function zoomAt(cx, cy, factor) {

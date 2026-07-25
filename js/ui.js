@@ -51,6 +51,104 @@ const UI = (() => {
     }
   }
 
+  // ============================================================
+  // PORTRAIT BOTTOM SHEET
+  // ------------------------------------------------------------
+  // In portrait the sidebar rides over the chart on a drag handle. Three
+  // stops: PEEK leaves only END TURN and the session buttons, HALF is the
+  // working default, FULL hands the screen to the taskings. Dragging snaps to
+  // whichever stop the release lands nearest, and a tap with no travel cycles
+  // forward — a handle that only responds to a precise drag reads as broken.
+  //
+  // Everything here no-ops in landscape, where the handle is display:none and
+  // the sidebar height is the column height.
+  // ============================================================
+  // Fractions of the viewport. FULL stops well short of the top on purpose:
+  // the status bar and ticker already own ~17dvh, so a taller sheet than this
+  // squeezes the chart to literally zero height and the player loses the thing
+  // they are giving orders about.
+  const SHEET_STOPS = { peek: 0.16, half: 0.44, full: 0.62 };
+  const SHEET_KEY = 'cic-sheet-v1';
+  let sheetStop = 'half';
+
+  function isPortraitSheet() {
+    return window.matchMedia('(orientation: portrait) and (max-width: 820px)').matches;
+  }
+
+  function applySheet(stop) {
+    sheetStop = stop;
+    document.getElementById('sidebar').style.setProperty(
+      '--sheet-h', `${Math.round(SHEET_STOPS[stop] * 100)}dvh`);
+    try { localStorage.setItem(SHEET_KEY, stop); } catch (e) {}
+  }
+
+  function initSheet() {
+    const sidebar = $('sidebar'), handle = $('sheet-handle');
+    if (!handle) return;
+    try {
+      const saved = localStorage.getItem(SHEET_KEY);
+      if (saved in SHEET_STOPS) sheetStop = saved;
+    } catch (e) {}
+    applySheet(sheetStop);
+
+    let startY = 0, startH = 0, dragging = false, moved = 0;
+
+    handle.addEventListener('pointerdown', (e) => {
+      if (!isPortraitSheet()) return;
+      dragging = true; moved = 0;
+      startY = e.clientY;
+      startH = sidebar.getBoundingClientRect().height;
+      sidebar.classList.add('sheet-dragging');
+      handle.setPointerCapture(e.pointerId);
+    });
+
+    handle.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dy = startY - e.clientY;          // up is a taller sheet
+      moved = Math.max(moved, Math.abs(dy));
+      // clamp against the stops so the chart can never be shoved off-screen
+      const h = Math.min(SHEET_STOPS.full * window.innerHeight,
+                Math.max(SHEET_STOPS.peek * window.innerHeight, startH + dy));
+      sidebar.style.setProperty('--sheet-h', `${h}px`);
+    });
+
+    const release = () => {
+      if (!dragging) return;
+      dragging = false;
+      sidebar.classList.remove('sheet-dragging');
+      if (moved < 6) {
+        // treated as a tap: cycle peek → half → full → peek
+        const order = ['peek', 'half', 'full'];
+        applySheet(order[(order.indexOf(sheetStop) + 1) % order.length]);
+        return;
+      }
+      // snap to the nearest stop by the height actually released at
+      const frac = sidebar.getBoundingClientRect().height / window.innerHeight;
+      let best = 'half', bestD = Infinity;
+      for (const k in SHEET_STOPS) {
+        const d = Math.abs(SHEET_STOPS[k] - frac);
+        if (d < bestD) { bestD = d; best = k; }
+      }
+      applySheet(best);
+    };
+    handle.addEventListener('pointerup', release);
+    handle.addEventListener('pointercancel', release);
+  }
+
+  // The sidebar fades its bottom edge while there is more list below the fold
+  // (see #sidebar-scroll's mask). Lift the fade once it is scrolled out, so a
+  // fully-read sidebar does not sit there implying it is still hiding something.
+  function initScrollEdge() {
+    const scroll = $('sidebar-scroll');
+    const update = () => {
+      const atEnd = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2;
+      scroll.classList.toggle('at-end', atEnd);
+    };
+    scroll.addEventListener('scroll', update, { passive: true });
+    new ResizeObserver(update).observe(scroll);
+    update();
+  }
+
   function setBadge(key, text, cls) {
     const panel = document.querySelector(`.panel[data-panel="${key}"]`);
     if (!panel) return;
@@ -871,6 +969,8 @@ const UI = (() => {
   // ---- wiring ----
   function init() {
     initPanels();
+    initSheet();
+    initScrollEdge();
     document.querySelectorAll('[data-close]').forEach(btn => {
       btn.addEventListener('click', () => $(btn.dataset.close).classList.add('hidden'));
     });
