@@ -1684,7 +1684,6 @@ const MapView = (() => {
           `<div class="raid-pane-label">FEED — NEPTUNE 01</div>` +
           `<div class="raid-feed-wrap">` +
             `<div class="raid-novisual">NO VISUAL</div>` +
-            `<video class="raid-feed-video" muted loop playsinline></video>` +
           `</div>` +
         `</div>` +
       `</div>` +
@@ -1697,31 +1696,53 @@ const MapView = (() => {
     entry.querySelector('.raid-skip').addEventListener('click', () => { if (onSkip) onSkip(); });
 
     // ---- the footage pane ----
-    // One <video> reused for the whole mission; steps swap its source. A source
-    // that will not decode is not an error worth surfacing mid-raid — the pane
-    // just falls back to NO VISUAL, which is also its resting state for every
-    // beat that has no footage cut yet.
+    // One <video> PER CLIP, not one element re-pointed at each source. Swapping
+    // .src on a single element races: every assignment aborts the load under it,
+    // and the element settles on whichever response happens to land last rather
+    // than on the beat that fired last — which plays the mission out of order.
+    // A clip that will not decode is not an error worth surfacing mid-raid; that
+    // pane just falls back to NO VISUAL, which is also its resting state for
+    // every beat with no footage cut yet.
     const feedWrap = entry.querySelector('.raid-feed-wrap');
-    const feedVid = entry.querySelector('.raid-feed-video');
-    function feedDark() {
-      feedVid.classList.remove('live');
-      feedWrap.classList.remove('has-video');
+    const feedPool = new Map();
+    let feedCurrent = null;
+
+    function feedEl(src) {
+      let v = feedPool.get(src);
+      if (v) return v;
+      v = document.createElement('video');
+      v.className = 'raid-feed-video';
+      v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
+      v.addEventListener('error', () => {
+        v.classList.remove('live');
+        if (feedCurrent === v) feedWrap.classList.remove('has-video');
+      });
+      v.src = src;
+      feedWrap.appendChild(v);
+      feedPool.set(src, v);
+      return v;
     }
-    feedVid.addEventListener('error', feedDark);
+
     function feedPlay(src) {
-      if (!src) {
-        feedDark();
-        feedVid.pause();
-        feedVid.removeAttribute('src');
-        feedVid.load();
+      const next = src ? feedEl(src) : null;
+      for (const v of feedPool.values()) {
+        if (v === next) continue;
+        v.classList.remove('live');
+        v.pause();
+      }
+      feedCurrent = next;
+      if (!next) {
+        feedWrap.classList.remove('has-video');
         return;
       }
-      feedVid.src = src;
-      feedVid.play().then(() => {
-        if (!entry._alive) return;
-        feedVid.classList.add('live');
-        feedWrap.classList.add('has-video');
-      }).catch(feedDark);
+      const v = next;
+      try { v.currentTime = 0; } catch (e) { /* not seekable yet; it starts at 0 anyway */ }
+      // The cut is made here, synchronously, not when play() resolves — a promise
+      // that settles late is exactly how the wrong clip ends up on screen.
+      v.classList.add('live');
+      feedWrap.classList.add('has-video');
+      const p = v.play();
+      if (p) p.catch(() => {});   // autoplay refusal and abort noise are not mission failures
     }
 
     const svg = el('svg', { class: 'scope-view raid-view', viewBox: '0 0 200 200' });
@@ -1858,6 +1879,11 @@ const MapView = (() => {
       // footage is cut.
       clip(src) { feedPlay(src); },
 
+      // Build every clip's element up front so the beats cut to footage that is
+      // already buffered. Called once at launch: the infil runs thirty seconds,
+      // which is the budget for the whole mission's footage to arrive.
+      preload(srcs) { for (const s of srcs) if (s) feedEl(s); },
+
       // birds run in from off the bottom of the display and settle on the LZ
       infil(ms) {
         const assault = makeHelo('assault', RC.lz.x - 8, RC.edge);
@@ -1986,9 +2012,12 @@ const MapView = (() => {
       close(delay) {
         setTimeout(() => {
           entry._alive = false;
-          feedVid.pause();
-          feedVid.removeAttribute('src');
-          feedVid.load();
+          for (const v of feedPool.values()) {
+            v.pause();
+            v.removeAttribute('src');
+            v.load();
+          }
+          feedPool.clear();
           entry.remove();
           const st = document.getElementById('raid-stage');
           st.innerHTML = '';

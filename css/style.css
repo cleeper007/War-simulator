@@ -796,9 +796,11 @@ button { font-family: var(--mono); }
 #raid-stage .progress-row { margin-top: 9px; font-size: 9.5px; }
 #raid-stage .progress-fill { background: var(--amber); }
 
-/* A short screen cannot afford the compound at half-width; stack the panes and
-   let the footage lead, since the tactical picture is also in the feed lines. */
-@media (max-height: 560px), (max-width: 900px) {
+/* A touch screen cannot afford the card at desktop weight, so the panes tighten.
+   Gated on pointer alone, never a width breakpoint: a narrow desktop window must
+   keep the desktop card. The card already flexes — the scope letterboxes itself —
+   so this is only a type-and-padding pass, not a layout change. */
+@media (pointer: coarse) {
   #raid-stage { padding: 8px; }
   #raid-stage .raid-card { padding: 8px 10px; font-size: 11px; }
   .raid-split { grid-template-columns: 1fr 1fr; gap: 8px; }

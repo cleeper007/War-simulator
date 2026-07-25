@@ -446,6 +446,9 @@ const SpecOps = (() => {
     const steps = INFIL.concat(BRANCHES[branch]);
     const total = steps[steps.length - 1].t + 2500;
     const view = MapView.raidOpen('NEPTUNE 01 · TF-11 — LEADERSHIP COMPOUND, TEHRAN', () => finish(true));
+    // every clip in this branch starts buffering now, in script order, so the
+    // beats cut to footage that has already arrived
+    view.preload(steps.map(s => s.clip));
 
     let phase = 'INFIL', contested = false, done = false;
     const timers = [];
