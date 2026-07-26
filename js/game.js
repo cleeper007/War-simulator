@@ -1376,10 +1376,18 @@ const Game = (() => {
   // mission IN FLIGHT: fighter and TLAM packages arrive at the end of this
   // turn; B-2s transiting from Diego Garcia take two turns. BDA comes back
   // with the battle report — you commit, then you wait.
-  // the heavies stage off Fairford rather than the atoll, but the leg is the
-  // same order of magnitude — a Bone coming down over Europe and a Spirit coming
-  // up out of the Indian Ocean both spend a night getting there
-  const MISSION_ETA = { f35: 1, fighter: 1, cruise: 1, stealth: 2, heavy: 2 };
+  //
+  // v1.19: the heavies came off the two-turn clock and now land the same night
+  // they are tasked. The Fairford leg is real, but it was buying the wrong
+  // thing. A B-2 costs two turns because it is the *only* key for Fordow — the
+  // wait is the price of the one weapon that has no substitute, and the player
+  // is meant to feel it. The heavies are tonnage, and tonnage that answers two
+  // turns after you ask for it is tonnage the player stops asking for: by the
+  // time the cell arrived the air picture had moved, the target had been
+  // re-serviced by fighters, and the reward for winning air superiority read as
+  // a delay. Same-turn TOT makes the heavies what phase three is supposed to
+  // feel like — you say flatten it, and tonight it is flat.
+  const MISSION_ETA = { f35: 1, fighter: 1, cruise: 1, stealth: 2, heavy: 1 };
 
   function executeStrike(target, pkg) {
     if (G.over || busy()) return;

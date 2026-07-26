@@ -1190,11 +1190,12 @@ const MapView = (() => {
   }
 
   // ---- bomber transit cards: the long leg in from the ramp, kept visible ----
-  // Everything staging off an out-of-theater ramp is ETA 2. While one is still
-  // in transit it gets a compact card — no radar, no attack view — so the
-  // distance reads as time. Both bomber tiers get one; they fly different legs
-  // (Diego Garcia for the B-2s, Fairford for the heavies) so the mileage and the
-  // header are computed off whichever ramp that package actually launched from.
+  // A package that will not reach its target this turn gets a compact card —
+  // no radar, no attack view — so the distance reads as time. In practice that
+  // is the B-2s out of Diego Garcia: the heavies are same-turn now and go
+  // straight to the scope. The tier stays in the list and the card is gated on
+  // eta alone, so a heavy package carrying an explicit multi-turn eta still
+  // draws its own leg off the Fairford ramp.
   const NM_PER_MAP = 1 / KM_TO_MAP / 1.852;
   const RAMP_ASSETS = ['stealth', 'heavy'];
 

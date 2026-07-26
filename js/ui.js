@@ -761,11 +761,11 @@ const UI = (() => {
     const hitsLo = est.gradual ? Math.max(1, Math.ceil(band.lo / est.damage)) : 0;
     const hitsHi = est.gradual ? Math.max(1, Math.ceil(band.hi / est.damage)) : 0;
     const hits = hitsLo === hitsHi ? `${hitsLo}` : `${hitsLo}–${hitsHi}`;
-    const ramp = pkg.asset === 'stealth' || pkg.asset === 'heavy';
-    const eta = pkg.eta || (ramp ? 2 : 1);
+    // only the B-2 pays a transit turn now — the heavies land the same night
+    // they are tasked (see MISSION_ETA in game.js)
+    const eta = pkg.eta || (pkg.asset === 'stealth' ? 2 : 1);
     const totWhy = pkg.joint ? 'joint mission planning and transit'
       : pkg.sub ? 'the boat has to close the range submerged before she shoots'
-      : pkg.asset === 'heavy' ? 'transit from RAF Fairford'
       : 'transit from Diego Garcia';
     const tot = eta > 1
       ? `TIME ON TARGET: <span class="est-warn">${eta} turns — ${totWhy}</span>`
