@@ -52,6 +52,15 @@ body {
   border: 1px solid var(--line);
   padding: 3px 8px;
   background: rgba(3, 6, 12, 0.6);
+  display: flex; align-items: center; gap: 7px;
+}
+/* The build is still being play-tested and the badge should say so without
+   competing with anything: amber enough to be read as a status, small enough
+   that it never becomes the loudest thing on the title card. */
+.beta-tag {
+  font-size: 9px; letter-spacing: 1.6px;
+  color: var(--amber); border: 1px solid var(--amber);
+  padding: 1px 4px; opacity: 0.85;
 }
 
 .title-box {
@@ -102,7 +111,32 @@ body {
 .modal-footer {
   padding: 12px 16px; border-top: 1px solid var(--line);
   display: flex; justify-content: flex-end; gap: 10px;
+  /* the fade below sits over the body's last line, so the footer has to be the
+     thing that wins the stacking order — it holds the buttons */
+  position: relative; z-index: 1;
 }
+
+/* ---- "there is more below this" ----
+   The sidebar has said so since v1.14 (see #sidebar-scroll's mask). Modals
+   never did, and on a landscape phone that is where it actually costs
+   something: the endgame runs 650px of content into a 260px window, so the
+   war-plan reveal and the whole after-action table sit under the fold with a
+   fully visible NEW WAR button above them.
+
+   A sticky pseudo-element rather than a mask on the scroller: a mask dims the
+   text it is trying to advertise, and sticky keeps the fade pinned to the
+   bottom edge of the window without needing a wrapper element in every modal.
+   The negative margins pull it back over the body's own padding so the
+   gradient reaches the true bottom of the box. `at-end` is set from JS once
+   the content is scrolled out — see initModalScrollEdge in ui.js. */
+.modal-body { position: relative; }
+.modal-body::after {
+  content: ''; display: block; position: sticky; bottom: -16px;
+  height: 34px; margin: -34px -16px -16px;
+  background: linear-gradient(to top, var(--bg-panel), transparent);
+  pointer-events: none; opacity: 1; transition: opacity .18s ease;
+}
+.modal-body.at-end::after, .modal-body.no-overflow::after { opacity: 0; }
 
 /* ============ buttons ============ */
 button { font-family: var(--mono); }
@@ -1267,6 +1301,30 @@ button { font-family: var(--mono); }
   .report-event { padding: 3px 10px; margin-bottom: 6px; }
   .ev-row { font-size: 12px; gap: 6px; }
   .ev-detail { font-size: 11.5px; }
+
+  /* The strike modal is the one place a player commits something irreversible,
+     and on a short screen the package list alone filled the window: the
+     estimate — tanker cost, the diplomatic bill, aircrew loss risk, the
+     unsuppressed-threat warning — sat under the fold with AUTHORIZE STRIKE
+     fully visible above it. Tighten the list so the numbers being authorized
+     are on screen with the button that authorizes them. */
+  .pkg-option { padding: 7px 9px; margin-bottom: 6px; }
+  .pkg-detail { font-size: 10.5px; line-height: 1.4; }
+  #strike-estimate { font-size: 11.5px; line-height: 1.5; }
+
+  /* The endgame was the only modal with no short-viewport treatment at all,
+     and it is the longest thing in the game — the verdict, four grades, the
+     war-plan reveal and a turn-by-turn table. At full size roughly a quarter
+     of it fitted, which put the entire after-action record behind a scroll the
+     player had no reason to suspect was there. */
+  .end-verdict { font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
+  .grade-table { margin: 8px 0; }
+  .grade-table td { padding: 4px 6px; font-size: 11.5px; }
+  .grade-table td:last-child { font-size: 15px; }
+  .end-reveal { padding: 8px 10px; margin: 8px 0; }
+  .end-section { margin: 10px 0 5px; }
+  .timeline-table { font-size: 10px; }
+  .timeline-table td { padding: 2px 5px; }
 
   /* the call popup is portrait-led, and the portrait is the one thing in it
      that can be shrunk without costing legibility */

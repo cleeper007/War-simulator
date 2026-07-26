@@ -137,7 +137,7 @@ const SpecOps = (() => {
     if (G.isrPrep >= ISR_CAP) return false;
     G.isrPrep++;
     events.push({
-      cls: 'friendly', title: 'Pattern-of-life surveillance expanded',
+      cls: 'friendly', title: 'Pattern-of-life surveillance expanded', internal: true,
       text: 'National assets are retasked against the leadership\'s movements, communications, and security detail rotations. The picture sharpens. If the raid ever goes, this is what brings the operators home.',
     });
     return true;
@@ -150,8 +150,11 @@ const SpecOps = (() => {
     const { p, parts } = odds(G);
     const pct = Math.round(p * 100);
     const sCls = pct >= 60 ? 'est-good' : pct >= 40 ? 'est-warn' : 'est-bad';
-    let html = parts.map(([label, v]) =>
-      `${label}: <span class="est-good">+${Math.round(v * 100)}%</span><br>`).join('');
+    // The first row is the baseline the rest modify, not a bonus on top of it —
+    // signing it "+25%" reads as though something is being added to something
+    // else. Only the modifiers carry a sign.
+    let html = parts.map(([label, v], i) =>
+      `${label}: <span class="est-good">${i ? '+' : ''}${Math.round(v * 100)}%</span><br>`).join('');
     html += `EST. PROBABILITY OF SUCCESS: <span class="${sCls}">${pct}%</span><br>` +
       `<span class="dim">The mission runs about two minutes. It is narrated live in the tactical panel.</span><br>` +
       `<span class="est-good">Success buys a window of Iranian paralysis and a weaker Tehran at the table.</span><br>` +

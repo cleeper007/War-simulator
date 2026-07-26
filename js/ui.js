@@ -5,6 +5,23 @@
 const UI = (() => {
   const $ = (id) => document.getElementById(id);
 
+  // Counted nouns, written the way a person would write them. `aircraft` and
+  // `sorties` are invariant in the plural and a blanket +s produces "2
+  // aircrafts", so the exceptions are listed rather than guessed at.
+  const INVARIANT = ['aircraft'];
+  const plural = (n, word) =>
+    `${n} ${word}${n === 1 || INVARIANT.includes(word) ? '' : 's'}`;
+  // "1 turn" / "3 turns" without the noun — for the ETA lines that read
+  // "3 turns out" rather than counting a thing.
+  const turns = (n) => plural(n, 'turn');
+
+  // A signed cost, typeset. The tuning tables store plain JS numbers, so a
+  // world-opinion cost interpolated raw arrives as a hyphen-minus ("-1") and
+  // sits next to a real minus ("−45") two lines up in the same panel. Every
+  // signed number the player reads goes through here.
+  const MINUS = '−';
+  const signed = (n) => (n > 0 ? '+' : MINUS) + Math.abs(n);
+
   let selectedPkg = null;
   let currentTarget = null;
 
@@ -71,6 +88,30 @@ const UI = (() => {
     scroll.addEventListener('scroll', update, { passive: true });
     new ResizeObserver(update).observe(scroll);
     update();
+  }
+
+  // The same contract for every modal body. On a desktop window almost nothing
+  // overflows and the fade never appears; on a landscape phone the endgame, the
+  // primer and a strike estimate all run past the bottom of a ~260px window,
+  // and without this the player has no way to know the rest of the page is
+  // there. `no-overflow` is the common case and lifts the fade entirely.
+  //
+  // Modals are populated after this runs, so each body is watched rather than
+  // measured once: the ResizeObserver fires when the content is written in, and
+  // MutationObserver catches a rewrite that happens to come out the same height.
+  function initModalScrollEdge() {
+    for (const body of document.querySelectorAll('.modal-body')) {
+      const update = () => {
+        const overflows = body.scrollHeight > body.clientHeight + 2;
+        body.classList.toggle('no-overflow', !overflows);
+        body.classList.toggle('at-end',
+          body.scrollTop + body.clientHeight >= body.scrollHeight - 2);
+      };
+      body.addEventListener('scroll', update, { passive: true });
+      new ResizeObserver(update).observe(body);
+      new MutationObserver(update).observe(body, { childList: true, subtree: true });
+      update();
+    }
   }
 
   function setBadge(key, text, cls) {
@@ -330,13 +371,13 @@ const UI = (() => {
     if (G.bombersArrived) {
       return {
         label: 'ON THE RAMP — DIEGO GARCIA', cls: 'cv-forward',
-        note: `${G.res.stealth} of ${G.caps.stealth} mission(s) generated. 2,900 nm south of the fight and out of Iranian reach.`,
+        note: `${G.res.stealth} of ${plural(G.caps.stealth, 'mission')} generated. 2,900 nm south of the fight and out of Iranian reach.`,
       };
     }
     if (G.bombersOrdered) {
       return {
         label: 'EN ROUTE — WHITEMAN → DIEGO GARCIA', cls: 'cv-moving',
-        note: `Crossing the Pacific on tankers — ${G.bomberEta} turn(s) out.`,
+        note: `Crossing the Pacific on tankers — ${turns(G.bomberEta)} out.`,
       };
     }
     return {
@@ -355,7 +396,7 @@ const UI = (() => {
       return {
         label: released ? 'ON THE RAMP — RELEASED' : 'ON THE RAMP — NOT RELEASED',
         cls: released ? 'cv-forward' : 'cv-back',
-        note: `${G.res.heavy} of ${G.caps.heavy} mission(s) generated. ` + (released
+        note: `${G.res.heavy} of ${plural(G.caps.heavy, 'mission')} generated. ` + (released
           ? 'Air superiority holds and the cells are on tonight\'s tasking order.'
           : 'They will not be tasked until the SAM belt is back down. Until then they are the most expensive parked aircraft in the world.'),
       };
@@ -363,7 +404,7 @@ const UI = (() => {
     if (G.heaviesOrdered) {
       return {
         label: 'EN ROUTE — CONUS → RAF FAIRFORD', cls: 'cv-moving',
-        note: `Crossing the Atlantic on tankers — ${G.heavyEta} turn(s) out.`,
+        note: `Crossing the Atlantic on tankers — ${turns(G.heavyEta)} out.`,
       };
     }
     return {
@@ -389,7 +430,7 @@ const UI = (() => {
         `<span class="cv-state ${st ? st.cls : 'cv-away'}">${st ? st.label : 'NOT IN THEATER'}</span></div>`;
       const note = st ? st.note
         : G.secondCarrierOrdered
-          ? `Under way from the Indian Ocean — ${G.secondCarrierEta} turn(s) out.`
+          ? `Under way from the Indian Ocean — ${turns(G.secondCarrierEta)} out.`
           : 'Available to be surged into the theater.';
       return `<div class="cv-row"><div class="cv-name dim">${info.name}</div>${head}` +
         `<div class="cv-note dim">${note}</div></div>`;
@@ -420,7 +461,7 @@ const UI = (() => {
       if (!cv.arrived) {
         if (G.secondCarrierOrdered) {
           return `<button disabled>${info.short} EN ROUTE<span class="diplo-desc">` +
-            `ETA ${G.secondCarrierEta} turn(s). She cannot be hurried.</span></button>`;
+            `ETA ${turns(G.secondCarrierEta)}. She cannot be hurried.</span></button>`;
         }
         if (planCut) {
           return `<button disabled>NAVAL TRANSIT COMMITTED — B-2 FORCE MOVING` +
@@ -448,7 +489,7 @@ const UI = (() => {
     if (!G.bombersArrived) {
       if (bomberInbound) {
         bomberBtn = `<button disabled>B-2 FORCE EN ROUTE<span class="diplo-desc">` +
-          `ETA ${G.bomberEta} turn(s). They land, they get built up, then they fly.</span></button>`;
+          `ETA ${turns(G.bomberEta)}. They land, they get built up, then they fly.</span></button>`;
       } else if (planCut) {
         bomberBtn = `<button disabled>NAVAL TRANSIT COMMITTED — FORD UNDER WAY` +
           `<span class="diplo-desc">Tonight's transit plan is the carrier surge. The 509th moves on ` +
@@ -467,7 +508,7 @@ const UI = (() => {
     if (!G.heaviesArrived) {
       if (G.heaviesOrdered) {
         heavyBtn = `<button disabled>HEAVY BOMBER FORCE EN ROUTE<span class="diplo-desc">` +
-          `ETA ${G.heavyEta} turn(s) to RAF Fairford.</span></button>`;
+          `ETA ${turns(G.heavyEta)} to RAF Fairford.</span></button>`;
       } else if (!Game.phaseAtLeast('degraded')) {
         heavyBtn = `<button disabled>HEAVY BOMBERS — AIRSPACE STILL CONTESTED<span class="diplo-desc">` +
           `Air Combat Command will not flow B-1s and B-52s into a theater with an intact SAM belt. ` +
@@ -530,7 +571,7 @@ const UI = (() => {
           ? 'Israel is in the operation. Joint deep-strike package available at Natanz/Fordow.'
           : G.israelPosture === 'unilateral'
             ? 'Too late — Israel acted on its own.'
-            : `Bring the IAF in openly. Adds fighter capacity and ONE joint deep-strike package against Natanz or Fordow. Widens the war: world opinion −8, and Iran starts shooting at Israel. They go alone in ${G.israelPatience} turn(s) regardless.`,
+            : `Bring the IAF in openly. Adds fighter capacity and ONE joint deep-strike package against Natanz or Fordow. Widens the war: world opinion −8, and Iran starts shooting at Israel. They go alone in ${turns(G.israelPatience)} regardless.`,
         disabled: G.israelPosture !== 'sidelined',
       },
       {
@@ -538,13 +579,13 @@ const UI = (() => {
         desc: G.sprReleases >= 2
           ? 'Reserve drawn down — the tanks are too low for another release of scale.'
           : `Coordinated SPR draw to push the pump price down. Oil ${G.sprReleases === 0 ? '−$20' : '−$12'}, approval +2. ` +
-            `${2 - G.sprReleases} release(s) left.`,
+            `${plural(2 - G.sprReleases, 'release')} left.`,
         disabled: G.sprReleases >= 2,
       },
       {
         id: 'address', name: 'Address the nation',
         desc: G.addressCooldown > 0
-          ? `Available in ${G.addressCooldown} turn(s).`
+          ? `Available in ${turns(G.addressCooldown)}.`
           : `Rally the public. Approval +6 — and it is counted when the War Powers vote comes up ` +
             `(${G.addresses} so far).`,
         disabled: G.addressCooldown > 0,
@@ -596,12 +637,25 @@ const UI = (() => {
       `<div class="intel-line"><span>${label}</span>` +
       `<span class="il-value ${cls}">${value}</span></div>`).join('');
 
+    // A collection deck is only worth flying when there is something soft
+    // enough to be worth looking at. Offered with nothing on the list it spends
+    // the night's intel slot and hands back "nothing worth the sortie" — so the
+    // button says so up front instead, and the count is the argument for it.
+    const stale = Game.staleEstimates();
+
     const intel = [
       {
         id: 'bda', name: 'Task a collection deck — reassess damaged sites',
-        current: 'Sharpens the three battle-damage estimates the analysts trust least.',
-        desc: 'Overhead, a Global Hawk orbit and the signals picture. Narrows those estimates to ±3 — ' +
-          'which is the difference between knowing a site needs one more package and guessing.',
+        current: stale.length
+          ? `${plural(stale.length, 'estimate')} soft enough to be worth the sortie: ` +
+            `${stale.map(({ t }) => t.short).join(' · ')}.`
+          : 'Nothing on the list is stale enough to be worth a collection deck.',
+        desc: stale.length
+          ? 'Overhead, a Global Hawk orbit and the signals picture. Narrows those estimates to ±3 — ' +
+            'which is the difference between knowing a site needs one more package and guessing.'
+          : 'Every site that has been hit is carrying a fresh assessment. Strike something and let a ' +
+            'night pass, and the analysts will have work worth doing.',
+        disabled: !stale.length,
       },
       {
         id: 'hunt', name: 'Hunt dispersed launchers',
@@ -632,7 +686,7 @@ const UI = (() => {
         desc: posture
           ? posture.brief
           : (G.turn <= 3
-            ? 'The Agency needs time on the target before it can read Tehran’s intent. The tasking ' +
+            ? 'The Agency needs time on the target before it can read Tehran\'s intent. The tasking ' +
               'opens up after the first three turns of the campaign.'
             : 'The Agency can tell you which arm Tehran has decided to fight this war with — and therefore ' +
               'which one is worth spending the campaign destroying. One tasking, permanent answer.'),
@@ -658,7 +712,7 @@ const UI = (() => {
     // had shut, aircrew on the ground outrank it.
     const csar = $('csar-panel');
     const csarHidden = csar.classList.contains('hidden');
-    if (csarWasHidden && !csarHidden) { setPanelOpen(csar, true); savePanelState(); }
+    if (csarWasHidden && !csarHidden) setPanelOpen(csar, true);
     csarWasHidden = csarHidden;
 
     renderObjectives(G);
@@ -682,15 +736,18 @@ const UI = (() => {
   }
 
   // ---- strike modal ----
-  // Asset names carry aircraft designations now, so they cannot be blanket
-  // lowercased to sit mid-sentence — only the first letter comes down.
-  const lcFirst = (s) => s.charAt(0).toLowerCase() + s.slice(1);
+  // Asset names sit mid-sentence ("Requires 2× cruise missiles"), so the
+  // leading capital comes down — EXCEPT when the name opens on an aircraft
+  // designation, where dropping it produces "b-2 bomber missions". A name that
+  // starts with a capital followed by a lower-case letter is an ordinary word
+  // and can be folded; anything else is a designation and is left alone.
+  const lcFirst = (s) => /^[A-Z][a-z]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 
   function openStrikeModal(G, target) {
     currentTarget = target;
     selectedPkg = null;
     $('strike-target-name').textContent = target.name.toUpperCase();
-    $('strike-target-desc').textContent = target.desc;
+    $('strike-target-desc').textContent = Game.targetDesc(target);
     $('strike-estimate').classList.add('hidden');
     $('btn-confirm-strike').disabled = true;
 
@@ -727,8 +784,10 @@ const UI = (() => {
         (gate ? `<span class="pkg-detail pkg-gate">${gate}</span>` : '') +
         `<span class="pkg-detail">Requires ${pkg.qty}× ` +
         `${pkg.sub ? SUB_WEAPON_NAME : lcFirst(ASSET_NAMES[pkg.asset])} ` +
-        `(available: ${have})${why} · ${cost ? `${cost} tanker track${cost === 1 ? '' : 's'} ` +
-        `of ${G.tankers} left${fuelWhy}` : 'no tanker requirement'}` +
+        // "1 tanker track of 10 left" reads as "1 out of 10" and means the
+        // opposite — the cost is 1 and the plan has 10. Separate the two.
+        `(available: ${have})${why} · ${cost ? `${plural(cost, 'tanker track')} ` +
+        `· ${G.tankers} left tonight${fuelWhy}` : 'no tanker requirement'}` +
         (pkg.sub ? ' · <span class="est-good">no theater magazine spent</span>' : '') + '</span>';
       if (ok) {
         div.addEventListener('click', () => {
@@ -737,6 +796,31 @@ const UI = (() => {
           selectedPkg = pkg;
           showEstimate(G, target, pkg);
           $('btn-confirm-strike').disabled = false;
+          // On a landscape phone the package list alone fills the window, and
+          // the estimate this click just produced — the tanker bill, the
+          // diplomatic bill, the aircrew loss risk — renders below the fold
+          // while AUTHORIZE STRIKE sits enabled and fully visible above it.
+          // Bring the numbers to the player rather than trusting them to go
+          // looking: the whole point of the panel is to be read before the
+          // button is pressed. Harmless on a desktop window, where nothing
+          // overflows and the scroll is a no-op.
+          //
+          // Scroll the box itself rather than calling scrollIntoView on the
+          // estimate: the estimate is un-hidden one line above, so its geometry
+          // is a frame stale, and `nearest` reads that as "already visible" and
+          // moves ten pixels. Waiting a frame and driving the scroller directly
+          // puts the bottom of the estimate — loss risk, the unsuppressed
+          // threat warning — against the bottom of the window every time.
+          // Assigned rather than animated: a smooth scroll is silently a no-op
+          // wherever reduced motion is in force, and a jump that always happens
+          // beats an animation that sometimes does. There is no motion worth
+          // watching here anyway — the player clicked to read a number.
+          requestAnimationFrame(() => {
+            const body = $('strike-modal').querySelector('.modal-body');
+            const est = $('strike-estimate');
+            const want = est.offsetTop + est.offsetHeight - body.clientHeight;
+            if (want > body.scrollTop) body.scrollTop = want;
+          });
         });
       }
       box.appendChild(div);
@@ -789,7 +873,8 @@ const UI = (() => {
           `${hits === '1' ? '' : 's'} on target to finish it</span><br>`
         : '') +
       `TANKER COST: <span class="${est.tanker > G.tankers ? 'est-bad' : 'est-good'}">` +
-      `${est.tanker || 'none'}${est.tanker ? ` of ${G.tankers} tracks left tonight` : ' — flies unrefuelled'}` +
+      `${est.tanker ? `${plural(est.tanker, 'track')} · ${G.tankers} left tonight`
+                    : 'none — flies unrefuelled'}` +
       `</span><br>` +
       `${tot}<br>` +
       // Two different bills. `worldCost` is what tonight costs; `worldOnKill` is
@@ -797,14 +882,14 @@ const UI = (() => {
       // to be able to see that before committing the first package — otherwise
       // a free-looking strike hands them a −8 they never agreed to.
       `WORLD OPINION: <span class="${worldCost ? 'est-warn' : 'est-good'}">` +
-      `${worldCost || 'no cost for this strike'}</span>` +
+      `${worldCost ? signed(worldCost) : 'no cost for this strike'}</span>` +
       // the joint packages only exist against the enrichment sites, and those
       // now cost nothing on their own — so the whole number is the surcharge
       (pkg.extraWorld
-        ? ` <span class="dim">(${target.world ? `${target.world} target, ` : 'the aimpoint itself costs nothing — '}` +
-          `${pkg.extraWorld} for flying it with Israel)</span>` : '') + `<br>` +
+        ? ` <span class="dim">(${target.world ? `${signed(target.world)} target, ` : 'the aimpoint itself costs nothing — '}` +
+          `${signed(pkg.extraWorld)} for flying it with Israel)</span>` : '') + `<br>` +
       (target.worldOnKill
-        ? `<span class="est-warn">DESTROYING IT COSTS −${Math.abs(target.worldOnKill)}</span> ` +
+        ? `<span class="est-warn">DESTROYING IT COSTS ${MINUS}${Math.abs(target.worldOnKill)}</span> ` +
           `<span class="dim">— the diplomatic bill lands once, the night the site is finished, ` +
           `not for the packages that get it there.</span><br>` : '');
     // flying a tier outside its phase — only reachable on hard, and the player
@@ -852,8 +937,6 @@ const UI = (() => {
   const VERBOSE_KEY = 'cic-report-verbose';
   const verbose = () => { try { return localStorage.getItem(VERBOSE_KEY) === '1'; } catch (e) { return false; } };
   const setVerbose = (v) => { try { localStorage.setItem(VERBOSE_KEY, v ? '1' : '0'); } catch (e) {} };
-
-  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
   // Everything the night did, added up once. Individual events still carry their
   // own numbers on their own line; this is the version you can read in a second.
@@ -1094,13 +1177,18 @@ const UI = (() => {
     modal.classList.remove('connected', 'ended');
     $('lc-portrait').innerHTML = drawLeader(L);
     $('lc-country').textContent = L.country;
-    $('lc-name').textContent = L.name;
+    // The country is already the line above, so the card carries the office
+    // alone — "UNITED KINGDOM / The Prime Minister of the United Kingdom" said
+    // it twice. The full title still goes in the sentence, where it reads.
+    $('lc-name').textContent = L.office;
     $('lc-state-text').textContent = 'INCOMING — SECURE LINE';
     // the name is a title and carries its own article — mid-sentence it wants a
-    // lowercase one, "Mr. President, the Prime Minister of France is on the line"
+    // lowercase one, "Mr. President, the President of France is on the line".
+    // No pronoun follows it: these are offices rather than named characters,
+    // and the game has no business assigning one a gender it never established.
     const midSentence = L.name.charAt(0).toLowerCase() + L.name.slice(1);
     $('lc-line').innerHTML = `<span class="dim">SECRETARY OF STATE —</span> ` +
-      `Mr. President, ${midSentence} is on the line. He would like to speak to you personally.`;
+      `Mr. President, ${midSentence} is on the line, and would like to speak to you personally.`;
     $('lc-outcome').classList.add('hidden');
     $('lc-effect').classList.add('hidden');
     $('lc-footer').innerHTML = '';
@@ -1220,6 +1308,7 @@ const UI = (() => {
   function init() {
     initPanels();
     initScrollEdge();
+    initModalScrollEdge();
     document.querySelectorAll('[data-close]').forEach(btn => {
       btn.addEventListener('click', () => $(btn.dataset.close).classList.add('hidden'));
     });

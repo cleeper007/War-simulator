@@ -132,7 +132,7 @@ const CSAR = (() => {
     if (d.turnsOut > 0) {
       const cost = -0.14 * d.turnsOut;
       p += cost;
-      parts.push([`Time on the ground — ${d.turnsOut} turn(s) hunted`, cost]);
+      parts.push([`Time on the ground — ${d.turnsOut} turn${d.turnsOut === 1 ? '' : 's'} hunted`, cost]);
     }
 
     return { p: clamp(p, 0.10, 0.90), parts };
@@ -158,7 +158,7 @@ const CSAR = (() => {
     // single chance to launch
     if (d.turn === G.turn) {
       return {
-        cls: 'friendly', title: `SURVIVAL RADIO CONTACT — ${d.callsign}`,
+        cls: 'friendly', title: `SURVIVAL RADIO CONTACT — ${d.callsign}`, internal: true,
         text: `The rescue coordination center has two-way contact with ${d.callsign} and has ` +
           `authenticated ${d.crew === 2 ? 'both crew' : 'the pilot'} against the ISOPREP file. ` +
           `They are ${d.loc}, in broken ground, moving away from the wreck. Alert helicopters and ` +
@@ -171,7 +171,7 @@ const CSAR = (() => {
     if (Math.random() < captureRisk(G)) return capture(G, 'timeout');
 
     return {
-      cls: 'iran', title: `${d.callsign} STILL EVADING — SEARCH TIGHTENING`,
+      cls: 'iran', title: `${d.callsign} STILL EVADING — SEARCH TIGHTENING`, internal: true,
       text: `${d.crew === 2 ? 'The crew has' : 'The pilot has'} moved again and is still up on the ` +
         `radio, but the picture is getting worse: IRGC ground units have cordoned the area, ` +
         `helicopters are working a search pattern over it, and Iranian state media is promising ` +
@@ -243,7 +243,7 @@ const CSAR = (() => {
       `<span>${d.crew === 2 ? 'Two — pilot and WSO' : 'One — pilot'}, ${d.type}</span></div>` +
       `<div class="csar-line"><span class="csar-key">POSITION</span><span>${d.loc}</span></div>` +
       `<div class="csar-line"><span class="csar-key">STATUS</span>` +
-      `<span class="csar-evading">EVADING — ${d.turnsOut === 0 ? 'first hours' : `${d.turnsOut} turn(s) on the ground`}</span></div>` +
+      `<span class="csar-evading">EVADING — ${d.turnsOut === 0 ? 'first hours' : `${d.turnsOut} turn${d.turnsOut === 1 ? '' : 's'} on the ground`}</span></div>` +
       `<div class="csar-line"><span class="csar-key">CAPTURE RISK</span>` +
       `<span class="${risk >= 55 ? 'est-bad' : risk >= 30 ? 'est-warn' : 'est-good'}">${risk}% before your next order</span></div>`;
 
@@ -285,7 +285,7 @@ const CSAR = (() => {
     AudioSys.play('cable');
     UI.renderAll(G);
     UI.showReport('PERSONNEL RECOVERY — ISR TASKING', [{
-      cls: 'friendly', title: 'National assets retasked onto the survivors',
+      cls: 'friendly', title: 'National assets retasked onto the survivors', internal: true,
       text: `A Reaper is overhead and an RC-135 is working the search parties' radios. ${G.downed.callsign} ` +
         `has been moved to a covered position and given a pickup point they can reach. The rescue force ` +
         `now knows what is between them and the survivors instead of guessing at it.`,
@@ -306,8 +306,14 @@ const CSAR = (() => {
       `pararescue team aboard, an armed MQ-9 Reaper flying overwatch and precision fires, and tankers holding off the ` +
       `coast. It is the most exposed thing the Air Force does, it is flown into an alerted area, and ` +
       `nobody in this building will tell you not to go.`;
-    let html = parts.map(([label, v]) =>
-      `${label}: <span class="${v >= 0 ? 'est-good' : 'est-bad'}">${v >= 0 ? '+' : ''}${Math.round(v * 100)}%</span><br>`).join('');
+    // Row 0 is the baseline the rest modify, so it carries no sign; the
+    // modifiers do, and a negative one is typeset with a real minus rather than
+    // the hyphen a raw number interpolates as.
+    let html = parts.map(([label, v], i) => {
+      const n = Math.round(v * 100);
+      const body = !i ? `${n}%` : `${n >= 0 ? '+' : '−'}${Math.abs(n)}%`;
+      return `${label}: <span class="${v >= 0 ? 'est-good' : 'est-bad'}">${body}</span><br>`;
+    }).join('');
     html += `EST. PROBABILITY OF RECOVERY: <span class="${sCls}">${pct}%</span><br>` +
       `<span class="dim">The recovery runs about seventy seconds. It is narrated live in the tactical panel.</span><br>` +
       `<span class="est-good">Bringing them home is worth more at home than any target on the map.</span><br>` +

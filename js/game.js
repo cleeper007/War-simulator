@@ -123,6 +123,9 @@ const Game = (() => {
     // hidden until the analysts are asked for it.
     difficulty: 'normal',
     iranPosture: 'attrition', postureKnown: false,
+    // whether the opening-night sweep against Bandar Abbas was already flown
+    // before the war started — see newWar, and targetDesc for where it is said
+    openerSwept: false,
 
     // ---- the enrichment race ----
     // The reason the war exists. `progress` climbs every turn the halls are
@@ -254,6 +257,7 @@ const Game = (() => {
       'milestones', 'difficulty', 'iranPosture', 'postureKnown', 'breakout', 'intel',
       'tankers', 'tankerCap', 'basing', 'basingDebt', 'warPowers', 'addresses', 'threat',
       'timeline', 'adapt', 'adaptSeen', 'turnStartHp', 'tlamPool', 'torpedoes',
+      'openerSwept',
     ];
 
     function write() {
@@ -352,6 +356,37 @@ const Game = (() => {
       mid: clamp(Math.round(rec.hp + growth / 2), 0, 100),
       known: false, age,
     };
+  }
+
+  // The sites a collection deck would actually be worth flying against: hit at
+  // least once, still standing, and carrying a band wide enough that the number
+  // is guesswork. Owned here rather than in the panel so the button that offers
+  // the tasking and the code that runs it can never disagree about whether
+  // there is anything to look at — an intelligence slot spent on "nothing worth
+  // the sortie" is a night the player does not get back.
+  const BDA_STALE_SPREAD = 6;   // wider than this and the estimate is guesswork
+  function staleEstimates() {
+    return TARGETS
+      .filter(t => (wearsDown(t) || t.type === 'tel') && t.hp > 0 && G.intel[t.id])
+      .map(t => ({ t, e: estimate(t) }))
+      .filter(x => x.e.hi - x.e.lo > BDA_STALE_SPREAD)
+      .sort((a, b) => (b.e.hi - b.e.lo) - (a.e.hi - a.e.lo))
+      .slice(0, 3);
+  }
+
+  // The target blurb, plus anything true of this particular war rather than of
+  // the target in general. Bandar Abbas is the only case so far: half of all
+  // wars open with it already worked over, and a site sitting at 70% on turn
+  // one — before the player has ordered a single package — reads as a bug
+  // unless something says whose ordnance did it. The opening brief has already
+  // told them Tehran is retaliating for "a covert action"; this is that action.
+  function targetDesc(t) {
+    if (t.id === 'ad-bandar' && G.openerSwept) {
+      return t.desc + ' Already worked over: the covert sweep Tehran is calling ' +
+        'its casus belli went in against this belt before the shooting started, and the ' +
+        'crews have been repairing it ever since.';
+    }
+    return t.desc;
   }
 
   // one-line condition string for tooltips, panels and advisor text
@@ -554,7 +589,7 @@ const Game = (() => {
     const p = clamp(0.55 - 0.08 * (hidden.length - 1) + (G.coalition ? 0.05 : 0), 0.2, 0.7);
     if (Math.random() >= p) {
       return {
-        cls: 'iran', title: 'LAUNCHER SWEEP — NO FIX',
+        cls: 'iran', title: 'LAUNCHER SWEEP — NO FIX', internal: true,
         text: 'Twelve hours of Reaper and Global Hawk time, every signals platform in the theater, and ' +
           'the sweep came up with culverts, decoys and cold engines. They are moving at night, shooting ' +
           'from prepared hides and going dark inside fifteen minutes. The country is very large.',
@@ -565,7 +600,7 @@ const Game = (() => {
     observe(found, true);
     MapView.updateTarget(found);
     return {
-      cls: 'friendly', title: `LAUNCHER GROUP LOCATED — ${found.short}`,
+      cls: 'friendly', title: `LAUNCHER GROUP LOCATED — ${found.short}`, internal: true,
       text: `A pattern-of-life fix has finally closed on ${found.name}. Thermal signatures off the ` +
         'launchers at last light, a resupply convoy tracked back to the hide, and a signals cut that ' +
         'confirms the unit. The group is on the plot and can be serviced — tonight. Left alone it will ' +
@@ -1297,7 +1332,7 @@ const Game = (() => {
     }
     if (pkg.asset === 'heavy' && !G.heaviesArrived) {
       return G.heaviesOrdered
-        ? `HEAVY BOMBER FORCE EN ROUTE — ${G.heavyEta} turn(s) from the Fairford ramp.`
+        ? `HEAVY BOMBER FORCE EN ROUTE — ${G.heavyEta} turn${G.heavyEta === 1 ? '' : 's'} from the Fairford ramp.`
         : 'HEAVY BOMBER FORCE NOT IN THEATER — the B-1s and B-52s are in CONUS and have to be called forward.';
     }
     return null;
@@ -1444,7 +1479,7 @@ const Game = (() => {
     if (target.status === 'destroyed') {
       // an earlier package in the same volley (or turn) already finished it
       return {
-        cls: 'friendly', title: `BDA: ${target.name}`,
+        cls: 'friendly', title: `BDA: ${target.name}`, internal: true,
         sum: `${target.short} — already destroyed, sortie wasted`,
         text: 'The package arrived over a target already destroyed. Aircraft and missiles expended against rubble — coordination cost, nothing gained.',
       };
@@ -1476,7 +1511,7 @@ const Game = (() => {
     observe(target, false);
     const outcome = target.hp <= 0 ? 'destroyed' : dmg > 0 ? 'damaged' : 'miss';
 
-    const ev = { cls: 'friendly', title: `BDA: ${target.name}`, dWorld: worldCost };
+    const ev = { cls: 'friendly', title: `BDA: ${target.name}`, dWorld: worldCost, internal: true };
     ev.hit = outcome === 'destroyed' || outcome === 'damaged';
     // The whole assessment in four words, for the report's scan line. The prose
     // below is the same finding written out; a player who reads only this one
@@ -1668,7 +1703,7 @@ const Game = (() => {
     if (!back.length) return null;
 
     return {
-      cls: 'iran', title: 'DAMAGED SITES RECONSTITUTING OVERNIGHT',
+      cls: 'iran', title: 'DAMAGED SITES RECONSTITUTING OVERNIGHT', internal: true,
       text: 'Overhead imagery shows work parties at every site CENTCOM did not revisit — craters filled, ' +
         'spare radars trucked out of the dispersal revetments, generators and crews moved in from the ' +
         `interior. Work assessed under way at: ${back.join(' · ')}. How much of it they got back is a ` +
@@ -1937,16 +1972,13 @@ const Game = (() => {
       // recovery push — one intel tasking per turn, run independently of
       // whatever State is doing with the diplomatic slot.
       case 'bda': {
-        // sharpen the picture on whatever the analysts are least sure about
-        const stale = TARGETS
-          .filter(t => (wearsDown(t) || t.type === 'tel') && t.hp > 0 && G.intel[t.id])
-          .map(t => ({ t, e: estimate(t) }))
-          .filter(x => x.e.hi - x.e.lo > 6)
-          .sort((a, b) => (b.e.hi - b.e.lo) - (a.e.hi - a.e.lo))
-          .slice(0, 3);
+        // sharpen the picture on whatever the analysts are least sure about.
+        // The panel disables this tasking when the list is empty, so the guard
+        // below is a backstop rather than a path the player can normally reach.
+        const stale = staleEstimates();
         if (!stale.length) {
           events.push({
-            cls: 'friendly', title: 'BDA tasking — nothing worth the sortie',
+            cls: 'friendly', title: 'BDA tasking — nothing worth the sortie', internal: true,
             text: 'The analysts report the current picture is as good as overhead can make it. There is ' +
               'nothing on the list stale enough to be worth a collection deck tonight.',
           });
@@ -1954,7 +1986,7 @@ const Game = (() => {
         }
         for (const { t } of stale) observe(t, true);
         events.push({
-          cls: 'friendly', title: 'BATTLE DAMAGE REASSESSMENT COMPLETE',
+          cls: 'friendly', title: 'BATTLE DAMAGE REASSESSMENT COMPLETE', internal: true,
           text: 'A full collection deck — overhead passes, a Global Hawk orbit and the signals picture — ' +
             `has been worked against the sites the analysts were least sure of. Reassessed: ` +
             stale.map(({ t }) => `${t.short} at ${condition(t)}`).join(' · ') + '. Those numbers are as ' +
@@ -1980,7 +2012,7 @@ const Game = (() => {
         G.breakout.assessed = G.turn;
         const est = breakoutEstimate();
         events.push({
-          cls: 'friendly', title: 'ENRICHMENT ASSESSMENT UPDATED',
+          cls: 'friendly', title: 'ENRICHMENT ASSESSMENT UPDATED', internal: true,
           text: est.halted
             ? 'The IC has worked the problem with everything it has. The judgement is unanimous and it is ' +
               'the one you wanted: enrichment capability is destroyed. There is no breakout timeline ' +
@@ -2003,7 +2035,7 @@ const Game = (() => {
         G.postureKnown = true;
         const P = IranAI.posture();
         events.push({
-          cls: 'friendly', title: `IRANIAN WAR PLAN ASSESSED — ${P.name}`,
+          cls: 'friendly', title: `IRANIAN WAR PLAN ASSESSED — ${P.name}`, internal: true,
           text: `${P.brief} The tell the analysts built this on: ${P.tell}. Knowing it does not make any ` +
             'of it stop — what it does is tell you which of their arms is the one worth spending the ' +
             'campaign on.',
@@ -2587,10 +2619,13 @@ const Game = (() => {
       if (t.status === 'destroyed') return;
       UI.openStrikeModal(G, t);
     });
+    // The strait does not always open quiet (see newWar), so the marker is
+    // synced on every boot rather than only on a resume — otherwise a war that
+    // starts CONTESTED shows a green OPEN pin over an amber HUD readout.
+    MapView.setHormuz(G.hormuz);
     if (resume) {
-      // rebuild map state from the restored targets/Hormuz status
+      // rebuild map state from the restored targets
       for (const t of TARGETS) MapView.updateTarget(t);
-      MapView.setHormuz(G.hormuz);
       UI.setTicker(IranAI.headlines(G, [{ title: 'SITUATION ROOM RECONVENES — THE WAR CONTINUES' }]));
     } else {
       UI.setTicker(IranAI.headlines(G, [{ title: 'AL ASAD AIR BASE STRUCK BY IRANIAN MISSILES — SEVEN AMERICANS DEAD' }]));
@@ -2670,10 +2705,15 @@ const Game = (() => {
     // Jerusalem's patience is not a constant either
     G.israelPatience = rand(3, 6);
 
-    // the coastal SAM belt is not always found at full strength — sometimes an
-    // opening-night sweep has already been flown, sometimes it hasn't
+    // The coastal SAM belt is not always found at full strength — sometimes an
+    // opening-night sweep has already been flown, sometimes it hasn't. When it
+    // has, that sweep IS the "covert action" Tehran is retaliating for in the
+    // opening brief, and the flag says so wherever Bandar Abbas is read: a site
+    // sitting at 70% on turn one, before the player has ordered anything, is
+    // otherwise just an unexplained amber ring.
     const opener = TARGETS.find(t => t.id === 'ad-bandar');
-    if (Math.random() < 0.5) {
+    G.openerSwept = Math.random() < 0.5;
+    if (G.openerSwept) {
       opener.hp = rand(55, 85);
       syncStatus(opener);
       G.intel[opener.id] = { hp: opener.hp, turn: 1, sharp: true };
@@ -2697,12 +2737,32 @@ const Game = (() => {
     G.tankers = G.tankerCap;
   }
 
+  // The three difficulty options, built from the tuning table rather than
+  // written out again in index.html. The descriptions used to live in both
+  // places and had already drifted apart — the title screen was offering a
+  // shorter NORMAL and a differently-worded HARD than the table it selects.
+  function buildDifficultyOptions() {
+    const box = document.getElementById('difficulty-select');
+    if (!box) return;
+    for (const key of ['easy', 'normal', 'hard']) {
+      const d = DIFFICULTY[key];
+      const label = document.createElement('label');
+      label.className = 'diff-option';
+      label.innerHTML =
+        `<input type="radio" name="difficulty" value="${key}"${key === 'normal' ? ' checked' : ''}>` +
+        `<span class="diff-name">${d.name}</span>` +
+        `<span class="diff-desc">${d.desc}</span>`;
+      box.appendChild(label);
+    }
+  }
+
   function init() {
     for (const t of TARGETS) { t.hp = t.dispersal ? 0 : 100; syncStatus(t); }
     AudioSys.init();
     UI.init();
     SpecOps.init();
     CSAR.init();
+    buildDifficultyOptions();
 
     document.getElementById('btn-start').addEventListener('click', () => {
       const sel = document.querySelector('input[name="difficulty"]:checked');
@@ -2740,7 +2800,7 @@ const Game = (() => {
     // releases. pkgBlock is the single answer to "why can't I fly this".
     airSuperiority, airPhase, phaseAtLeast, pkgBlock, PHASE_LABEL, minPackage, resKey, pkgStock,
     // the uncertainty layer: everything the player sees goes through these
-    estimate, condition, breakoutEstimate, barred, canReach, tankersFor, tankerCapacity,
+    estimate, condition, staleEstimates, targetDesc, breakoutEstimate, barred, canReach, tankersFor, tankerCapacity,
     casualtyLimit, difficulty: diff,
     FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, HEAVY_TRANSIT_TURNS, WAR_POWERS_TURN, G };
 })();

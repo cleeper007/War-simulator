@@ -144,7 +144,18 @@ const MapView = (() => {
     g.appendChild(el('circle', { r: 13, fill: 'transparent' }));
     g.appendChild(el('circle', { class: 'tgt-ring', r: 9 }));
     g.appendChild(targetCore(t.type));
-    const label = el('text', { y: 20 });
+    // Labels sit centred under the icon unless the target carries a `label`
+    // offset. Iran's coast puts three and four sites inside 40 map units of
+    // each other — Kharg/Bushehr, the two at Bandar Abbas, Chabahar next to the
+    // Toledo's patrol box — and a centred label there lands on top of the
+    // neighbour's icon. The offsets in data.js walk those clusters apart; the
+    // coordinates themselves are projected and must not be moved to fix text.
+    const lab = t.label || {};
+    const label = el('text', {
+      x: lab.dx || 0,
+      y: lab.dy != null ? lab.dy : 20,
+      ...(lab.anchor ? { 'text-anchor': lab.anchor } : {}),
+    });
     label.textContent = t.short;
     g.appendChild(label);
     return g;
@@ -330,11 +341,11 @@ const MapView = (() => {
         const cond = st === 'destroyed' ? 'ASSESSED: destroyed'
           : `ASSESSED: ${st} — ${Game.condition(t)}`;
         const stale = !band.known && band.age > 0
-          ? `<br><span style="color:var(--dim)">Last assessed ${band.age} turn(s) ago — the estimate ` +
+          ? `<br><span style="color:var(--dim)">Last assessed ${band.age} turn${band.age === 1 ? '' : 's'} ago — the estimate ` +
             `widens every night nobody looks.</span>` : '';
         const barred = Game.barred(t);
         return `<span class="tt-name">${t.name}</span><br>` +
-          `<span class="tt-status" style="color:${stColor}">${cond}</span><br>${t.desc}${stale}` +
+          `<span class="tt-status" style="color:${stColor}">${cond}</span><br>${Game.targetDesc(t)}${stale}` +
           (st === 'damaged' && Game.wearsDown(t)
             ? `<br><span style="color:var(--amber)">Repairs overnight unless struck again.</span>` : '') +
           (t.dispersal && t.located

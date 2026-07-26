@@ -340,7 +340,7 @@ const IranAI = (() => {
       t.located = false;
       MapView.updateTarget(t);
       events.push({
-        cls: 'iran', title: `${t.short} HAS MOVED — TRACK LOST`,
+        cls: 'iran', title: `${t.short} HAS MOVED — TRACK LOST`, internal: true,
         text: `The launcher group in the ${t.name.split(' — ')[1] || 'interior'} broke hide overnight and ` +
           'is no longer where the targeting folder says it is. Nothing was struck there, so nothing held ' +
           'them. The fix is stale and the group is off the plot until ISR finds it again.',
@@ -510,9 +510,9 @@ const IranAI = (() => {
     } else if (Game.airPhase() === 'contested') {
       // the single most important thing the staff can tell a player who is
       // wondering why two thirds of the air force will not fly
-      cjcs.text = 'Sequence, Mr. President. Two thirds of the air component is sitting on ramps I will not ' +
-        `send it off — ${adLeft} SAM complex${adLeft === 1 ? '' : 'es'} still active, and an F-16 over that ` +
-        'belt is a dead pilot on Iranian television. What we have tonight is F-35s and Tomahawks, and what ' +
+      cjcs.text = 'Sequence, Mr. President. Two thirds of the air component is sitting on ramps, and I will ' +
+        `not send it off them — ${adLeft} SAM complex${adLeft === 1 ? '' : 'es'} still active, and an F-16 ` +
+        'over that belt is a dead pilot on Iranian television. What we have tonight is F-35s and Tomahawks, and what ' +
         'they are for is not damage, it is taking the sky. Kill the air defense network first. Everything ' +
         'else in this war gets three times easier the moment it is down.';
     } else if (Game.airPhase() === 'degraded' && !G.heaviesArrived) {
@@ -520,7 +520,7 @@ const IranAI = (() => {
         'you have been waiting for. The next step is the heavies. Take the rest of the air defense network ' +
         'and Tabriz down and I can put B-1s and B-52s over Iran, and a heavy cell takes a site apart in one ' +
         'night that a fighter package would work on for three. ' +
-        (G.heaviesOrdered ? `They are already moving — ${G.heavyEta} turn(s) out.`
+        (G.heaviesOrdered ? `They are already moving — ${G.heavyEta} turn${G.heavyEta === 1 ? '' : 's'} out.`
           : 'They can be called forward now; they just cannot fly until the sky is ours.');
     } else if (Game.airPhase() === 'superiority' && adLeft >= 1) {
       cjcs.text = 'We hold air superiority tonight and we do not hold it permanently. Their crews are out ' +
@@ -535,7 +535,7 @@ const IranAI = (() => {
         'the ordnance.';
     } else if (!G.bombersArrived && nukeDeg < 100) {
       cjcs.text = G.bombersOrdered
-        ? `The 509th is airborne out of Whiteman with the tanker train strung out behind it — ${G.bomberEta} turn(s) to Diego Garcia. Until those aircraft are on that ramp, Fordow is a target we can photograph and not one we can service.`
+        ? `The 509th is airborne out of Whiteman with the tanker train strung out behind it — ${G.bomberEta} turn${G.bomberEta === 1 ? '' : 's'} to Diego Garcia. Until those aircraft are on that ramp, Fordow is a target we can photograph and not one we can service.`
         : 'Be clear on what you do not have: there is not a B-2 within eight thousand miles of this war. They are parked at Whiteman. One turn on the tankers puts them at Diego Garcia and puts the GBU-57 in play, and nothing else in the inventory touches Fordow — not a Tomahawk, not a fighter, nothing. The bill is one night of the naval transit: the turn they move, nothing else does.';
     } else if (reconstituting.length >= 2) {
       cjcs.text = `We are renting damage instead of buying it, Mr. President. ${reconstituting.length} sites we have already ` +
@@ -552,9 +552,17 @@ const IranAI = (() => {
   }
 
   // ---- Headlines for the ticker ----
+  // The crawl is a wire feed, not the president's inbox. Most of what happens
+  // in a night is public the moment it happens — a missile lands on Al Udeid
+  // and the world knows — but the events the player's own staff produced are
+  // not: a battle damage assessment, an intelligence product, the callsign of
+  // an aviator on the ground. Those carry `internal`, and the ticker has its
+  // own vaguer line for the ones the press would actually have (see the downed
+  // aircrew headline below). Marking is opt-OUT: a new event reads as public
+  // unless it says otherwise, which is the way round that keeps the feed alive.
   function headlines(G, events) {
     const h = [];
-    for (const ev of events) h.push(ev.title.toUpperCase());
+    for (const ev of events) if (!ev.internal) h.push(ev.title.toUpperCase());
     if (G.oil > 150) h.push(`OIL SHOCK: BRENT AT $${Math.round(G.oil)} — RECESSION FEARS MOUNT`);
     else if (G.oil > 110) h.push(`BRENT CRUDE TOPS $${Math.round(G.oil)} AS CRISIS PREMIUM GROWS`);
     if (G.approval < 35) h.push('POLL: PRESIDENT\'S CONDUCT OF THE WAR UNDERWATER, IMPEACHMENT TALK GROWS');

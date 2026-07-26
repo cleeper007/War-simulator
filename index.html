@@ -33,7 +33,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.22</div>
+  <div class="version-badge">v1.23<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -49,26 +49,11 @@
       home front, or the global economy breaks you first. Tehran may eventually sue for
       peace, but only from its knees: no one is coming to save you at the table.</p>
     </div>
+    <!-- Options are built from DIFFICULTY in js/data.js at boot (Game.init), so
+         the names and descriptions have one home. Editing them here does
+         nothing — edit the table. -->
     <div id="difficulty-select">
       <div class="diff-label">DIFFICULTY</div>
-      <label class="diff-option">
-        <input type="radio" name="difficulty" value="easy">
-        <span class="diff-name">EASY</span>
-        <span class="diff-desc">A forgiving war. The country absorbs more, Iran reconstitutes slower,
-        and the enrichment clock runs long.</span>
-      </label>
-      <label class="diff-option">
-        <input type="radio" name="difficulty" value="normal" checked>
-        <span class="diff-name">NORMAL</span>
-        <span class="diff-desc">The war as designed.</span>
-      </label>
-      <label class="diff-option">
-        <input type="radio" name="difficulty" value="hard">
-        <span class="diff-name">HARD</span>
-        <span class="diff-desc">Less patience at home, faster Iranian repair and better coordination,
-        and the centrifuges are further along than you would like. The staff will also fly any package
-        you order into any threat — nothing is held back, and nothing is refused.</span>
-      </label>
     </div>
     <button id="btn-start" class="btn-primary">ENTER THE SITUATION ROOM</button>
     <button id="btn-continue" class="btn-secondary" disabled>CONTINUE SAVED WAR</button>

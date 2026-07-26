@@ -49,7 +49,7 @@ const TARGETS = [
   },
   {
     id: 'ad-bandar', name: 'Bandar Abbas Coastal Defense', short: 'AD BANDAR',
-    type: 'airdefense', x: 563, y: 449, depth: 1,
+    type: 'airdefense', x: 563, y: 449, depth: 1, label: { dy: -14 },
     desc: 'Coastal radar and SAM coverage over the Strait of Hormuz approaches.',
     world: -1,
     packages: [
@@ -94,7 +94,9 @@ const TARGETS = [
   },
   {
     id: 'msl-kermanshah', name: 'Kermanshah Missile Base', short: 'MSL KERMANSHAH',
-    type: 'missile', x: 285, y: 196, depth: 2,
+    // stays below, but pulled left so the long label clears Khorramabad's icon
+    // down-right of it; above would put it into Nojeh AB
+    type: 'missile', x: 285, y: 196, depth: 2, label: { dx: 8, dy: 20, anchor: 'end' },
     desc: 'Ballistic missile brigade in range of US bases in Iraq. Destroying it reduces the weight of Iranian missile retaliation.',
     world: -2,
     packages: [
@@ -130,7 +132,7 @@ const TARGETS = [
   },
   {
     id: 'naval-bushehr', name: 'Bushehr Naval Base', short: 'NAV BUSHEHR',
-    type: 'naval', x: 411, y: 398, depth: 1,
+    type: 'naval', x: 411, y: 398, depth: 1, label: { dx: -13, dy: 4, anchor: 'end' },
     desc: 'IRGC-Navy swarm-boat base in the central Gulf. Threatens the carrier strike group.',
     world: -2,
     packages: [
@@ -185,7 +187,7 @@ const TARGETS = [
   },
   {
     id: 'kharg', name: 'Kharg Island Oil Terminal', short: 'KHARG OIL',
-    type: 'oil', x: 394, y: 387, depth: 1,
+    type: 'oil', x: 394, y: 387, depth: 1, label: { dy: -14 },
     desc: 'Handles ~90% of Iranian crude exports. Crippling it strangles Tehran\'s economy — and spikes global oil prices. Heavy diplomatic cost paid the night the terminal stops loading, not before.',
     world: 0, worldOnKill: -8, momentumOnKill: 0.08,
     packages: [
@@ -237,7 +239,7 @@ const TARGETS = [
   },
   {
     id: 'naval-chabahar', name: 'Chabahar Naval Base — Konarak', short: 'NAV CHABAHAR',
-    type: 'naval', x: 680, y: 540, depth: 1,
+    type: 'naval', x: 680, y: 540, depth: 1, label: { dy: -14 },
     desc: 'Iran\'s deep-water port on the Gulf of Oman, east of Hormuz and wide open to the Indian Ocean. It is where the surface fleet runs to when the Gulf ports are held at risk, and the one base from which Iran reaches blue water. Far to the east, but on the coast and inside the carrier\'s reach.',
     world: -2,
     packages: [
@@ -949,7 +951,9 @@ const WORLD_LEADERS = [
   {
     id: 'uk',
     name: 'The Prime Minister of the United Kingdom',
-    short: 'UK PRIME MINISTER',
+    // `office` alone goes on the call card, where the country is already the
+    // line above it; `name` is the full title and goes in the sentence.
+    office: 'The Prime Minister',
     country: 'UNITED KINGDOM',
     pin: 'union',
     skin: '#e8b894', hair: '#4a3526', suit: '#2c3d60', tie: '#7a1f2e',
@@ -976,30 +980,34 @@ const WORLD_LEADERS = [
   },
   {
     id: 'france',
-    name: 'The Prime Minister of France',
-    short: 'FRENCH PRIME MINISTER',
+    // France's head of state is the President, and the Élysée — not Matignon —
+    // is who a US president calls about a war. The `clip` ids below still read
+    // `francePmCall`: they are keys into AudioSys.FILES pointing at recordings
+    // that already exist under those filenames, and they are never shown.
+    name: 'The President of France',
+    office: 'The President',
     country: 'FRANCE',
     pin: 'tricolore',
     skin: '#e3b08c', hair: '#2b2b2b', suit: '#26314a', tie: '#2f5390',
     declined: 'You let it go to the Secretary of State. Paris reads the snub exactly as a snub. ' +
-      'Whatever the Prime Minister intended to say to you privately he now says in public instead, ' +
+      'Whatever the President intended to say to you privately is said in public instead, ' +
       'and the French position on this war hardens a degree overnight.',
     strong: {
       clip: 'francePmCallStrong',
-      caption: 'The Prime Minister offers French forces in a defensive role only — nothing that ' +
+      caption: 'The President offers French forces in a defensive role only — nothing that ' +
         'flies against Iran — and urges restraint and a negotiated end to the war.',
-      accepted: 'You take the call. Matignon\'s readout is careful about what it is not: French ' +
+      accepted: 'You take the call. The Élysée readout is careful about what it is not: French ' +
         'assets are committed to the defence of the region and to nothing beyond it, and every ' +
         'line after that is about the diplomatic track. It is as far as Paris will go, and the ' +
-        'Prime Minister went to the trouble of saying it to you himself.',
+        'President went to the trouble of saying it to you directly.',
     },
     standard: {
       clip: 'francePmCall',
-      caption: 'The Prime Minister tells you France will not take part in the operation, and ' +
+      caption: 'The President tells you France will not take part in the operation, and ' +
         'warns you — plainly, on a secure line — not to make a mistake.',
       accepted: 'You take the call. There is no warm readout to brief out: Paris confirms only ' +
-        'that the two of you spoke. France is out, and the Prime Minister thought enough of the ' +
-        'relationship to tell you so himself rather than let you learn it from a communiqué. ' +
+        'that the two of you spoke. France is out, and the President thought enough of the ' +
+        'relationship to say so directly rather than let you learn it from a communiqué. ' +
         'Taking the call was the only part of this you controlled.',
     },
   },
