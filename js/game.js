@@ -39,7 +39,7 @@ const Game = (() => {
     oil: 84,               // $/bbl Brent
     world: 60,             // world opinion 0–100
     hormuz: 'OPEN', hormuzClosedTurns: 0,
-    casualties: { us: 7 }, // the destroyer attack that starts the crisis
+    casualties: { us: 7 }, // the Al Asad missile strike that starts the crisis
     // Fighter and TLAM capacity is DERIVED from where the carriers are (see
     // fleetCapacity) — these are the opening values with the Lincoln alone,
     // forward. The SOF task force is not carrier-based, and the B-2s are not
@@ -1771,7 +1771,7 @@ const Game = (() => {
         G.world = clamp(G.world + 8, 0, 100);
         events.push({
           cls: 'world', title: 'UN Security Council session',
-          text: 'US diplomats rally broad condemnation of the attack on USS Milius. Russia and China block binding action but the diplomatic cover is valuable.',
+          text: 'US diplomats rally broad condemnation of the attack on Al Asad. Russia and China block binding action but the diplomatic cover is valuable.',
           dWorld: 8,
         });
         break;
@@ -2497,7 +2497,7 @@ const Game = (() => {
       MapView.setHormuz(G.hormuz);
       UI.setTicker(IranAI.headlines(G, [{ title: 'SITUATION ROOM RECONVENES — THE WAR CONTINUES' }]));
     } else {
-      UI.setTicker(IranAI.headlines(G, [{ title: 'USS MILIUS STRUCK IN STRAIT OF HORMUZ — SEVEN SAILORS DEAD' }]));
+      UI.setTicker(IranAI.headlines(G, [{ title: 'AL ASAD AIR BASE STRUCK BY IRANIAN MISSILES — SEVEN AMERICANS DEAD' }]));
     }
     UI.renderAll(G);
     // First-war primer: the single most common way a new player loses is by
