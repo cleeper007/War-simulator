@@ -1840,31 +1840,36 @@ const Game = (() => {
         G.coalition = true;
         G.world = clamp(G.world + 5, 0, 100);
         // allied squadrons fly from land — they survive whatever happens afloat.
-        // These are British and Gulf airframes: France contributes nothing to
-        // the strike package in either version of her call, so the number here
-        // does not move with what Paris says.
+        // Whose squadrons depends on the world: above the line the RAF is flying
+        // your missions, below it London has refused offensive operations and
+        // these are Gulf airframes off Gulf runways. France sends nothing either
+        // way. The capacity is deliberately identical across both — the reward
+        // for keeping the world on side is which war you are seen to be fighting
+        // and who says so out loud, not two extra sorties a night.
         G.alliedFighters += 2;
         syncFleetCaps();
         G.res.fighters = Math.min(G.res.fighters + 2, G.caps.fighters);
+        // Read after the +5 above, so the number the player is looking at on the
+        // cable is the same number that decided what the cable says and which
+        // version of each call they are about to get.
+        const tone = G.world > LEADER_STRONG_WORLD ? 'strong' : 'standard';
         events.push({
           cls: 'world', title: 'Strike coalition assembled',
-          text: 'The UK and the Gulf partners formally join the operation. Others sign the political declaration without committing aircraft — France among them. Allied squadrons add sortie capacity and share the political burden.',
+          text: tone === 'strong'
+            ? 'The UK and the Gulf partners formally join the operation, with the RAF committed to joint strikes. France signs the political declaration without committing aircraft. Allied squadrons add sortie capacity and share the political burden.'
+            : 'The Gulf partners join the operation and open their bases. London contributes basing, intelligence and sanctions but will not fly offensive missions; Paris signs the declaration and nothing else. Allied squadrons add sortie capacity and share the political burden.',
           dWorld: 5,
         });
         // The two capitals whose answer is worth hearing ring the White House,
         // in the order the alliance actually works: London is on the line before
         // the cable has finished going out, Paris comes the following night once
-        // the Élysée has read the room. Only one of the two is calling with good
-        // news, and how good it is depends on the world — see WORLD_LEADERS.
+        // the Élysée has read the room. How much either one is bringing depends
+        // on the world — see WORLD_LEADERS.
         //
         // What they say is fixed here rather than at pickup: they are reacting
         // to the world as it stood the moment the coalition formed, and a war
         // that turns ugly overnight should not retroactively cool a call that
         // was already placed.
-        //
-        // Read after the +5 above, so the number the player is looking at on the
-        // cable is the same number that decided which call they get.
-        const tone = G.world > LEADER_STRONG_WORLD ? 'strong' : 'standard';
         G.leaderCalls = [
           { who: 'uk', tone, turn: G.turn, answered: false },
           { who: 'france', tone, turn: G.turn + 1, answered: false },

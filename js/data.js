@@ -924,13 +924,17 @@ const HORMUZ_POS = { x: 607, y: 494 };
 // Each leader has two versions of the same call, chosen on world opinion at the
 // moment the coalition forms (LEADER_STRONG_WORLD). Above the line the ally
 // gives you the most it has in it to give; at or below it the same government
-// gives you markedly less. For London that is the distance between unconditional
-// backing and a warm but ordinary call. For Paris it is the distance between a
-// defensive contribution and a flat refusal to take part at all — France is the
-// ally who is never fully in, and the good version of her call is still a no to
-// everything offensive. Same mechanical effect either way — what changes is what
-// the president hears, which is the honest reward for having kept the world on
-// side before asking for help.
+// gives you markedly less. For London that is the distance between putting the
+// RAF under your command and offering everything except aircraft — bases,
+// intelligence and sanctions, with a flat no to offensive operations. For Paris
+// it is the distance between a defensive contribution and refusing to take part
+// at all. France is the ally who is never fully in, and the good version of her
+// call is still a no to anything that flies against Iran.
+//
+// Which means below the line neither ally puts a strike aircraft over Iran, and
+// the coalition cable says so — see the `coalition` case in game.js, where the
+// prose branches on the same tone. The sortie capacity the action grants does
+// not branch: at that tone it is the Gulf partners flying, not the RAF.
 //
 // `clip` keys into AudioSys.FILES; `caption` is the fallback shown when the
 // audio can't play (muted, autoplay refused, file missing) and is written as a
@@ -954,19 +958,20 @@ const WORLD_LEADERS = [
       'is itself the story by the evening broadcasts.',
     strong: {
       clip: 'ukPmCallStrong',
-      caption: 'The Prime Minister puts Britain behind the operation without conditions — ' +
-        'squadrons, bases, and whatever else is asked for, for as long as it runs.',
-      accepted: 'You take the call. Downing Street briefs it out within the hour, and the readout ' +
-        'is the strongest language a British government has used about an American operation in a ' +
-        'generation — full support, no caveats, nothing held in reserve.',
+      caption: 'The Prime Minister commits the RAF to joint strikes against Iran and tells you ' +
+        'to consider British squadrons under your command.',
+      accepted: 'You take the call. Downing Street briefs it out within the hour and hedges not ' +
+        'one word of it — RAF squadrons are flying your missions against your targets, and the ' +
+        'operation has a second flag on it that nobody had to be pressured into flying.',
     },
     standard: {
       clip: 'ukPmCall',
-      caption: 'The Prime Minister commits British squadrons to the operation and says the ' +
-        'special relationship will hold whatever the next fortnight costs.',
-      accepted: 'You take the call. Downing Street briefs it out within the hour — the two of you ' +
-        'spoke, the alliance is unified, and the operation has a second flag on it that nobody had ' +
-        'to be pressured into flying.',
+      caption: 'The Prime Minister offers basing, intelligence and joint sanctions — but tells ' +
+        'you Britain will not take part in offensive operations against Iran.',
+      accepted: 'You take the call. London gives you everything except the thing you asked for: ' +
+        'the bases, the intelligence take, its name on the sanctions. British aircraft stay on the ' +
+        'ground, and the readout is worded carefully enough that the distinction survives contact ' +
+        'with the evening broadcasts.',
     },
   },
   {
