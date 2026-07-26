@@ -792,8 +792,21 @@ const UI = (() => {
       `${est.tanker || 'none'}${est.tanker ? ` of ${G.tankers} tracks left tonight` : ' — flies unrefuelled'}` +
       `</span><br>` +
       `${tot}<br>` +
-      `WORLD OPINION: <span class="est-warn">${worldCost}</span>` +
-      (pkg.extraWorld ? ` <span class="dim">(${target.world} target, ${pkg.extraWorld} for flying it with Israel)</span>` : '') + `<br>`;
+      // Two different bills. `worldCost` is what tonight costs; `worldOnKill` is
+      // what the target costs when it finally stops working, and the player has
+      // to be able to see that before committing the first package — otherwise
+      // a free-looking strike hands them a −8 they never agreed to.
+      `WORLD OPINION: <span class="${worldCost ? 'est-warn' : 'est-good'}">` +
+      `${worldCost || 'no cost for this strike'}</span>` +
+      // the joint packages only exist against the enrichment sites, and those
+      // now cost nothing on their own — so the whole number is the surcharge
+      (pkg.extraWorld
+        ? ` <span class="dim">(${target.world ? `${target.world} target, ` : 'the aimpoint itself costs nothing — '}` +
+          `${pkg.extraWorld} for flying it with Israel)</span>` : '') + `<br>` +
+      (target.worldOnKill
+        ? `<span class="est-warn">DESTROYING IT COSTS −${Math.abs(target.worldOnKill)}</span> ` +
+          `<span class="dim">— the diplomatic bill lands once, the night the site is finished, ` +
+          `not for the packages that get it there.</span><br>` : '');
     // flying a tier outside its phase — only reachable on hard, and the player
     // is told in as many words what they are ordering
     if (est.raw) {

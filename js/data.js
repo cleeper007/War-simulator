@@ -4,6 +4,19 @@
 
 // ---- Iranian strategic targets ----
 // world: world-opinion cost per strike
+// worldOnKill: world-opinion cost paid ONCE, the night the site is finished,
+//          instead of per strike. The distinction is about what the world is
+//          actually reacting to. Nobody abroad files a protest over the third
+//          package into an oil terminal — the story is "the Americans have
+//          taken Iran's oil export off the board", and that story does not
+//          exist until the thing is off the board. Charging it per strike also
+//          punished the player twice for a target the game itself says needs
+//          several packages to finish. So the big economic aimpoints cost
+//          nothing to chip at and the whole bill lands on the last hit.
+// momentumOnKill: added to negotiationMomentum when the site is finished.
+//          Wrecking what pays for the war is leverage at the table (see doDiplo
+//          in game.js) — it does not open the door, but it helps once the
+//          nuclear gate is met.
 // packages: valid strike options {asset, qty, base (success), label}
 // depth:   how far inside Iran the target sits, which is what a strike package
 //          actually costs in tanker tracks (see TANKER_COST). 1 = the Gulf
@@ -49,7 +62,10 @@ const TARGETS = [
     id: 'natanz', name: 'Natanz Enrichment Facility', short: 'NATANZ',
     type: 'nuclear', x: 441, y: 218, depth: 2,
     desc: 'Primary enrichment site. Partially buried — cruise missiles can damage surface halls but only penetrators guarantee destruction. PRIMARY OBJECTIVE.',
-    world: -3,
+    // The enrichment program is the stated reason the country went to war and
+    // the one thing no capital will defend out loud. Hitting it costs nothing
+    // abroad; finishing it is worth a bump (see objectiveMilestones in game.js).
+    world: 0,
     packages: [
       { asset: 'stealth', qty: 1, base: 0.90, label: 'B-2 mission — GBU-57 penetrators' },
       { asset: 'cruise', qty: 5, base: 0.48, label: 'Saturation TLAM strike — limited vs buried halls' },
@@ -59,7 +75,7 @@ const TARGETS = [
     id: 'fordow', name: 'Fordow Enrichment Plant', short: 'FORDOW',
     type: 'nuclear', x: 416, y: 174, depth: 2, hardened: true,
     desc: 'Enrichment halls buried under 80m of rock. ONLY a B-2 with GBU-57 penetrators has any chance. PRIMARY OBJECTIVE.',
-    world: -3,
+    world: 0,
     packages: [
       { asset: 'stealth', qty: 1, base: 0.80, label: 'B-2 mission — GBU-57 penetrators (only viable option)' },
     ],
@@ -144,7 +160,11 @@ const TARGETS = [
     id: 'ship-caspian', name: 'IRGC Caspian Flotilla — Bandar-e Anzali', short: 'CASPIAN FLOT',
     type: 'ship', x: 392, y: 72, depth: 3,
     desc: 'Missile craft in the Caspian, 900 nm from the Gulf and beyond the fight — but a live hull all the same. The Caspian is a closed sea with Moscow on the far shore: putting American ordnance in it costs far more abroad than the tonnage is worth. No submarine has ever reached it and none ever will — this one is aircraft and cruise missiles or nothing.',
-    world: -8,
+    // Was -8, which priced a handful of missile craft like an oil terminal and
+    // made the flotilla a target nobody sane ever took. It is a real hull in a
+    // sea Moscow watches, so it still costs more than any other warship on the
+    // list — but it is warships, and warships are what this war is about.
+    world: -3,
     packages: [
       { asset: 'f35', qty: 2, base: 0.67, label: 'F-35 maritime strike — 2 sorties (deep, the whole tanker plan)' },
       { asset: 'fighter', qty: 2, base: 0.62, label: 'Air strike — 2 F-15E sorties (deep, unrefuelled leg)' },
@@ -166,8 +186,8 @@ const TARGETS = [
   {
     id: 'kharg', name: 'Kharg Island Oil Terminal', short: 'KHARG OIL',
     type: 'oil', x: 394, y: 387, depth: 1,
-    desc: 'Handles ~90% of Iranian crude exports. Crippling it strangles Tehran\'s economy — and spikes global oil prices. Heavy diplomatic cost.',
-    world: -12,
+    desc: 'Handles ~90% of Iranian crude exports. Crippling it strangles Tehran\'s economy — and spikes global oil prices. Heavy diplomatic cost paid the night the terminal stops loading, not before.',
+    world: 0, worldOnKill: -8, momentumOnKill: 0.08,
     packages: [
       { asset: 'cruise', qty: 3, base: 0.86, label: 'TLAM salvo — 3 cruise missiles' },
       { asset: 'f35', qty: 2, base: 0.77, label: 'F-35 strike package — 2 sorties' },
@@ -178,8 +198,8 @@ const TARGETS = [
   {
     id: 'abadan', name: 'Abadan Refinery', short: 'ABADAN REF',
     type: 'oil', x: 327, y: 346, depth: 1,
-    desc: 'Iran\'s largest domestic fuel refinery. An economic pressure target with severe diplomatic blowback.',
-    world: -12,
+    desc: 'Iran\'s largest domestic fuel refinery. An economic pressure target: the diplomatic bill comes due when the refinery train stops, not for the craters along the way.',
+    world: 0, worldOnKill: -8, momentumOnKill: 0.06,
     packages: [
       { asset: 'cruise', qty: 3, base: 0.86, label: 'TLAM salvo — 3 cruise missiles' },
       { asset: 'f35', qty: 2, base: 0.77, label: 'F-35 strike package — 2 sorties' },
@@ -191,7 +211,9 @@ const TARGETS = [
     id: 'arak', name: 'Arak Heavy-Water Reactor', short: 'ARAK IR-40',
     type: 'nuclear', x: 363, y: 199, depth: 2, hardened: true,
     desc: 'The plutonium road to a bomb — a heavy-water research reactor that breeds weapons-grade material a uranium centrifuge never touches. The reactor hall is a hardened concrete shell; cruise missiles scar it, but only a penetrator reaches the core. Killing it closes the second path to a weapon.',
-    world: -4,
+    // Unfuelled and unambiguously weapons-related — the same free pass as the
+    // enrichment halls. Bushehr NPP below is the exception that proves it.
+    world: 0,
     packages: [
       { asset: 'stealth', qty: 1, base: 0.86, label: 'B-2 mission — GBU-57 penetrator into the reactor hall' },
       { asset: 'f35', qty: 2, base: 0.60, label: 'F-35 strike — 2 sorties (limited vs the hardened core)' },
@@ -202,7 +224,11 @@ const TARGETS = [
     id: 'bushehr-npp', name: 'Bushehr Nuclear Power Plant', short: 'BUSHEHR NPP',
     type: 'nuclear', x: 430, y: 415, depth: 1,
     desc: 'A live civilian reactor on the Gulf coast, run under Russian contract with Russian technicians on site. It makes no bomb fuel — but cracking a fuelled core seeds a radiological plume across the Gulf and puts Moscow\'s people under American ordnance. The most diplomatically ruinous aimpoint in Iran, and militarily the least worth it.',
-    world: -10,
+    // The one nuclear-typed site that still costs: it is a civil power plant
+    // with foreign nationals in it, not a weapons program. Cratering the
+    // switchyard is survivable abroad; killing the plant is the plume, and the
+    // plume is the whole bill. Heavier than the oil targets, and it always was.
+    world: 0, worldOnKill: -10, momentumOnKill: 0.04,
     packages: [
       { asset: 'cruise', qty: 3, base: 0.80, label: 'TLAM salvo — switchyard and auxiliaries, not the core' },
       { asset: 'f35', qty: 2, base: 0.75, label: 'F-35 strike package — 2 sorties' },

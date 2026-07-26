@@ -691,13 +691,18 @@ const Game = (() => {
     if (!G.milestones.nukeGutted && G.nukeDegraded() >= 100) {
       G.milestones.nukeGutted = true;
       G.approval = clamp(G.approval + 8, 0, 100);
-      G.world = clamp(G.world + 4, 0, 100);
+      // The nuclear sites cost nothing to strike, and finishing them pays: the
+      // capitals that spent a decade failing to negotiate this away are not
+      // going to condemn the country that did it. This +5 is the entire
+      // diplomatic story of the enrichment campaign, start to finish.
+      G.world = clamp(G.world + 5, 0, 100);
       out.push({
         cls: 'friendly', title: 'OBJECTIVE MET — IRANIAN NUCLEAR PROGRAM DESTROYED',
         text: 'CENTCOM assesses the enrichment complex — Natanz and Fordow — as functionally destroyed. The ' +
           'centrifuge halls are collapsed and the breakout timeline is gone. The reason the country went to ' +
-          'war has been achieved, and the country knows it.',
-        dApproval: 8, dWorld: 4,
+          'war has been achieved, and the country knows it. The capitals that spent twenty years failing to ' +
+          'negotiate this away are not going to say so out loud, but the condemnations have stopped.',
+        dApproval: 8, dWorld: 5,
       });
     }
     if (!G.milestones.iranBroken && G.iranBroken()) {
@@ -1439,6 +1444,7 @@ const Game = (() => {
 
     G.struckThisTurn.push(target.id);
     // a joint strike carries its own diplomatic surcharge on top of the target's
+    // (the big economic aimpoints charge nothing here — see worldOnKill below)
     const worldCost = target.world + (pkg.extraWorld || 0);
     G.world = clamp(G.world + worldCost, 0, 100);
     const est = computeStrike(target, pkg);
@@ -1480,6 +1486,21 @@ const Game = (() => {
             'does not come back and does not move again.'
           : 'Battle damage assessment confirms the target is destroyed. Functional capability eliminated.';
       if (target.type === 'oil') { G.oil += 6; ev.dOil = 6; }
+      // The whole diplomatic bill for a target that only makes news when it
+      // stops working — paid here, once, and never for the packages that got
+      // it this far. Same event that wrecks what pays for the war moves Tehran
+      // fractionally toward the table: not a door, a thumb on the scale for
+      // whenever the nuclear gate finally opens (see doDiplo).
+      if (target.worldOnKill) {
+        G.world = clamp(G.world + target.worldOnKill, 0, 100);
+        ev.dWorld = (ev.dWorld || 0) + target.worldOnKill;
+        text += ' The site is off the board, and so is the argument that this was a ' +
+          'limited campaign — the protests abroad start with the morning wires.';
+      }
+      if (target.momentumOnKill) {
+        G.negotiationMomentum += target.momentumOnKill;
+        text += ' Tehran is now fighting a war it cannot pay for.';
+      }
       // The sheds die, and whatever was still alive when the night started
       // drives away. Measured from the turn-start snapshot rather than from
       // beforeHp, so packing three packages onto one base in a single turn
