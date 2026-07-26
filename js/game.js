@@ -95,10 +95,12 @@ const Game = (() => {
     strikesThisTurn: 0, struckThisTurn: [],
     missions: [],          // strike packages in flight: {targetId, pkg, eta}
     sanctions: 0, coalition: false, addressCooldown: 0, sprReleases: 0,
-    // the allied head of government who rings once the coalition forms:
-    // {who, answered} or null. Persisted so a war saved with the phone still
-    // ringing resumes with it ringing (see leaderCall).
-    leaderCall: null,
+    // the allied heads of government who ring once the coalition forms, in the
+    // order they get through: [{who, tone, turn, answered}]. `turn` is the
+    // earliest turn the call may come in, so Paris waits a night behind London.
+    // Persisted so a war saved with the phone still ringing resumes with it
+    // ringing (see leaderCall).
+    leaderCalls: [],
     negotiationsAccepted: false, negotiationMomentum: 0,
     diploUsed: false, intelUsed: false, over: false,
     // Israel: a semi-autonomous actor, not an American asset. Sidelined by
@@ -210,6 +212,11 @@ const Game = (() => {
 
   // ---- save / continue (localStorage) ----
   const Save = (() => {
+    // v12: the coalition rings twice. The single random `leaderCall` became a
+    // two-entry `leaderCalls` queue — London on the cable, Paris the following
+    // turn — each carrying which take of the call it is going to play. A v11
+    // save holds one call, possibly already answered, with no way to say which
+    // of the two it was or what the world looked like when it came in.
     // v9: the air campaign became three campaigns in sequence. Strike assets
     // split into 5th-gen, 4th-gen and heavy bombers behind an air-superiority
     // gate, and theater capacity now grows all war off the force flow. A v8
@@ -232,11 +239,11 @@ const Game = (() => {
     // no `downed` field and a stats block missing three counters — retired
     // rather than migrated, the same as every version before it.
     const KEY = 'cic-save-v10';  // bump the version to invalidate old saves
-    const VERSION = 11;
+    const VERSION = 12;
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
-      'strikesThisTurn', 'struckThisTurn', 'missions', 'sanctions', 'coalition', 'leaderCall',
+      'strikesThisTurn', 'struckThisTurn', 'missions', 'sanctions', 'coalition', 'leaderCalls',
       'addressCooldown', 'sprReleases', 'negotiationsAccepted', 'negotiationMomentum',
       'diploUsed', 'intelUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep', 'downed',
       'israelPosture', 'israelPatience', 'israelStrikesUsed', 'israelJointAvailable',
@@ -1841,10 +1848,21 @@ const Game = (() => {
           text: 'The UK, France, and Gulf partners formally join the operation. Allied squadrons add sortie capacity and share the political burden.',
           dWorld: 5,
         });
-        // One of the two capitals that just put its own aircrew over Iran rings
-        // the White House. Coin flip which one — both are in it, and which one
-        // reaches you first is not something a president schedules.
-        G.leaderCall = { who: WORLD_LEADERS[Math.random() < 0.5 ? 0 : 1].id, answered: false };
+        // Both capitals that just put their own aircrew over Iran ring the White
+        // House, and they ring in the order the alliance actually works: London
+        // is on the line before the cable has finished going out, Paris comes
+        // the following night once the Élysée has read the room. What they say
+        // is fixed here rather than at pickup — they are reacting to the world
+        // as it stood the moment the coalition formed, and a war that turns ugly
+        // overnight should not retroactively cool a call already placed.
+        //
+        // Read after the +5 above, so the number the player is looking at on the
+        // cable is the same number that decided which call they get.
+        const tone = G.world > LEADER_STRONG_WORLD ? 'strong' : 'standard';
+        G.leaderCalls = [
+          { who: 'uk', tone, turn: G.turn, answered: false },
+          { who: 'france', tone, turn: G.turn + 1, answered: false },
+        ];
         break;
       }
       case 'israel': {
@@ -1990,7 +2008,7 @@ const Game = (() => {
     UI.renderAll(G);
     // the coalition cable is the one that leaves a phone ringing behind it —
     // the call goes in front of afterAction rather than instead of it
-    const after = pendingLeaderCall() ? () => leaderCall(afterAction) : afterAction;
+    const after = () => maybeLeaderCall(afterAction);
     // an intelligence tasking comes back as a product, not a cable — it spends
     // the intel slot rather than the diplomatic one, and the player should be
     // able to tell at a glance which of the two they spent
@@ -2003,17 +2021,38 @@ const Game = (() => {
   // trivial: this is a courtesy, not a lever, and a president who cannot spare
   // ninety seconds for an ally who just committed their own aircrew should pay
   // for it in exactly the currency the snub is denominated in — nothing else.
-  const pendingLeaderCall = () => !!(G.leaderCall && !G.leaderCall.answered);
+
+  // A call nobody has answered yet whose turn has come round. The queue is in
+  // order, so this is always the earliest one outstanding.
+  const pendingLeaderCall = () =>
+    (G.leaderCalls || []).find(c => !c.answered && G.turn >= c.turn) || null;
+
+  // Nobody in the situation room is put through the instant the president stops
+  // reading. The pause is the switchboard: the cable goes out, or the night's
+  // damage is acknowledged, and then — a beat later — the phone rings.
+  const CALL_DELAY = 3000;
+
+  // Fire the outstanding call, if there is one, CALL_DELAY after whatever the
+  // player was just looking at. `done` runs either way and exactly once, so a
+  // caller can hand its continuation straight through.
+  function maybeLeaderCall(done) {
+    if (!pendingLeaderCall()) { if (done) done(); return; }
+    setTimeout(() => leaderCall(done), CALL_DELAY);
+  }
 
   function leaderCall(done) {
-    const L = WORLD_LEADERS.find(l => l.id === (G.leaderCall || {}).who);
+    const call = pendingLeaderCall();
+    const L = call && WORLD_LEADERS.find(l => l.id === call.who);
     if (!L) { if (done) done(); return; }
-    UI.openLeaderCall(L,
+    // which take of the call this is — see WORLD_LEADERS in data.js. Falls back
+    // to the hedged one, which is the version that is always safe to play.
+    const V = L[call.tone] || L.standard;
+    UI.openLeaderCall(L, V,
       // banked the instant they answer, not when the popup closes: the call
-      // itself runs eleven seconds and a tab closed mid-sentence must not lose
-      // a decision the player already made
+      // itself runs the better part of ten seconds and a tab closed mid-sentence
+      // must not lose a decision the player already made
       (accepted) => {
-        G.leaderCall.answered = true;
+        call.answered = true;
         G.world = clamp(G.world + (accepted ? 1 : -1), 0, 100);
         UI.renderAll(G);
         Save.write();
@@ -2309,6 +2348,11 @@ const Game = (() => {
             setResolving(false);
             if (result) { finish(result); return; }
             nextTurn();
+            // Paris was always going to be a night behind London. The new turn
+            // has just started, so if the second coalition call is due this is
+            // where it comes in — a beat after the president has finished
+            // reading what Tehran did to them overnight.
+            if (!G.over) maybeLeaderCall(null);
           };
           if (!theirs.length) { close(); return; }
           UI.showReport(`IRANIAN RETALIATION — DAY ${day}, TURN ${G.turn}`, theirs, close);
@@ -2579,7 +2623,7 @@ const Game = (() => {
     start(true);
     // saved between the coalition cable and answering the phone: it is still
     // ringing when the situation room reconvenes
-    if (pendingLeaderCall()) leaderCall(null);
+    maybeLeaderCall(null);
   }
 
   // ============================================================

@@ -1008,10 +1008,12 @@ const UI = (() => {
   // ============================================================
   // ALLIED HEAD-OF-GOVERNMENT CALL
   // ------------------------------------------------------------
-  // Fires once, off the coalition cable (see `leaderCall` in game.js). Take it
-  // or don't; the numbers are tiny either way and the point is the moment, not
-  // the point. Everything about the leader — name, portrait colours, which flag
-  // goes on the lapel, which clip plays — comes from WORLD_LEADERS in data.js.
+  // Runs twice a campaign at most: London off the coalition cable, Paris the
+  // following turn (see `leaderCalls` in game.js). Take it or don't; the numbers
+  // are tiny either way and the point is the moment, not the point. Everything
+  // about the leader — name, portrait colours, which flag goes on the lapel —
+  // comes from WORLD_LEADERS in data.js, and which of that leader's two takes
+  // gets played is decided there too and handed in as `V`.
   // ============================================================
 
   // The flag pin on the lapel, drawn at r=8 around a local origin so both flags
@@ -1079,10 +1081,15 @@ const UI = (() => {
       `</svg>`;
   }
 
+  // `L` is the leader (identity and portrait); `V` is the version of the call
+  // being placed — clip, caption and readout — picked on world opinion back in
+  // game.js. Everything that varies with tone comes off `V`, everything that is
+  // the same person either way comes off `L`.
+  //
   // `onResolve(accepted)` runs the moment the player answers — before the call
   // plays out — so the world-opinion swing is banked and saved even if they
   // close the tab while the leader is still talking.
-  function openLeaderCall(L, onResolve, onDone) {
+  function openLeaderCall(L, V, onResolve, onDone) {
     const modal = $('leader-call-modal').querySelector('.modal');
     modal.classList.remove('connected', 'ended');
     $('lc-portrait').innerHTML = drawLeader(L);
@@ -1098,7 +1105,13 @@ const UI = (() => {
     $('lc-effect').classList.add('hidden');
     $('lc-footer').innerHTML = '';
 
+    // The switchboard rings until somebody does something about it. Both
+    // buttons stop it, and so does closing the popup — a bell still going after
+    // the call has been dealt with is the one bug this is worth guarding.
+    AudioSys.ringStart();
+
     const close = () => {
+      AudioSys.ringStop();
       $('leader-call-modal').classList.add('hidden');
       if (onDone) onDone();
     };
@@ -1120,6 +1133,7 @@ const UI = (() => {
     };
 
     btn('DECLINE — SECSTATE TAKES IT', 'btn-secondary', () => {
+      AudioSys.ringStop();
       onResolve(false);
       modal.classList.add('ended');
       $('lc-state-text').textContent = 'DECLINED — CALL PASSED TO STATE';
@@ -1130,21 +1144,22 @@ const UI = (() => {
     });
 
     btn('ACCEPT THE CALL', 'btn-primary', () => {
+      AudioSys.ringStop();   // picked up — the bell stops before the line opens
       onResolve(true);
       modal.classList.add('connected');
       $('lc-state-text').textContent = 'LINE OPEN — SECURE';
-      $('lc-line').textContent = L.caption;
+      $('lc-line').textContent = V.caption;
       effect('WORLD OPINION +1', false);
       $('lc-footer').innerHTML = '';
       // The clip is the scene. END CALL cuts it short and hands straight on to
       // the same finish the clip would have reached on its own, so a player who
-      // does not want to sit through eleven seconds never has to.
-      const end = btn('END CALL', 'btn-secondary', () => AudioSys.cut(L.clip));
-      AudioSys.playThen(L.clip, () => {
+      // does not want to sit through the whole thing never has to.
+      const end = btn('END CALL', 'btn-secondary', () => AudioSys.cut(V.clip));
+      AudioSys.playThen(V.clip, () => {
         modal.classList.remove('connected');
         modal.classList.add('ended');
         $('lc-state-text').textContent = 'CALL ENDED';
-        $('lc-outcome').textContent = L.accepted;
+        $('lc-outcome').textContent = V.accepted;
         $('lc-outcome').classList.remove('hidden');
         end.textContent = 'ACKNOWLEDGE';
         end.className = 'btn-primary';

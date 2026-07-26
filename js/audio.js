@@ -29,9 +29,16 @@ const AudioSys = (() => {
     raidInfil: 'spec-ops-infil.m4a',
     // Heads of government on the secure line once the coalition forms. Played
     // through playThen so the popup can hold the "line open" state for exactly
-    // as long as the leader is actually talking.
-    ukPmCall: 'uk-pm-call.mp3',           // ~11.2 s
-    francePmCall: 'france-pm-call.mp3',   // ~4.7 s
+    // as long as the leader is actually talking. Two takes each — the `Strong`
+    // ones play when world opinion was above LEADER_STRONG_WORLD when the
+    // coalition formed (see WORLD_LEADERS in data.js).
+    ukPmCall: 'uk-pm-call.mp3',                      // ~11.2 s
+    francePmCall: 'france-pm-call.mp3',              // ~4.7 s
+    ukPmCallStrong: 'uk-pm-call-strong.mp3',         // ~7.4 s
+    francePmCallStrong: 'france-pm-call-strong.mp3', // ~8.2 s
+    // The switchboard, ringing under the incoming-call popup until it is
+    // answered or declined. Looped by hand — see ringStart.
+    phoneRing: 'phone-ring.m4a',   // ~2.3 s
   };
 
   // Per-clip playback level, 0..1. Anything not listed plays at full volume.
@@ -185,6 +192,45 @@ const AudioSys = (() => {
     if (finish) finish();
   }
 
+  // ---- the switchboard ringing ----
+  // `loop` on the element rings the clip end to end, which is a fire alarm, not
+  // a telephone. A phone rings in bursts, so the silence is scheduled by hand:
+  // play the burst, wait for it to actually finish, hold RING_GAP, ring again —
+  // until the player answers or declines. The gap is measured from the end of
+  // the burst rather than its start so a clip that decodes slowly still gets the
+  // same silence after it.
+  const RING_GAP = 1500;
+  let ringing = false, ringTimer = null, ringOnEnd = null;
+
+  function ringStart() {
+    const c = clips.phoneRing;
+    if (ringing || muted || !unlocked || !c) return;
+    ringing = true;
+    const ring = () => {
+      if (!ringing) return;
+      try {
+        c.currentTime = 0;
+        const p = c.play();
+        if (p && p.catch) p.catch(() => {});
+      } catch (e) { /* silent */ }
+    };
+    ringOnEnd = () => { ringTimer = setTimeout(ring, RING_GAP); };
+    c.addEventListener('ended', ringOnEnd);
+    ring();
+  }
+
+  // Safe to call on a ring that never started, and safe to call twice — the
+  // popup calls it from every path out of the incoming state.
+  function ringStop() {
+    ringing = false;
+    clearTimeout(ringTimer);
+    ringTimer = null;
+    const c = clips.phoneRing;
+    if (!c) return;
+    if (ringOnEnd) { c.removeEventListener('ended', ringOnEnd); ringOnEnd = null; }
+    try { c.pause(); c.currentTime = 0; } catch (e) { /* silent */ }
+  }
+
   // Klaxon on the moments that change the war: the strait slams shut, or
   // the casualty count crosses what the home front will bear watching.
   // Called from the HUD render so every state change passes through it.
@@ -210,6 +256,9 @@ const AudioSys = (() => {
     } else if (!muted && missionCount > 0) {
       playMissionTrack();   // a jet scope is still live — resume music
     }
+    // muting mid-ring hangs up the bell, not the call: the popup is still there
+    // and still waiting on an answer, it has just stopped making noise
+    if (muted) ringStop();
     try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch (e) {}
     const btn = document.getElementById('btn-mute');
     if (btn) {
@@ -232,5 +281,5 @@ const AudioSys = (() => {
     setMuted(muted);
   }
 
-  return { init, play, playThen, cut, alertCheck, isMuted, setMuted, missionMusicStart, missionMusicStop, missionMusicStopAll };
+  return { init, play, playThen, cut, ringStart, ringStop, alertCheck, isMuted, setMuted, missionMusicStart, missionMusicStop, missionMusicStopAll };
 })();
