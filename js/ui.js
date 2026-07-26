@@ -521,7 +521,7 @@ const UI = (() => {
       },
       {
         id: 'coalition', name: 'Build strike coalition',
-        desc: G.coalition ? 'Coalition assembled — allied sorties added.' : 'Bring allies in formally. Adds fighter capacity, world opinion +.',
+        desc: G.coalition ? 'Coalition assembled — allied sorties added.' : 'Bring in allied support',
         disabled: G.coalition,
       },
       {
