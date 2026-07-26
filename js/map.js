@@ -291,6 +291,7 @@ const MapView = (() => {
     // US assets
     for (const a of US_ASSETS) {
       if (a.forward) continue; // rendered on the forward layer above
+      if (a.nomap) continue;   // off-chart staging field — origin only, no icon
       const g = assetIcon(a);
       attachTooltip(g, () => `<span class="tt-name">${a.name}</span><br>${a.desc}`);
       world.appendChild(g);
@@ -923,8 +924,10 @@ const MapView = (() => {
     const stealth = assetType === 'stealth';
     const heavy = assetType === 'heavy';
     const cruise = assetType === 'cruise';
-    // both bomber tiers stage off the Diego Garcia ramp and neither of them is
-    // a fighter, so they share the origin and most of the presentation
+    // both bomber tiers stage off a ramp outside the theater and neither of
+    // them is a fighter, so they share most of the presentation — but not the
+    // origin. The B-2s come north out of Diego Garcia; the heavies come
+    // southeast out of Fairford, which is off the top-left of the chart.
     const fromRamp = stealth || heavy;
     // (the submarine shot never reaches here — it is a torpedo on a sonar
     // display, and animateStrike sends it to animateSonar instead)
@@ -939,12 +942,14 @@ const MapView = (() => {
       : cruise ? { type: 'RGM-109 TLAM', cs: 'ARSENAL' }
       : pick(pool.filter(f => f.from === fromGroup));
     // TLAMs come off whichever strike group is actually in the water
-    const origin = fromRamp ? US_ASSETS.find(a => a.id === 'diego')
+    const origin = fromRamp ? US_ASSETS.find(a => a.id === STRIKE_ORIGINS[assetType])
       : cruise ? (US_ASSETS.find(a => a.id === STRIKE_ORIGINS.cruise && a.active !== false)
           || nearestSortieBase(target, true))
       : nearestSortieBase(target, ft.from === 'carrier');
     const callsign = `${ft.cs} ${rand(1, 9)}${rand(1, 9)}`;
-    const baseName = origin.id === 'diego' ? 'DIEGO GARCIA' : origin.short;
+    // the ramps carry a display name because their `short` is a map label with
+    // a tier tag and a direction arrow in it, which reads as noise in a header
+    const baseName = origin.ramp || origin.short;
     // one silhouette per aircraft/missile in the run — capped so a fat package
     // doesn't overflow the tiny scope
     const N = Math.max(1, Math.min(6, count | 0 || 1));
@@ -1006,8 +1011,11 @@ const MapView = (() => {
     const fill = (s) => s.replace(/\{cs\}|\{base\}|\{tgt\}/g, (m) => subs[m]);
     // `only` matches either the exact tier or the family it belongs to, so a
     // line written for "fighter" plays for both manned fighter tiers and a line
-    // written for "heavy" plays only for the bomber cells
-    const family = fromRamp ? 'stealth' : 'fighter';
+    // written for "bomber" plays for both bomber tiers. The family is NOT named
+    // 'stealth': the two bomber tiers fly from opposite sides of the theater
+    // now, and 'stealth' has to keep meaning the B-2 alone so a line about the
+    // Indian Ocean tanker track does not play for a cell out of Gloucestershire.
+    const family = fromRamp ? 'bomber' : 'fighter';
     const evs = (cruise ? CRUISE_EVENTS : FLIGHT_EVENTS)
       .filter(e => !e.only || e.only === assetType || e.only === family)
       .sort((a, b) => a.at - b.at);
@@ -1181,10 +1189,12 @@ const MapView = (() => {
     }
   }
 
-  // ---- bomber transit cards: the Diego Garcia leg, kept visible ----
-  // Everything staging off the atoll is ETA 2. While one is still in transit it
-  // gets a compact card — no radar, no attack view — so the distance reads as
-  // time. Both bomber tiers fly the same leg and both get one.
+  // ---- bomber transit cards: the long leg in from the ramp, kept visible ----
+  // Everything staging off an out-of-theater ramp is ETA 2. While one is still
+  // in transit it gets a compact card — no radar, no attack view — so the
+  // distance reads as time. Both bomber tiers get one; they fly different legs
+  // (Diego Garcia for the B-2s, Fairford for the heavies) so the mileage and the
+  // header are computed off whichever ramp that package actually launched from.
   const NM_PER_MAP = 1 / KM_TO_MAP / 1.852;
   const RAMP_ASSETS = ['stealth', 'heavy'];
 
@@ -1200,11 +1210,11 @@ const MapView = (() => {
     const { transit } = fsStacks();
     const inbound = (missions || []).filter(m => m.pkg && RAMP_ASSETS.includes(m.pkg.asset) && m.eta > 1);
     transit.innerHTML = '';
-    const diego = US_ASSETS.find(a => a.id === 'diego');
     for (const m of inbound) {
       const t = TARGETS.find(x => x.id === m.targetId);
-      if (!t || !diego) continue;
-      const nm = Math.round(Math.hypot(diego.x - t.x, diego.y - t.y) * NM_PER_MAP / 50) * 50;
+      const ramp = US_ASSETS.find(a => a.id === STRIKE_ORIGINS[m.pkg.asset]);
+      if (!t || !ramp) continue;
+      const nm = Math.round(Math.hypot(ramp.x - t.x, ramp.y - t.y) * NM_PER_MAP / 50) * 50;
       const turns = m.eta - 1;
       // the cell's actual airframe is picked when it goes on the scope, so the
       // transit card stays generic rather than promising a type it may not fly
@@ -1214,7 +1224,7 @@ const MapView = (() => {
       const card = document.createElement('div');
       card.className = 'flight-entry transit-card';
       card.innerHTML =
-        `<div class="fs-head">${transitCallsign(t.id, m.pkg.asset)} · ${type} — DIEGO GARCIA → ${t.short}</div>` +
+        `<div class="fs-head">${transitCallsign(t.id, m.pkg.asset)} · ${type} — ${ramp.ramp} → ${t.short}</div>` +
         `<div class="transit-strip"><span class="transit-dot"></span></div>` +
         `<div class="fs-lines"><div class="fs-line">> ${tag} — ` +
         `${nm.toLocaleString()} NM — ${turns} TURN${turns === 1 ? '' : 'S'} TO TOT</div></div>`;

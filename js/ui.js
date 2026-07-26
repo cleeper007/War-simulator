@@ -288,7 +288,7 @@ const UI = (() => {
     $('resources-list').innerHTML = html;
     // shut, the assets panel shows the magazine that actually runs out first
     setBadge('resources', `${tk} TKR`, tkCls === 'crit' ? '' : 'badge-none');
-    // B-2s still crossing the Indian Ocean get a transit card in the scope panel
+    // bombers still on the long leg in get a transit card in the scope panel
     MapView.updateTransit(G.missions);
   }
 
@@ -360,14 +360,14 @@ const UI = (() => {
     }
     if (G.heaviesOrdered) {
       return {
-        label: 'EN ROUTE — CONUS → DIEGO GARCIA', cls: 'cv-moving',
-        note: `Crossing on tankers — ${G.heavyEta} turn(s) out.`,
+        label: 'EN ROUTE — CONUS → RAF FAIRFORD', cls: 'cv-moving',
+        note: `Crossing the Atlantic on tankers — ${G.heavyEta} turn(s) out.`,
       };
     }
     return {
       label: 'NOT IN THEATER', cls: 'cv-away',
       note: Game.phaseAtLeast('degraded')
-        ? 'B-1s at Dyess and B-52s at Barksdale. Two turns to Diego Garcia — and the heaviest conventional weight in the inventory.'
+        ? 'B-1s at Dyess and B-52s at Barksdale. Two turns to RAF Fairford — and the heaviest conventional weight in the inventory.'
         : 'B-1s at Dyess and B-52s at Barksdale. They will not be moved into a theater whose air defenses are still intact.',
     };
   }
@@ -465,7 +465,7 @@ const UI = (() => {
     if (!G.heaviesArrived) {
       if (G.heaviesOrdered) {
         heavyBtn = `<button disabled>HEAVY BOMBER FORCE EN ROUTE<span class="diplo-desc">` +
-          `ETA ${G.heavyEta} turn(s) to Diego Garcia.</span></button>`;
+          `ETA ${G.heavyEta} turn(s) to RAF Fairford.</span></button>`;
       } else if (!Game.phaseAtLeast('degraded')) {
         heavyBtn = `<button disabled>HEAVY BOMBERS — AIRSPACE STILL CONTESTED<span class="diplo-desc">` +
           `Air Combat Command will not flow B-1s and B-52s into a theater with an intact SAM belt. ` +
@@ -474,7 +474,7 @@ const UI = (() => {
         heavyBtn = `<button disabled>TRANSIT COMMITTED — ANOTHER FORCE IS MOVING` +
           `<span class="diplo-desc">One force flow a night. The heavies go out on tomorrow's plan.</span></button>`;
       } else {
-        heavyBtn = `<button data-heavy-order="1">DEPLOY HEAVY BOMBER FORCE — CONUS → DIEGO GARCIA` +
+        heavyBtn = `<button data-heavy-order="1">DEPLOY HEAVY BOMBER FORCE — CONUS → RAF FAIRFORD` +
           `<span class="diplo-desc">Moves the B-1 and B-52 force into theater. ${Game.HEAVY_TRANSIT_TURNS} turns out. ` +
           `Each package takes roughly half again what a fighter package takes off a target — but they will not be ` +
           `tasked until air superiority is declared, so calling them early is a bet on the campaign going well.</span></button>`;
@@ -763,6 +763,7 @@ const UI = (() => {
     const eta = pkg.eta || (ramp ? 2 : 1);
     const totWhy = pkg.joint ? 'joint mission planning and transit'
       : pkg.sub ? 'the boat has to close the range submerged before she shoots'
+      : pkg.asset === 'heavy' ? 'transit from RAF Fairford'
       : 'transit from Diego Garcia';
     const tot = eta > 1
       ? `TIME ON TARGET: <span class="est-warn">${eta} turns — ${totWhy}</span>`

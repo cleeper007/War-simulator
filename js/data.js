@@ -347,7 +347,7 @@ const PKG_DAMAGE = 55;
 //      and each one carries far more, but they are 1980s airframes and they
 //      die in defended airspace. Volume, not survivability.
 //   3. Once nobody is contesting the sky at all, the heavies come — B-1s and
-//      B-52s off Diego Garcia, which is what it looks like when the United
+//      B-52s off RAF Fairford, which is what it looks like when the United
 //      States stops raiding and starts flattening. One heavy package does the
 //      work of two nights of fighters. They are also the most helpless thing
 //      in the inventory if the belt comes back up.
@@ -364,7 +364,8 @@ const PKG_DAMAGE = 55;
 // They only book tankers once the target sits deep — the interior and the
 // northwest, everything north of Abadan and west of Nojeh (depth 2+). The
 // bombers are the opposite: a B-1, B-52 or B-2 is on the tanker every night, at
-// every depth, because it is staging from Diego Garcia in the first place.
+// every depth, because it is staging from Fairford or Diego Garcia in the first
+// place and neither of those is anywhere near Iran.
 const AIR_ASSETS = {
   f35:     { ad: 0.02, loss: 0.015, weight: 45, tanker: (d) => d >= 2 ? 2 + d : 0 },
   fighter: { ad: 0.11, loss: 0.060, weight: 62, tanker: (d) => d >= 2 ? 2 + d : 0, needs: 'degraded' },
@@ -424,8 +425,12 @@ const FORCE_FLOW = [
 // ============================================================
 // THE HEAVY BOMBER FORCE
 // ------------------------------------------------------------
-// B-1Bs and B-52s off the Diego Garcia ramp — the same field as the 509th and
-// a completely different weapon. A B-2 is a key cut for one lock; the heavies
+// B-1Bs and B-52s off the RAF Fairford ramp — a different field from the 509th
+// and a completely different weapon. Fairford is where the Air Force has always
+// bedded heavies down for a Middle East war: it is a real ramp with real
+// munitions storage, it is inside NATO, and it puts the cells over Iran from the
+// northwest rather than up out of the Indian Ocean. Diego Garcia stays the
+// B-2's. A B-2 is a key cut for one lock; the heavies
 // are tonnage, and tonnage is what actually takes a country's ability to fight
 // away from it. They cannot penetrate anything and they will not be tasked
 // into contested airspace, which is why they are the reward for the first two
@@ -561,13 +566,28 @@ const US_ASSETS = [
     desc: 'F-35 squadrons and ISR platforms. Within Iranian ballistic missile range.' },
   { id: 'asad', name: 'Ain al-Asad AB — Iraq', short: 'AIN AL-ASAD', x: 131, y: 216, kind: 'airbase', sortie: true,
     desc: 'US forces in western Iraq. Repeatedly targeted by Iranian missiles and proxy rockets.' },
-  // active: false — the ramp is bare until the bomber force is called forward
-  // from Whiteman AFB. Nothing stealthy exists in this theater until it is.
-  // parked in the open water south of Oman's cape, clear of the carrier boxes
-  // out east; the arrow points off the bottom of the chart, which is where the
-  // atoll actually is
-  { id: 'diego', name: 'Diego Garcia (B-2 staging)', short: 'B-2 // DIEGO GARCIA ↓', x: 660, y: 730, kind: 'bomber', active: false,
+  // active: false — the ramp is bare until the 509th is called forward from
+  // Whiteman AFB. Nothing stealthy exists in this theater until it is.
+  //
+  // The atoll's real position is 7.3S 72.4E, which projects to y≈1770 — a long
+  // way below the bottom of the chart. The marker sits at the atoll's true
+  // LONGITUDE out in the Laccadive Sea, bottom-right of the plot, with the ↓ in
+  // its label pointing due south down the meridian the real thing is on. Open
+  // water: west of Kerala, south of the Indian shelf, clear of every carrier
+  // box. Diego Garcia is B-2s only — the heavies fly out of Fairford.
+  { id: 'diego', name: 'Diego Garcia (B-2 staging)', short: 'B-2 // DIEGO GARCIA ↓', x: 1130, y: 1130, kind: 'bomber', active: false,
+    ramp: 'DIEGO GARCIA',
     desc: 'Staging field 2,900 nm south. Empty until the 509th Bomb Wing is deployed forward from Whiteman AFB, Missouri — and the B-2 is the only platform that can kill Fordow.' },
+  // RAF Fairford (51.7N 1.8W) — the heavy bomber ramp, and the one US asset in
+  // the game that is nowhere near the chart: it projects to roughly (-1343,
+  // -460), off the top-left corner by a wide margin. `nomap` keeps it out of the
+  // render loop entirely; it exists only so a heavy package has a real origin to
+  // compute a bearing and a transit distance from. The northwest inbound track
+  // it produces is correct — the heavies come down over Europe and Iraq, not up
+  // out of the Indian Ocean like the B-2s.
+  { id: 'fairford', name: 'RAF Fairford — England (heavy bomber staging)', short: 'FAIRFORD',
+    x: -1343, y: -460, kind: 'bomber', nomap: true, ramp: 'RAF FAIRFORD',
+    desc: 'The Air Force\'s forward operating base for heavy bombers, Gloucestershire. Empty until the B-1 and B-52 force is called forward from Dyess and Barksdale.' },
   // The one American shooter Iran cannot see, plotted where Fifth Fleet last had
   // her rather than where she is. She takes her Tomahawks out of the same
   // theater magazine everything else does — a submarine shot is not a free shot,
@@ -645,7 +665,7 @@ const FORD_INGRESS = { x: 1120, y: 790 };
 // scope comes from where the boat is rather than from where the carrier is.
 const STRIKE_ORIGINS = {
   f35: 'csg-lincoln', fighter: 'csg-lincoln', cruise: 'csg-lincoln',
-  stealth: 'diego', heavy: 'diego', sub: 'ssn-toledo',
+  stealth: 'diego', heavy: 'fairford', sub: 'ssn-toledo',
 };
 
 // The boat's own war shots. A submarine attack is the one package in the game
@@ -684,7 +704,7 @@ const FLIGHT_DUR = { f35: 10500, fighter: 10500, stealth: 16000, heavy: 14000, c
 // from decides whether it launches off a carrier or a land base. The split is
 // the whole point of the force structure — the 5th-gen pool is what flies on
 // night one, the 4th-gen pool is what floods in once the belt is broken, and
-// the heavies come off the Diego Garcia ramp at the end.
+// the heavies come off the Fairford ramp at the end.
 const F35_TYPES = [
   { type: 'F-35A', cs: 'PANTHER', from: 'land' },
   { type: 'F-35C', cs: 'WARLOCK', from: 'carrier' },
@@ -705,7 +725,11 @@ const HEAVY_TYPES = [
 //   at:    fraction of the flight when the entry fires (values > 1 fire on the
 //          egress leg home, where 1.0 = weapons away and 2.0 = animation end)
 //   kind:  'status' always fires; 'problem' fires with probability `chance`
-//   only:  'stealth' | 'fighter' restricts an entry to that platform
+//   only:  restricts an entry to one tier ('stealth' | 'heavy' | 'f35' |
+//          'fighter') or to a family — 'bomber' is both bomber tiers, 'fighter'
+//          is both manned fighter tiers. 'stealth' is the B-2 alone, which
+//          matters: it is the only thing that still stages out of the Indian
+//          Ocean, and the heavies fly the Fairford leg instead.
 //   msgs:  one is picked at random; {cs} {base} {tgt} are substituted
 const FLIGHT_EVENTS = [
   { at: 0.02, kind: 'status', msgs: [
@@ -720,7 +744,7 @@ const FLIGHT_EVENTS = [
     'Refueling complete — pushing to the line',
   ] },
   { at: 0.30, kind: 'status', only: 'heavy', msgs: [
-    'Heavy is on the boom — full offload, then the long leg north',
+    'Heavy is on the boom over the eastern Med — full offload, then the run in',
     'Cell is joined and level — running the whole target set off one pass',
   ] },
   { at: 0.90, kind: 'status', only: 'heavy', msgs: [

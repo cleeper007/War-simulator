@@ -655,7 +655,7 @@ const Game = (() => {
         cls: 'friendly', title: 'AIR SUPERIORITY DECLARED OVER IRAN',
         text: 'Nothing is contesting the sky. The SAM network is rubble and the fighter bases are cratered, and ' +
           'for the first time American aircraft are operating over Iran on their own terms. The heavy bomber ' +
-          'force can be called forward — B-1s and B-52s off Diego Garcia, which is the difference between ' +
+          'force can be called forward — B-1s and B-52s off RAF Fairford, which is the difference between ' +
           'raiding a country and dismantling one.',
       };
       if (!G.milestones.superiority) {
@@ -676,7 +676,7 @@ const Game = (() => {
           'tonight\'s tasking order and the aimpoints they were servicing go with them. The door has to be ' +
           'kicked a second time.'
         : 'Enough of the air defense network is back on the air that CENTCOM will no longer put heavy bombers ' +
-          'over Iran. The B-1s and B-52s are on the ramp at Diego Garcia and they are staying there until the ' +
+          'over Iran. The B-1s and B-52s are on the ramp at Fairford and they are staying there until the ' +
           'belt is taken down again.',
     }];
   }
@@ -957,11 +957,12 @@ const Game = (() => {
   // two-turn transit against it, which is exactly the call a real staff makes.
   // Actually flying them needs the sky to be taken (see pkgBlock), so a player
   // who calls them early and then lets the SAM belt come back has a squadron of
-  // very expensive aircraft parked on an atoll doing nothing.
+  // very expensive aircraft parked in Gloucestershire doing nothing.
   //
-  // They come off the same ramp as the 509th and they do not compete with it —
-  // Diego Garcia is a long way from anything Iran can reach, and the transit
-  // that matters is Fifth Fleet's, which is why this one takes a slot too.
+  // They stage out of RAF Fairford rather than Diego Garcia — the atoll is the
+  // 509th's — and they do not compete with it: neither field is anywhere Iran
+  // can reach, and the transit that matters is Fifth Fleet's, which is why this
+  // one takes a slot too.
   // ============================================================
   function orderHeavies() {
     if (G.over || G.heaviesOrdered || transitCommitted() || busy()) return;
@@ -984,8 +985,8 @@ const Game = (() => {
     G.res.heavy = HEAVY_READY;
     AudioSys.play('cable');
     return {
-      cls: 'friendly', title: 'HEAVY BOMBER FORCE IN THEATER — DIEGO GARCIA',
-      text: 'B-1Bs out of Dyess and B-52s out of Barksdale are on the ramp at Diego Garcia, and the munitions ' +
+      cls: 'friendly', title: 'HEAVY BOMBER FORCE IN THEATER — RAF FAIRFORD',
+      text: 'B-1Bs out of Dyess and B-52s out of Barksdale are on the ramp at RAF Fairford, and the munitions ' +
         'yard has been working around the clock to meet them. A single one of these aircraft carries more ' +
         'ordnance than a four-ship of Strike Eagles. They cannot penetrate anything, they cannot survive a ' +
         'SAM belt, and against fixed targets in an empty sky they will take Iran\'s ability to fight apart ' +
@@ -1284,7 +1285,7 @@ const Game = (() => {
     }
     if (pkg.asset === 'heavy' && !G.heaviesArrived) {
       return G.heaviesOrdered
-        ? `HEAVY BOMBER FORCE EN ROUTE — ${G.heavyEta} turn(s) from the Diego Garcia ramp.`
+        ? `HEAVY BOMBER FORCE EN ROUTE — ${G.heavyEta} turn(s) from the Fairford ramp.`
         : 'HEAVY BOMBER FORCE NOT IN THEATER — the B-1s and B-52s are in CONUS and have to be called forward.';
     }
     return null;
@@ -1375,8 +1376,9 @@ const Game = (() => {
   // mission IN FLIGHT: fighter and TLAM packages arrive at the end of this
   // turn; B-2s transiting from Diego Garcia take two turns. BDA comes back
   // with the battle report — you commit, then you wait.
-  // the heavies stage off Diego Garcia like the B-2s do, and the flight time
-  // from an atoll 2,900 nm south is the same for a Bone as it is for a Spirit
+  // the heavies stage off Fairford rather than the atoll, but the leg is the
+  // same order of magnitude — a Bone coming down over Europe and a Spirit coming
+  // up out of the Indian Ocean both spend a night getting there
   const MISSION_ETA = { f35: 1, fighter: 1, cruise: 1, stealth: 2, heavy: 2 };
 
   function executeStrike(target, pkg) {
@@ -2293,8 +2295,8 @@ const Game = (() => {
     // ready launchers reload at the same rate as ever — but never past what is
     // still in the theater reservoir, so a drained magazine cannot be topped off
     G.res.cruise = Math.min(G.res.cruise + cap.repCruise, G.caps.cruise, G.tlamPool);
-    // the bombers only regenerate once there are bombers — turnaround at Diego
-    // Garcia is three turns per airframe, and an empty ramp turns nothing around
+    // the bombers only regenerate once there are bombers — turnaround on the
+    // ramp is three turns per airframe, and an empty ramp turns nothing around
     if (G.bombersArrived && G.turn % 3 === 0) {
       G.res.stealth = Math.min(G.res.stealth + 1, G.caps.stealth);
     }
