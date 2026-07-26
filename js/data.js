@@ -922,11 +922,15 @@ const HORMUZ_POS = { x: 607, y: 494 };
 // be bothered.
 //
 // Each leader has two versions of the same call, chosen on world opinion at the
-// moment the coalition forms (LEADER_STRONG_WORLD). Above the line the allies
-// are joining a war the world already backs and they say so without conditions;
-// at or below it they are joining anyway, but the support comes hedged. Same
-// mechanical effect either way — what changes is what the player hears, which is
-// the honest reward for having kept the world on side before asking for help.
+// moment the coalition forms (LEADER_STRONG_WORLD). Above the line the ally
+// gives you the most it has in it to give; at or below it the same government
+// gives you markedly less. For London that is the distance between unconditional
+// backing and a warm but ordinary call. For Paris it is the distance between a
+// defensive contribution and a flat refusal to take part at all — France is the
+// ally who is never fully in, and the good version of her call is still a no to
+// everything offensive. Same mechanical effect either way — what changes is what
+// the president hears, which is the honest reward for having kept the world on
+// side before asking for help.
 //
 // `clip` keys into AudioSys.FILES; `caption` is the fallback shown when the
 // audio can't play (muted, autoplay refused, file missing) and is written as a
@@ -972,22 +976,26 @@ const WORLD_LEADERS = [
     country: 'FRANCE',
     pin: 'tricolore',
     skin: '#e3b08c', hair: '#2b2b2b', suit: '#26314a', tie: '#2f5390',
-    declined: 'You let it go to the Secretary of State. Paris reads the snub exactly as a snub, ' +
-      'and the French line on the operation cools from "participating" to "informed" overnight.',
+    declined: 'You let it go to the Secretary of State. Paris reads the snub exactly as a snub. ' +
+      'Whatever the Prime Minister intended to say to you privately he now says in public instead, ' +
+      'and the French position on this war hardens a degree overnight.',
     strong: {
       clip: 'francePmCallStrong',
-      caption: 'The Prime Minister commits France to the operation in full and says Paris will ' +
-        'carry the argument at the Security Council rather than wait to be persuaded.',
-      accepted: 'You take the call. Matignon\'s readout goes further than the Élysée had cleared ' +
-        'and nobody walks it back — France is in, publicly, and the French seat at the Security ' +
-        'Council is now being worked as hard as your own.',
+      caption: 'The Prime Minister offers French forces in a defensive role only — nothing that ' +
+        'flies against Iran — and urges restraint and a negotiated end to the war.',
+      accepted: 'You take the call. Matignon\'s readout is careful about what it is not: French ' +
+        'assets are committed to the defence of the region and to nothing beyond it, and every ' +
+        'line after that is about the diplomatic track. It is as far as Paris will go, and the ' +
+        'Prime Minister went to the trouble of saying it to you himself.',
     },
     standard: {
       clip: 'francePmCall',
-      caption: 'The Prime Minister confirms French participation and presses for the political ' +
-        'track to be visible alongside the military one.',
-      accepted: 'You take the call. Matignon puts out a warm readout, and the French seat at the ' +
-        'Security Council is now being worked for you rather than around you.',
+      caption: 'The Prime Minister tells you France will not take part in the operation, and ' +
+        'warns you — plainly, on a secure line — not to make a mistake.',
+      accepted: 'You take the call. There is no warm readout to brief out: Paris confirms only ' +
+        'that the two of you spoke. France is out, and the Prime Minister thought enough of the ' +
+        'relationship to tell you so himself rather than let you learn it from a communiqué. ' +
+        'Taking the call was the only part of this you controlled.',
     },
   },
 ];
