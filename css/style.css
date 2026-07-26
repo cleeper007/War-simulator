@@ -84,11 +84,6 @@ body {
   text-align: left; color: var(--text); line-height: 1.55; margin-bottom: 26px;
 }
 .title-brief p { margin-bottom: 12px; }
-.disclaimer {
-  margin-top: 22px; font-size: 10px; color: var(--dim); line-height: 1.5;
-  border-top: 1px solid var(--line); padding-top: 14px;
-}
-
 .modal {
   width: 560px; max-width: 92vw; max-height: 86vh;
   background: var(--bg-panel);
