@@ -172,3 +172,28 @@ All eight clips referenced by `js/map.js` are present in `video/` and range 2.6�
 `carrier-launch`, `f14-hit`, `naval-bandar-hit`, `shiraz-hit`, `strike-hit` (generic
 fallback), `tabriz-hit`, `tlam-launch`, `torpedo-hit`. Match their weight and grade when
 sourcing raid footage so the raid card reads as the same sensor as the strike scope.
+
+---
+
+## Cut status — v1.15
+
+**Infil — complete.** `video/spec-ops infil/` covers all seven beats.
+
+**Assault — complete for the shared actions.** `video/spec-ops assault/` holds seven clips,
+reused across all four branches because the branches differ in what the feed *says*, not in
+what the camera sees:
+
+| Clip | Beats it carries |
+|---|---|
+| `fastrope.mov` | every branch's 30s rope-out, and holds through the quiet beat after it |
+| `Breachcharge.mov` | every wall breach (clean 39s · heloDown 48s · mixed 38s · failure 55s) |
+| `Courtyardsupressedcontact.mov` | courtyard contact, barracks contact, the IRGC company, the three-sided ambush |
+| `Interiorstackmovement.mov` | stack to the stairs, into the main house, the empty-house clear |
+| `roomentry-jackpot.mov` | every JACKPOT, holding through PID (failure branch never reaches it) |
+| `sse-documents.mov` | exploitation, SSE bags, and burning the material |
+| `static.mov` | signal snow — the loss-of-feed card from NO COMMS to the end |
+
+**Exfil — not shot.** Every beat from `EXFIL` / `MISSION COMPLETE` onward parks on NO VISUAL:
+helo lift + feet wet, deck recovery, state-TV handheld over wreckage. Three clips would close it.
+
+Filenames avoid `:` and trailing spaces on purpose — both break the URL and Windows checkouts.

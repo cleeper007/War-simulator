@@ -1703,13 +1703,60 @@ const MapView = (() => {
     // A clip that will not decode is not an error worth surfacing mid-raid; that
     // pane just falls back to NO VISUAL, which is also its resting state for
     // every beat with no footage cut yet.
+    //
+    // One element per clip only works while they all fit in the browser's media
+    // budget, and this pane got a lot heavier when the assault footage landed:
+    // the infil alone was six clips, a full mission script now names up to
+    // thirteen, and they are 2556x1180 each. Browsers cap how many elements may
+    // hold a video decoder at once — iOS Safari most aggressively, and landscape
+    // phones are a first-class target here. Past that cap the failure mode is
+    // silent: `play()` still resolves, no error event fires, and the frame just
+    // never advances, which on screen is indistinguishable from a deliberately
+    // static shot.
+    //
+    // This is a precaution, not a fix for a reproduced bug — the ceiling could
+    // not be measured reliably in an automated browser, since those suspend the
+    // page between commands and every playback reading is confounded by it. What
+    // is not in doubt is that thirteen simultaneous decoders is a bad bet on a
+    // phone. So the pane holds a bounded window and hands the decoder back for
+    // the rest. `feedPool` is insertion-ordered, least-recently-used first,
+    // which is what makes eviction a walk from the front. If footage ever
+    // arrives late on a slow connection, this window is the first thing to
+    // widen.
+    const FEED_WINDOW = 4;
     const feedWrap = entry.querySelector('.raid-feed-wrap');
     const feedPool = new Map();
     let feedCurrent = null;
+    let feedOrder = [];   // every clip this mission cuts to, in script order
+
+    // Dropping the source is what actually releases the decoder — pausing the
+    // element or pulling it out of the DOM does not.
+    function feedRelease(src) {
+      const v = feedPool.get(src);
+      if (!v || v === feedCurrent) return;
+      feedPool.delete(src);
+      v.pause();
+      v.removeAttribute('src');
+      v.load();
+      v.remove();
+    }
+
+    function feedTrim() {
+      if (feedPool.size <= FEED_WINDOW) return;
+      for (const src of [...feedPool.keys()]) {
+        if (feedPool.size <= FEED_WINDOW) break;
+        feedRelease(src);   // no-ops on whatever is currently on screen
+      }
+    }
 
     function feedEl(src) {
       let v = feedPool.get(src);
-      if (v) return v;
+      if (v) {
+        // touch: re-insert so this clip is the youngest and evicts last
+        feedPool.delete(src);
+        feedPool.set(src, v);
+        return v;
+      }
       v = document.createElement('video');
       v.className = 'raid-feed-video';
       v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
@@ -1720,17 +1767,30 @@ const MapView = (() => {
       v.src = src;
       feedWrap.appendChild(v);
       feedPool.set(src, v);
+      feedTrim();
       return v;
+    }
+
+    // Pull the clips that come after this cut in behind it, so the next beat
+    // still lands on footage that has already arrived. Beats are 4–6s apart, so
+    // a window of four is roughly twenty seconds of runway — the same guarantee
+    // the old build-everything preload gave, inside the decoder budget.
+    function feedWarm(src) {
+      const i = src ? feedOrder.indexOf(src) : -1;
+      if (i < 0) return;
+      for (let k = 1; k < FEED_WINDOW && i + k < feedOrder.length; k++) feedEl(feedOrder[i + k]);
     }
 
     function feedPlay(src) {
       const next = src ? feedEl(src) : null;
+      // Claim the current clip before anything can evict it: feedWarm touches
+      // the pool, and an un-claimed current is just the oldest entry in it.
+      feedCurrent = next;
       for (const v of feedPool.values()) {
         if (v === next) continue;
         v.classList.remove('live');
         v.pause();
       }
-      feedCurrent = next;
       if (!next) {
         feedWrap.classList.remove('has-video');
         return;
@@ -1743,6 +1803,7 @@ const MapView = (() => {
       feedWrap.classList.add('has-video');
       const p = v.play();
       if (p) p.catch(() => {});   // autoplay refusal and abort noise are not mission failures
+      feedWarm(src);
     }
 
     const svg = el('svg', { class: 'scope-view raid-view', viewBox: '0 0 200 200' });
@@ -1879,10 +1940,14 @@ const MapView = (() => {
       // footage is cut.
       clip(src) { feedPlay(src); },
 
-      // Build every clip's element up front so the beats cut to footage that is
-      // already buffered. Called once at launch: the infil runs thirty seconds,
-      // which is the budget for the whole mission's footage to arrive.
-      preload(srcs) { for (const s of srcs) if (s) feedEl(s); },
+      // Take the mission's whole clip list in script order and warm the head of
+      // it. The rest is built a few beats ahead of the cut that needs it — see
+      // FEED_WINDOW above for why this cannot just build all of them.
+      preload(srcs) {
+        feedOrder = [];
+        for (const s of srcs) if (s && feedOrder.indexOf(s) < 0) feedOrder.push(s);
+        for (let i = 0; i < FEED_WINDOW && i < feedOrder.length; i++) feedEl(feedOrder[i]);
+      },
 
       // birds run in from off the bottom of the display and settle on the LZ
       infil(ms) {
