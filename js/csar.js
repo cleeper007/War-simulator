@@ -212,7 +212,13 @@ const CSAR = (() => {
     if (!panel) return;
     const d = G.downed;
     if (!d && !running) { panel.classList.add('hidden'); return; }
+    const wasHidden = panel.classList.contains('hidden');
     panel.classList.remove('hidden');
+    // The sidebar is shut at the top of every turn and opens only when clicked
+    // — with this one exception. Americans on the ground in Iran is not news
+    // that waits behind a caret for the player to go looking for it, so the
+    // section arrives already open on the turn it arrives at all.
+    if (wasHidden) UI.openPanel('csar');
 
     const status = $('csar-status');
     const brief = $('csar-brief');

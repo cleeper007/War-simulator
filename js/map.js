@@ -307,6 +307,7 @@ const MapView = (() => {
       buildTarget(t);
     }
 
+    measureWorld();   // the crop the view is not allowed to escape
     initPanZoom();
     applyView();
   }
@@ -369,7 +370,84 @@ const MapView = (() => {
   }
 
   // ---- pan & zoom ----
+  // The chart is a crop. geodata.js carries this region and nothing outside it,
+  // so every country that runs off the edge is cut on a straight line — Africa
+  // on the left, the Sahara across the top, the Indian Ocean down the right.
+  // Those four lines are the edge of the world: bring one into frame and the
+  // map stops reading as a map and starts reading as a picture of a map. WORLD
+  // is that crop rect, and the view is clamped to stay inside it.
+  //
+  // It is measured off the geometry at render time rather than written down as
+  // a constant, because the one thing that would silently break a hardcoded
+  // rect is the thing most likely to happen to it — someone extending a country
+  // path in geodata.js. The literal below is only the fallback for a browser
+  // that hands back an empty bbox.
+  let WORLD = { x0: -350, y0: -472, x1: 1450, y1: 1303 };
+  const MAX_ZOOM = 5;
+
+  function measureWorld() {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const p of world.querySelectorAll('path.country')) {
+      const b = p.getBBox();
+      if (!b.width && !b.height) continue;
+      x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y);
+      x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height);
+    }
+    // a border is stroked, and a stroke straddles its path: hold the view two
+    // units inside the bbox so a cut edge's own line cannot peek in
+    if (x1 - x0 > 1 && y1 - y0 > 1) {
+      WORLD = { x0: x0 + 2, y0: y0 + 2, x1: x1 - 2, y1: y1 - 2 };
+    }
+  }
+
+  // How much of the world the frame is actually showing, in viewBox units.
+  // NOT simply 0,0–1000,760: the svg is xMidYMid meet, so the viewBox is fitted
+  // to the element and whatever slack is left on the wider axis shows MORE
+  // world than the viewBox asked for. A wide short window therefore sees
+  // further past the left and right edges than a square one does — which is
+  // exactly why the zoom floor below is computed per-frame instead of being the
+  // flat 0.6 it used to be. That constant was tuned against one window shape
+  // and let the crop edge show on every other.
+  // Last good measurement, kept because a zero-size rect is not a small frame —
+  // it is no answer at all (the element is mid-layout, or the tab is not being
+  // rendered). Treating it as 1000x760 would quietly relax the clamp to the
+  // viewBox and let the crop edge back in; reusing the last real frame keeps
+  // the stop where the player last saw it.
+  let lastVis = { x: 0, y: 0, w: 1000, h: 760 };
+
+  function visibleBox() {
+    const r = svg.getBoundingClientRect();
+    const vw = 1000, vh = 760;
+    if (!r.width || !r.height) return lastVis;
+    const s = Math.min(r.width / vw, r.height / vh);
+    const w = r.width / s, h = r.height / s;
+    lastVis = { x: (vw - w) / 2, y: (vh - h) / 2, w, h };
+    return lastVis;
+  }
+
+  // the widest the frame can open before it is showing more than the world has
+  function minZoom(vis) {
+    return Math.max(vis.w / (WORLD.x1 - WORLD.x0), vis.h / (WORLD.y1 - WORLD.y0));
+  }
+
+  // Pull the view back inside the crop. Applied at the single choke point every
+  // gesture goes through, so wheel, drag, pinch, the buttons and reset are all
+  // covered by one rule. Note it clamps `view` and not the gesture's anchor:
+  // a drag that runs into the edge and comes back tracks the cursor again from
+  // where it left, rather than sliding by however far it was held past the stop.
+  function clampView() {
+    const vis = visibleBox();
+    view.k = Math.min(MAX_ZOOM, Math.max(minZoom(vis), view.k));
+    // translate range that keeps the visible rect inside the crop — guaranteed
+    // non-empty by the floor just applied to k
+    const lox = vis.x + vis.w - view.k * WORLD.x1, hix = vis.x - view.k * WORLD.x0;
+    const loy = vis.y + vis.h - view.k * WORLD.y1, hiy = vis.y - view.k * WORLD.y0;
+    view.x = Math.min(Math.max(view.x, lox), hix);
+    view.y = Math.min(Math.max(view.y, loy), hiy);
+  }
+
   function applyView() {
+    clampView();
     world.setAttribute('transform', `translate(${view.x},${view.y}) scale(${view.k})`);
     // reveal each carrier's escort screen once zoomed way in
     svg.classList.toggle('map-deep-zoom', view.k >= 2.6);
@@ -379,7 +457,9 @@ const MapView = (() => {
   }
 
   function zoomAt(cx, cy, factor) {
-    const nk = Math.min(5, Math.max(0.6, view.k * factor));
+    // clamped here as well as in clampView so the point under the cursor stays
+    // under the cursor when the gesture runs into the floor or the ceiling
+    const nk = Math.min(MAX_ZOOM, Math.max(minZoom(visibleBox()), view.k * factor));
     const f = nk / view.k;
     view.x = cx - f * (cx - view.x);
     view.y = cy - f * (cy - view.y);
@@ -430,8 +510,15 @@ const MapView = (() => {
     document.getElementById('zoom-out').addEventListener('click', () => zoomAt(500, 350, 1 / 1.3));
     document.getElementById('zoom-reset').addEventListener('click', () => {
       view = { x: 0, y: 0, k: 1 };
-      applyView();
+      applyView();   // clamps up off 1 if the window is too wide for it
     });
+
+    // The frame's shape decides how far out the view may open, so anything that
+    // reshapes it can leave a legal view illegal — rotating a phone, a mobile
+    // browser's URL bar sliding away, the sidebar reflowing. Watching the
+    // element rather than the window catches all of them, including the ones
+    // that never fire a window resize. (Same reason ui.js observes the sidebar.)
+    new ResizeObserver(() => applyView()).observe(svg);
     document.getElementById('toggle-bases').addEventListener('click', () => {
       forwardOn = !forwardOn;
       document.getElementById('forward-layer').classList.toggle('hidden', !forwardOn);

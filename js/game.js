@@ -2318,6 +2318,10 @@ const Game = (() => {
     G.struckThisTurn = [];
     G.raidThisTurn = false;
 
+    // the sidebar closes overnight: whatever was open for last night's decision
+    // is not what tonight's is, and an open section scrolls the rest past the fold
+    UI.closeAllPanels();
+
     UI.renderAll(G);
     Save.write();
   }
@@ -2473,6 +2477,8 @@ const Game = (() => {
   function start(resume) {
     document.getElementById('title-screen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
+    // a war opens — and a save resumes — with every sidebar section shut
+    UI.closeAllPanels();
     MapView.render();
     syncFleetCaps();
     syncCarrierMap();   // the decks are only where the fleet state says they are

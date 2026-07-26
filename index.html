@@ -33,7 +33,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.16</div>
+  <div class="version-badge">v1.17</div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -115,8 +115,8 @@
       <!-- Personnel recovery: this panel does not exist as a standing option.
            CSAR.renderPanel un-hides it only while aircrew are down, and hides
            it again the moment they are recovered or taken. -->
-      <div class="panel hidden" id="csar-panel" data-panel="csar">
-        <button type="button" class="panel-head" aria-expanded="true">
+      <div class="panel hidden collapsed" id="csar-panel" data-panel="csar">
+        <button type="button" class="panel-head" aria-expanded="false">
           <span class="panel-caret" aria-hidden="true">▾</span>
           <span class="panel-title">PERSONNEL RECOVERY</span>
           <span class="panel-badge"></span>
@@ -128,8 +128,8 @@
         </div></div>
       </div>
 
-      <div class="panel" id="objectives-panel" data-panel="objectives">
-        <button type="button" class="panel-head" aria-expanded="true">
+      <div class="panel collapsed" id="objectives-panel" data-panel="objectives">
+        <button type="button" class="panel-head" aria-expanded="false">
           <span class="panel-caret" aria-hidden="true">▾</span>
           <span class="panel-title">MISSION OBJECTIVES</span>
           <span class="panel-badge"></span>

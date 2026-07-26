@@ -12,38 +12,46 @@ const UI = (() => {
   // COLLAPSIBLE SIDEBAR PANELS
   // ------------------------------------------------------------
   // The sidebar is eight sections deep and only one of them is ever the one
-  // being used. Each is a dropdown: the header is the hit target, the caret
-  // turns, and the open/shut state survives a reload — a player who works out
-  // of diplomacy and intelligence should not have to re-open them every war.
-  // A shut section is not silent: its badge carries the one thing worth knowing
-  // from the outside, which for an action panel is how many orders in it can
-  // actually be given tonight.
+  // being used. Each is a dropdown: the header is the hit target and the caret
+  // turns. A shut section is not silent: its badge carries the one thing worth
+  // knowing from the outside, which for an action panel is how many orders in
+  // it can actually be given tonight.
+  //
+  // Open/shut state is deliberately NOT persisted. It used to survive a reload,
+  // which meant a war opened with whatever assortment of sections happened to
+  // be open when the last one was left — a sidebar the player did not arrange,
+  // scrolled past the fold before the first order. The sections are cheap to
+  // open and the badges say what is inside them, so every war and every turn
+  // starts from the same shut sidebar. See closeAllPanels.
   // ============================================================
-  const PANEL_KEY = 'cic-panels-v1';
-  let panelState = {};
-
-  function savePanelState() {
-    try { localStorage.setItem(PANEL_KEY, JSON.stringify(panelState)); } catch (e) {}
-  }
-
   function setPanelOpen(panel, open) {
     panel.classList.toggle('collapsed', !open);
     panel.querySelector('.panel-head').setAttribute('aria-expanded', String(open));
-    panelState[panel.dataset.panel] = open;
+  }
+
+  // Called at the start of a war and at the top of every turn: the sidebar is
+  // reset to shut so the player opens what tonight's decision actually needs.
+  function closeAllPanels() {
+    for (const panel of document.querySelectorAll('#sidebar-scroll .panel[data-panel]')) {
+      setPanelOpen(panel, false);
+    }
+    const scroll = $('sidebar-scroll');
+    if (scroll) scroll.scrollTop = 0;
+  }
+
+  // For a section that has just become relevant on its own account rather than
+  // because the player went looking for it. Everything in the sidebar opens by
+  // being clicked; this is the exception, and CSAR is currently the only caller.
+  function openPanel(key) {
+    const panel = document.querySelector(`.panel[data-panel="${key}"]`);
+    if (panel) setPanelOpen(panel, true);
   }
 
   function initPanels() {
-    try { panelState = JSON.parse(localStorage.getItem(PANEL_KEY)) || {}; }
-    catch (e) { panelState = {}; }
     for (const panel of document.querySelectorAll('#sidebar-scroll .panel[data-panel]')) {
-      const key = panel.dataset.panel;
-      // the markup carries the default; storage overrides it when the player
-      // has an opinion
-      if (key in panelState) setPanelOpen(panel, panelState[key]);
       panel.querySelector('.panel-head').addEventListener('click', () => {
         const opening = panel.classList.contains('collapsed');
         setPanelOpen(panel, opening);
-        savePanelState();
         // a section opened at the bottom of the list would otherwise expand
         // off-screen: pull it back into the scroll once it has finished growing
         if (opening) setTimeout(() => panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 200);
@@ -1078,5 +1086,5 @@ const UI = (() => {
   }
 
   return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport,
-    showEndgame, showPrimer, openLeaderCall };
+    showEndgame, showPrimer, openLeaderCall, closeAllPanels, openPanel };
 })();
