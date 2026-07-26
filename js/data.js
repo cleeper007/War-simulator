@@ -841,6 +841,55 @@ const IRAN_LAUNCH_SITES = {
 // ---- Hormuz indicator location ----
 const HORMUZ_POS = { x: 607, y: 494 };
 
+// ---- Allied heads of government who call the moment the coalition forms ----
+// Assembling the coalition is the one diplomatic action that puts other
+// governments' names on the operation, so it is the one that earns a personal
+// call. One of these two is picked at random (see `leaderCall` in game.js);
+// taking it is worth +1 world opinion, refusing it -1. Deliberately small
+// numbers — this is a courtesy, not a lever, and it should never be worth
+// farming. The whole point is that it costs the player nothing but a click and
+// they still have to decide whether to be bothered.
+//
+// `clip` keys into AudioSys.FILES; `caption` is the fallback shown when the
+// audio can't play (muted, autoplay refused, file missing) and is written as a
+// paraphrase rather than a transcript so it can never contradict the recording.
+// `skin` / `hair` / `suit` / `tie` drive the cartoon portrait UI.drawLeader()
+// builds, and `pin` selects which flag goes on the lapel.
+const WORLD_LEADERS = [
+  {
+    id: 'uk',
+    name: 'The Prime Minister of the United Kingdom',
+    short: 'UK PRIME MINISTER',
+    country: 'UNITED KINGDOM',
+    clip: 'ukPmCall',
+    pin: 'union',
+    skin: '#e8b894', hair: '#4a3526', suit: '#2c3d60', tie: '#7a1f2e',
+    caption: 'The Prime Minister commits British squadrons to the operation and says the ' +
+      'special relationship will hold whatever the next fortnight costs.',
+    accepted: 'You take the call. Downing Street briefs it out within the hour — the two of you ' +
+      'spoke, the alliance is unified, and the operation has a second flag on it that nobody had ' +
+      'to be pressured into flying.',
+    declined: 'You let it go to the Secretary of State. It is noticed. A Number 10 spokesman is ' +
+      'asked whether the Prime Minister has spoken to the President and declines to say — which ' +
+      'is itself the story by the evening broadcasts.',
+  },
+  {
+    id: 'france',
+    name: 'The Prime Minister of France',
+    short: 'FRENCH PRIME MINISTER',
+    country: 'FRANCE',
+    clip: 'francePmCall',
+    pin: 'tricolore',
+    skin: '#e3b08c', hair: '#2b2b2b', suit: '#26314a', tie: '#2f5390',
+    caption: 'The Prime Minister confirms French participation and presses for the political ' +
+      'track to be visible alongside the military one.',
+    accepted: 'You take the call. Matignon puts out a warm readout, and the French seat at the ' +
+      'Security Council is now being worked for you rather than around you.',
+    declined: 'You let it go to the Secretary of State. Paris reads the snub exactly as a snub, ' +
+      'and the French line on the operation cools from "participating" to "informed" overnight.',
+  },
+];
+
 // ---- Filler headlines (mixed into the ticker every turn) ----
 const FILLER_HEADLINES = [
   'MARKETS ON EDGE AS GULF WAR ENTERS ANOTHER DAY',

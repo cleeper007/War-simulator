@@ -27,6 +27,11 @@ const AudioSys = (() => {
     // of the infil sequence in specops.js — it runs out on its own as the team
     // hits the ramp, so the branch beats after the objective play into silence.
     raidInfil: 'spec-ops-infil.m4a',
+    // Heads of government on the secure line once the coalition forms. Played
+    // through playThen so the popup can hold the "line open" state for exactly
+    // as long as the leader is actually talking.
+    ukPmCall: 'uk-pm-call.mp3',           // ~11.2 s
+    francePmCall: 'france-pm-call.mp3',   // ~4.7 s
   };
 
   // Per-clip playback level, 0..1. Anything not listed plays at full volume.

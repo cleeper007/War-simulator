@@ -837,6 +837,157 @@ const UI = (() => {
     };
   }
 
+  // ============================================================
+  // ALLIED HEAD-OF-GOVERNMENT CALL
+  // ------------------------------------------------------------
+  // Fires once, off the coalition cable (see `leaderCall` in game.js). Take it
+  // or don't; the numbers are tiny either way and the point is the moment, not
+  // the point. Everything about the leader — name, portrait colours, which flag
+  // goes on the lapel, which clip plays — comes from WORLD_LEADERS in data.js.
+  // ============================================================
+
+  // The flag pin on the lapel, drawn at r=8 around a local origin so both flags
+  // are interchangeable in the portrait. Simplified on purpose: at 17px across
+  // on screen, a faithful Union Jack is mud — the diagonals and the cross are
+  // the whole recognisable signature and everything else is noise.
+  function flagPin(kind, id) {
+    const clip = `lc-pin-${id}`;
+    const inner = kind === 'union'
+      ? `<rect x="-8" y="-8" width="16" height="16" fill="#0c2074"/>` +
+        `<path d="M-8-8 L8 8 M-8 8 L8-8" stroke="#f4f6fb" stroke-width="3.6"/>` +
+        `<path d="M-8-8 L8 8 M-8 8 L8-8" stroke="#c8102e" stroke-width="1.7"/>` +
+        `<path d="M-8 0 H8" stroke="#f4f6fb" stroke-width="5.4"/>` +
+        `<path d="M0-8 V8" stroke="#f4f6fb" stroke-width="5.4"/>` +
+        `<path d="M-8 0 H8" stroke="#c8102e" stroke-width="3"/>` +
+        `<path d="M0-8 V8" stroke="#c8102e" stroke-width="3"/>`
+      : `<rect x="-8" y="-8" width="5.34" height="16" fill="#0d3b93"/>` +
+        `<rect x="-2.67" y="-8" width="5.34" height="16" fill="#f4f6fb"/>` +
+        `<rect x="2.67" y="-8" width="5.34" height="16" fill="#c8102e"/>`;
+    return `<clipPath id="${clip}"><circle cx="0" cy="0" r="8"/></clipPath>` +
+      `<g clip-path="url(#${clip})">${inner}</g>` +
+      `<circle cx="0" cy="0" r="8" fill="none" stroke="#d8b46a" stroke-width="1.4"/>`;
+  }
+
+  // Low-detail cartoon head-and-shoulders, the way a contact photo would look.
+  // Drawn once per call and thrown away, so the clip-path ids only have to be
+  // unique against the one other portrait that could ever exist.
+  function drawLeader(L) {
+    return `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" ` +
+      `aria-label="Portrait of the ${L.country} head of government">` +
+      `<defs>` +
+        `<radialGradient id="lc-bg-${L.id}" cx="50%" cy="34%" r="72%">` +
+          `<stop offset="0%" stop-color="#22355a"/><stop offset="100%" stop-color="#0b1424"/>` +
+        `</radialGradient>` +
+        `<clipPath id="lc-frame-${L.id}"><circle cx="60" cy="60" r="57"/></clipPath>` +
+      `</defs>` +
+      `<circle cx="60" cy="60" r="57" fill="url(#lc-bg-${L.id})"/>` +
+      `<g clip-path="url(#lc-frame-${L.id})">` +
+        // neck first, then the jacket over it — the collar line comes for free
+        `<path d="M51 62 h18 v24 q-9 6 -18 0 z" fill="${L.skin}"/>` +
+        `<path d="M51 76 q9 8 18 0 v5 q-9 8 -18 0 z" fill="#000" opacity=".18"/>` +
+        `<path d="M2 120 C 4 98, 15 88, 34 84 L 60 101 L 86 84 C 105 88, 116 98, 118 120 Z" fill="${L.suit}"/>` +
+        `<path d="M47 83 L60 105 L73 83 L67 81 L60 91 L53 81 Z" fill="#e9eef7"/>` +
+        `<path d="M60 92 l-4.5 5.5 4.5 22.5 4.5-22.5 z" fill="${L.tie}"/>` +
+        // lapels last and on top of the shirt, one catching light and one in
+        // shadow — it is the only thing keeping the jacket off the background
+        `<path d="M34 84 L60 101 L53 120 L28 120 z" fill="#fff" opacity=".07"/>` +
+        `<path d="M86 84 L60 101 L67 120 L92 120 z" fill="#000" opacity=".18"/>` +
+        `<ellipse cx="38" cy="54" rx="4" ry="5" fill="${L.skin}"/>` +
+        `<ellipse cx="82" cy="54" rx="4" ry="5" fill="${L.skin}"/>` +
+        `<ellipse cx="60" cy="50" rx="22" ry="26" fill="${L.skin}"/>` +
+        // hair: one closed shape across the crown, receding at the temples
+        `<path d="M37 50 q-2-24 23-24 q25 0 23 24 q-3-13 -13-16 q-10 4 -20 1 ` +
+          `q-9 3 -13 15 z" fill="${L.hair}"/>` +
+        `<path d="M49 44 q5-3 9-1" stroke="${L.hair}" stroke-width="2.4" fill="none" stroke-linecap="round"/>` +
+        `<path d="M71 44 q-5-3 -9-1" stroke="${L.hair}" stroke-width="2.4" fill="none" stroke-linecap="round"/>` +
+        `<circle cx="53" cy="50" r="2.4" fill="#1b2430"/>` +
+        `<circle cx="67" cy="50" r="2.4" fill="#1b2430"/>` +
+        `<path d="M60 52 v7 q-3 1 -4-1" stroke="#00000038" stroke-width="1.6" fill="none" stroke-linecap="round"/>` +
+        `<path d="M53 65 q7 5 14 0" stroke="#8a4a45" stroke-width="2" fill="none" stroke-linecap="round"/>` +
+        // the pin sits out on the lapel, small enough to read as jewellery
+        `<g transform="translate(40,99) scale(0.8)">${flagPin(L.pin, L.id)}</g>` +
+      `</g>` +
+      `<circle cx="60" cy="60" r="57" fill="none" stroke="#2a4a7a" stroke-width="2"/>` +
+      `</svg>`;
+  }
+
+  // `onResolve(accepted)` runs the moment the player answers — before the call
+  // plays out — so the world-opinion swing is banked and saved even if they
+  // close the tab while the leader is still talking.
+  function openLeaderCall(L, onResolve, onDone) {
+    const modal = $('leader-call-modal').querySelector('.modal');
+    modal.classList.remove('connected', 'ended');
+    $('lc-portrait').innerHTML = drawLeader(L);
+    $('lc-country').textContent = L.country;
+    $('lc-name').textContent = L.name;
+    $('lc-state-text').textContent = 'INCOMING — SECURE LINE';
+    // the name is a title and carries its own article — mid-sentence it wants a
+    // lowercase one, "Mr. President, the Prime Minister of France is on the line"
+    const midSentence = L.name.charAt(0).toLowerCase() + L.name.slice(1);
+    $('lc-line').innerHTML = `<span class="dim">SECRETARY OF STATE —</span> ` +
+      `Mr. President, ${midSentence} is on the line. He would like to speak to you personally.`;
+    $('lc-outcome').classList.add('hidden');
+    $('lc-effect').classList.add('hidden');
+    $('lc-footer').innerHTML = '';
+
+    const close = () => {
+      $('leader-call-modal').classList.add('hidden');
+      if (onDone) onDone();
+    };
+
+    const effect = (text, bad) => {
+      const box = $('lc-effect');
+      box.textContent = text;
+      box.classList.toggle('bad', !!bad);
+      box.classList.remove('hidden');
+    };
+
+    const btn = (label, cls, fn) => {
+      const b = document.createElement('button');
+      b.className = cls;
+      b.textContent = label;
+      b.addEventListener('click', fn);
+      $('lc-footer').appendChild(b);
+      return b;
+    };
+
+    btn('DECLINE — SECSTATE TAKES IT', 'btn-secondary', () => {
+      onResolve(false);
+      modal.classList.add('ended');
+      $('lc-state-text').textContent = 'DECLINED — CALL PASSED TO STATE';
+      $('lc-line').textContent = L.declined;
+      effect('WORLD OPINION −1', true);
+      $('lc-footer').innerHTML = '';
+      btn('ACKNOWLEDGE', 'btn-primary', close);
+    });
+
+    btn('ACCEPT THE CALL', 'btn-primary', () => {
+      onResolve(true);
+      modal.classList.add('connected');
+      $('lc-state-text').textContent = 'LINE OPEN — SECURE';
+      $('lc-line').textContent = L.caption;
+      effect('WORLD OPINION +1', false);
+      $('lc-footer').innerHTML = '';
+      // The clip is the scene. END CALL cuts it short and hands straight on to
+      // the same finish the clip would have reached on its own, so a player who
+      // does not want to sit through eleven seconds never has to.
+      const end = btn('END CALL', 'btn-secondary', () => AudioSys.cut(L.clip));
+      AudioSys.playThen(L.clip, () => {
+        modal.classList.remove('connected');
+        modal.classList.add('ended');
+        $('lc-state-text').textContent = 'CALL ENDED';
+        $('lc-outcome').textContent = L.accepted;
+        $('lc-outcome').classList.remove('hidden');
+        end.textContent = 'ACKNOWLEDGE';
+        end.className = 'btn-primary';
+        end.replaceWith(end.cloneNode(true));   // drop the cut handler
+        $('lc-footer').lastChild.addEventListener('click', close);
+      });
+    });
+
+    $('leader-call-modal').classList.remove('hidden');
+  }
+
   // ---- endgame ----
   function showEndgame(result) {
     $('end-title').textContent = result.title;
@@ -926,5 +1077,6 @@ const UI = (() => {
     showReport('PRESIDENTIAL PRIMER — HOW THIS WAR IS FOUGHT', panels, null);
   }
 
-  return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport, showEndgame, showPrimer };
+  return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport,
+    showEndgame, showPrimer, openLeaderCall };
 })();

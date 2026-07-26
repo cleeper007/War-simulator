@@ -1025,6 +1025,76 @@ button { font-family: var(--mono); }
 .timeline-table .tl-text { color: var(--fg); width: 100%; }
 
 /* ============================================================
+   ALLIED HEAD-OF-GOVERNMENT CALL
+   ------------------------------------------------------------
+   The one moment in the game that is not a map, a table or a cable — a face
+   and a ringing phone. It is warmer than everything around it on purpose:
+   this is the only screen where somebody is glad to hear from you.
+   ============================================================ */
+.call-modal { width: 520px; }
+
+.call-card {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px; margin-bottom: 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(160deg, #101c31 0%, #0b1220 70%);
+}
+.call-portrait { flex: 0 0 108px; line-height: 0; }
+.call-portrait svg { width: 108px; height: 108px; display: block; }
+.call-meta { min-width: 0; }
+.call-country { font-size: 9.5px; letter-spacing: 1.6px; color: var(--dim); }
+.call-name { font-size: 14px; color: var(--text); margin: 3px 0 9px; line-height: 1.3; }
+
+.call-state {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 10px; letter-spacing: 1.3px; color: var(--amber);
+}
+.call-phone svg { width: 15px; height: 15px; fill: currentColor; display: block; }
+/* the handset shakes only while the call is still unanswered */
+.call-phone { animation: call-ring 1.4s ease-in-out infinite; }
+@keyframes call-ring {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  65%, 75%, 85% { transform: rotate(-16deg); }
+  70%, 80%, 90% { transform: rotate(16deg); }
+}
+
+/* Audio level meter. Ten bars, each on the same keyframes with its own delay
+   and duration, which is enough irregularity to read as a voice rather than an
+   equalizer. Flat and still until the line is actually open. */
+.call-levels { display: flex; align-items: flex-end; gap: 3px; height: 16px; margin-top: 9px; }
+.call-levels i { width: 3px; height: 3px; background: var(--line); display: block; }
+
+.call-modal.connected .call-state { color: var(--green); }
+.call-modal.connected .call-phone { animation: none; }
+.call-modal.connected .call-levels i {
+  background: var(--green);
+  animation: call-level 0.62s ease-in-out infinite alternate;
+}
+.call-modal.connected .call-levels i:nth-child(2n)   { animation-duration: 0.44s; }
+.call-modal.connected .call-levels i:nth-child(3n)   { animation-duration: 0.78s; }
+.call-modal.connected .call-levels i:nth-child(4n+1) { animation-delay: 0.21s; }
+.call-modal.connected .call-levels i:nth-child(5n+2) { animation-delay: 0.37s; }
+.call-modal.connected .call-levels i:nth-child(7n+3) { animation-delay: 0.09s; }
+@keyframes call-level { from { height: 3px; } to { height: 16px; } }
+
+/* the call is over — the meter stays lit but stops moving */
+.call-modal.ended .call-state { color: var(--dim); }
+.call-modal.ended .call-phone { animation: none; }
+.call-modal.ended .call-levels i { background: var(--line); animation: none; }
+
+.call-line { font-size: 12.5px; line-height: 1.55; }
+.call-outcome { font-size: 12px; line-height: 1.55; margin-top: 9px; }
+.call-effect {
+  margin-top: 12px; padding: 7px 10px; border: 1px solid var(--line);
+  border-left: 3px solid var(--green);
+  font-size: 10px; letter-spacing: 1.2px; color: var(--green);
+}
+.call-effect.bad { border-left-color: var(--red); color: var(--red); }
+
+/* both answers are long labels — let them stack rather than overflow */
+#lc-footer { flex-wrap: wrap; }
+
+/* ============================================================
    MOBILE / TOUCH — landscape-first
    ------------------------------------------------------------
    Everything below is gated on a coarse (touch) pointer or a short/narrow
@@ -1140,6 +1210,15 @@ button { font-family: var(--mono); }
   .breakout { padding: 6px 10px; }
   .breakout .bo-label { font-size: 8.5px; }
   .breakout .bo-value { font-size: 12px; }
+
+  /* the call popup is portrait-led, and the portrait is the one thing in it
+     that can be shrunk without costing legibility */
+  .call-card { padding: 10px; gap: 12px; margin-bottom: 10px; }
+  .call-portrait { flex-basis: 76px; }
+  .call-portrait svg { width: 76px; height: 76px; }
+  .call-name { font-size: 12.5px; margin: 2px 0 7px; }
+  .call-line { font-size: 11.5px; }
+  .call-outcome { font-size: 11.5px; }
 }
 
 /* the shortest phones (e.g. iPhone SE landscape ~375px tall): drop the

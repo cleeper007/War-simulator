@@ -95,6 +95,10 @@ const Game = (() => {
     strikesThisTurn: 0, struckThisTurn: [],
     missions: [],          // strike packages in flight: {targetId, pkg, eta}
     sanctions: 0, coalition: false, addressCooldown: 0, sprReleases: 0,
+    // the allied head of government who rings once the coalition forms:
+    // {who, answered} or null. Persisted so a war saved with the phone still
+    // ringing resumes with it ringing (see leaderCall).
+    leaderCall: null,
     negotiationsAccepted: false, negotiationMomentum: 0,
     diploUsed: false, intelUsed: false, over: false,
     // Israel: a semi-autonomous actor, not an American asset. Sidelined by
@@ -232,7 +236,7 @@ const Game = (() => {
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
-      'strikesThisTurn', 'struckThisTurn', 'missions', 'sanctions', 'coalition',
+      'strikesThisTurn', 'struckThisTurn', 'missions', 'sanctions', 'coalition', 'leaderCall',
       'addressCooldown', 'sprReleases', 'negotiationsAccepted', 'negotiationMomentum',
       'diploUsed', 'intelUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep', 'downed',
       'israelPosture', 'israelPatience', 'israelStrikesUsed', 'israelJointAvailable',
@@ -1794,6 +1798,10 @@ const Game = (() => {
           text: 'The UK, France, and Gulf partners formally join the operation. Allied squadrons add sortie capacity and share the political burden.',
           dWorld: 5,
         });
+        // One of the two capitals that just put its own aircrew over Iran rings
+        // the White House. Coin flip which one — both are in it, and which one
+        // reaches you first is not something a president schedules.
+        G.leaderCall = { who: WORLD_LEADERS[Math.random() < 0.5 ? 0 : 1].id, answered: false };
         break;
       }
       case 'israel': {
@@ -1937,11 +1945,37 @@ const Game = (() => {
     G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
     AudioSys.play('cable');
     UI.renderAll(G);
+    // the coalition cable is the one that leaves a phone ringing behind it —
+    // the call goes in front of afterAction rather than instead of it
+    const after = pendingLeaderCall() ? () => leaderCall(afterAction) : afterAction;
     // an intelligence tasking comes back as a product, not a cable — it spends
     // the intel slot rather than the diplomatic one, and the player should be
     // able to tell at a glance which of the two they spent
     UI.showReport(isIntel ? 'INTELLIGENCE PRODUCT' : 'DIPLOMATIC CABLE',
-      events, afterAction);
+      events, after);
+  }
+
+  // ---- the allied call ----
+  // Taking it is +1 world opinion, refusing it -1. The swing is deliberately
+  // trivial: this is a courtesy, not a lever, and a president who cannot spare
+  // ninety seconds for an ally who just committed their own aircrew should pay
+  // for it in exactly the currency the snub is denominated in — nothing else.
+  const pendingLeaderCall = () => !!(G.leaderCall && !G.leaderCall.answered);
+
+  function leaderCall(done) {
+    const L = WORLD_LEADERS.find(l => l.id === (G.leaderCall || {}).who);
+    if (!L) { if (done) done(); return; }
+    UI.openLeaderCall(L,
+      // banked the instant they answer, not when the popup closes: the call
+      // itself runs eleven seconds and a tab closed mid-sentence must not lose
+      // a decision the player already made
+      (accepted) => {
+        G.leaderCall.answered = true;
+        G.world = clamp(G.world + (accepted ? 1 : -1), 0, 100);
+        UI.renderAll(G);
+        Save.write();
+      },
+      () => { UI.renderAll(G); if (done) done(); });
   }
 
   // ---- Israel's own clock ----
@@ -2494,6 +2528,9 @@ const Game = (() => {
     G.res.heavy = Math.min(G.res.heavy, G.caps.heavy);
     AudioSys.setMuted(!!data.muted);
     start(true);
+    // saved between the coalition cable and answering the phone: it is still
+    // ringing when the situation room reconvenes
+    if (pendingLeaderCall()) leaderCall(null);
   }
 
   // ============================================================
