@@ -608,7 +608,7 @@ const CSAR = (() => {
       OUTCOMES[branch](G, d, events);
       lock(false);
       UI.renderAll(G);
-      UI.showReport('PERSONNEL RECOVERY — MISSION DEBRIEF', events, () => Game.afterAction());
+      UI.showReport('PERSONNEL RECOVERY — MISSION DEBRIEF', events, () => Game.afterAction(), { prose: true });
     });
   }
 

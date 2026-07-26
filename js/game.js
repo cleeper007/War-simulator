@@ -1438,6 +1438,7 @@ const Game = (() => {
       // an earlier package in the same volley (or turn) already finished it
       return {
         cls: 'friendly', title: `BDA: ${target.name}`,
+        sum: `${target.short} — already destroyed, sortie wasted`,
         text: 'The package arrived over a target already destroyed. Aircraft and missiles expended against rubble — coordination cost, nothing gained.',
       };
     }
@@ -1470,6 +1471,15 @@ const Game = (() => {
 
     const ev = { cls: 'friendly', title: `BDA: ${target.name}`, dWorld: worldCost };
     ev.hit = outcome === 'destroyed' || outcome === 'damaged';
+    // The whole assessment in four words, for the report's scan line. The prose
+    // below is the same finding written out; a player who reads only this one
+    // still knows what tonight's package did (see showReport in ui.js).
+    ev.outcome = outcome;
+    ev.sum = outcome === 'destroyed'
+      ? `${target.short} DESTROYED`
+      : outcome === 'damaged'
+        ? `${target.short} damaged — now ${condition(target)}`
+        : `${target.short} — no effect`;
 
     if (outcome === 'destroyed') {
       G.stats.destroyed++;
@@ -1537,6 +1547,7 @@ const Game = (() => {
       G.stats.aircraftLost++;
       G.approval = clamp(G.approval - 4, 0, 100);
       ev.dApproval = (ev.dApproval || 0) - 4;
+      ev.aircraftLost = true;   // reported as a chip on the report line, not in the summary
       const loss = CSAR.aircraftDown(target);
       text += ' ' + loss.text;
       if (loss.casualties) {
@@ -1548,6 +1559,7 @@ const Game = (() => {
 
     if (pkg.joint) {
       ev.title = `BDA: ${target.name} — JOINT US–ISRAELI STRIKE`;
+      ev.sum += ' · joint with Israel';
       text += ' Israeli aircraft flew the escort and SEAD package. Tehran is telling the region this was a Zionist–American operation, and the region is inclined to believe it.';
     }
 

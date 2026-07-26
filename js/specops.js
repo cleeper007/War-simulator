@@ -555,7 +555,7 @@ const SpecOps = (() => {
       OUTCOMES[branch](G, events);
       lock(false);
       UI.renderAll(G);
-      UI.showReport('SPECIAL OPERATIONS — MISSION DEBRIEF', events, () => Game.afterAction());
+      UI.showReport('SPECIAL OPERATIONS — MISSION DEBRIEF', events, () => Game.afterAction(), { prose: true });
     });
   }
 

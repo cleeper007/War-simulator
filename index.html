@@ -33,7 +33,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.20</div>
+  <div class="version-badge">v1.21</div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -339,7 +339,9 @@
       <span class="panel-title" id="report-title">OVERNIGHT DEVELOPMENTS</span>
     </div>
     <div class="modal-body" id="report-body"></div>
-    <div class="modal-footer">
+    <div class="modal-footer report-footer">
+      <!-- sticky preference: a player who wants the prose gets it every turn -->
+      <button id="btn-report-detail" class="btn-secondary hidden">FULL DETAIL</button>
       <button id="btn-report-ok" class="btn-primary">ACKNOWLEDGE</button>
     </div>
   </div>

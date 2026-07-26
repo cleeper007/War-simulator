@@ -838,22 +838,166 @@ const UI = (() => {
   }
 
   // ---- turn report modal ----
-  function showReport(title, events, onClose) {
-    $('report-title').textContent = title;
-    $('report-body').innerHTML = events.map(ev => {
-      const effects = [];
-      if (ev.casualties) effects.push(`US KIA +${ev.casualties}`);
-      if (ev.dApproval) effects.push(`Approval ${ev.dApproval > 0 ? '+' : ''}${ev.dApproval}`);
-      if (ev.dOil) effects.push(`Oil ${ev.dOil > 0 ? '+' : ''}$${ev.dOil}`);
-      if (ev.dWorld) effects.push(`World opinion ${ev.dWorld > 0 ? '+' : ''}${ev.dWorld}`);
-      if (ev.dTanker) effects.push(`Tanker tracks ${ev.dTanker > 0 ? '+' : ''}${ev.dTanker}/turn`);
-      if (ev.hormuz) effects.push(`Hormuz → ${ev.hormuz}`);
-      return `<div class="report-event ${ev.cls || ''}">` +
-        `<div class="ev-title">${ev.title}</div>` +
-        `<div>${ev.text}</div>` +
-        (effects.length ? `<div class="ev-effects">${effects.join(' · ')}</div>` : '') +
+  // Two people read this screen. One wants the prose — the assessment language,
+  // the miss reasons, the casualty sentence. The other wants to know whether the
+  // night went well and what it cost, and will not read twelve paragraphs to find
+  // out. The prose loses that fight every time it is the only thing on offer: a
+  // wall of text gets ACKNOWLEDGE'd unread, and then the player is making
+  // decisions off a war they never actually read.
+  //
+  // So the report is built the other way round. A one-line verdict and a strip of
+  // net changes come first, every event is one scannable line carrying its own
+  // impact chips, and the full assessment is one tap underneath. Nothing has to
+  // be opened to play correctly — opening is for the player who wants the story.
+  const VERBOSE_KEY = 'cic-report-verbose';
+  const verbose = () => { try { return localStorage.getItem(VERBOSE_KEY) === '1'; } catch (e) { return false; } };
+  const setVerbose = (v) => { try { localStorage.setItem(VERBOSE_KEY, v ? '1' : '0'); } catch (e) {} };
+
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  // Everything the night did, added up once. Individual events still carry their
+  // own numbers on their own line; this is the version you can read in a second.
+  function digest(events) {
+    const d = { destroyed: 0, damaged: 0, missed: 0, lost: 0, kia: 0,
+      dApproval: 0, dOil: 0, dWorld: 0, dTanker: 0, hormuz: null };
+    for (const ev of events) {
+      if (ev.outcome === 'destroyed') d.destroyed++;
+      else if (ev.outcome === 'damaged') d.damaged++;
+      else if (ev.outcome === 'miss') d.missed++;
+      if (ev.aircraftLost) d.lost++;
+      d.kia += ev.casualties || 0;
+      d.dApproval += ev.dApproval || 0;
+      d.dOil += ev.dOil || 0;
+      d.dWorld += ev.dWorld || 0;
+      d.dTanker += ev.dTanker || 0;
+      if (ev.hormuz) d.hormuz = ev.hormuz;   // last word on the strait wins
+    }
+    return d;
+  }
+
+  // The verdict line: what happened, in the fewest words that are still true.
+  function headline(d) {
+    const parts = [];
+    if (d.destroyed) parts.push(`${plural(d.destroyed, 'target')} destroyed`);
+    if (d.damaged) parts.push(`${d.damaged} damaged`);
+    if (d.missed) parts.push(`${plural(d.missed, 'strike')} with no effect`);
+    if (d.lost) parts.push(`${plural(d.lost, 'aircraft')} lost`);
+    if (d.kia) parts.push(`${plural(d.kia, 'American')} killed`);
+    if (d.hormuz) parts.push(`Hormuz ${d.hormuz.toLowerCase()}`);
+    return parts.join(' · ');
+  }
+
+  // A number the player is meant to read at a glance, so it is signed, colored
+  // by whether it helped or hurt, and never explained. `good` is the direction
+  // that is good for the president: approval and world opinion up, oil down.
+  function chip(label, val, good, unit) {
+    if (!val) return '';
+    const n = Math.round(val * 10) / 10;
+    const sign = n > 0 ? '+' : '−';
+    const body = unit === '$' ? `${sign}$${Math.abs(n)}` : `${sign}${Math.abs(n)}`;
+    const tone = (n > 0) === good ? 'good' : 'bad';
+    return `<span class="rc ${tone}"><b>${body}</b>${label}</span>`;
+  }
+
+  function chipsFor(o) {
+    return chip('APPROVAL', o.dApproval, true) +
+      chip('OIL', o.dOil, false, '$') +
+      chip('WORLD', o.dWorld, true) +
+      chip('TANKERS', o.dTanker, true) +
+      ((o.casualties || o.kia)
+        ? `<span class="rc bad"><b>+${o.casualties || o.kia}</b>US KIA</span>` : '') +
+      ((o.aircraftLost || o.lost)
+        ? `<span class="rc bad"><b>−${o.lost || 1}</b>AIRCRAFT</span>` : '') +
+      (o.hormuz
+        ? `<span class="rc ${o.hormuz === 'OPEN' ? 'good' : 'bad'}"><b>HORMUZ</b>${o.hormuz}</span>` : '');
+  }
+
+  // The collapsed line. `sum` is written by whatever produced the event when it
+  // knows the outcome in four words (see resolveImpact); a title is the fallback,
+  // and for Iran's events the title already is the summary.
+  const evSummary = (ev) => ev.sum || ev.title;
+
+  // opts.prose forces every event open: the set pieces the player triggered on
+  // purpose and just watched an animation for — a raid debrief, a recovery, the
+  // primer — are read for the writing, and there is one of them, not twelve a
+  // night. The summary layout is for the nightly reports that stack up.
+  function showReport(title, events, onClose, opts) {
+    const d = digest(events);
+    const verdict = headline(d);
+    const strip = chipsFor(d);
+    // A single-event report is already a one-liner — a cable, an intelligence
+    // product. Collapsing one paragraph helps nobody.
+    const collapsible = events.length > 1 && !(opts && opts.prose);
+    const open = !collapsible || verbose();
+
+    let html = '';
+    // only worth a strip when there is more than one event to add up — on a
+    // prose report or a single event the same numbers are already on the line
+    if (collapsible && (verdict || strip)) {
+      // a night with nothing to count still moved numbers — label the strip so
+      // it does not read as an empty box
+      html += `<div class="report-bottom-line">` +
+        (verdict ? `<div class="bl-verdict">${verdict}</div>`
+          : `<div class="bl-label">NET EFFECT TONIGHT</div>`) +
+        (strip ? `<div class="bl-chips">${strip}</div>` : '') +
         `</div>`;
+    }
+
+    html += events.map((ev, i) => {
+      const chips = chipsFor(ev);
+      const sum = evSummary(ev);
+      const detail = `<div class="ev-detail${open ? '' : ' hidden'}" id="ev-d${i}">` +
+        (ev.sum ? `<div class="ev-title">${ev.title}</div>` : '') +
+        `<div>${ev.text}</div></div>`;
+      if (!collapsible) {
+        return `<div class="report-event ${ev.cls || ''}">` +
+          `<div class="ev-sum">${sum}</div>` +
+          (chips ? `<div class="ev-chips">${chips}</div>` : '') + detail + `</div>`;
+      }
+      return `<div class="report-event ${ev.cls || ''}">` +
+        `<button class="ev-row" aria-expanded="${open}" aria-controls="ev-d${i}" data-i="${i}">` +
+        `<span class="ev-caret">${open ? '−' : '+'}</span>` +
+        `<span class="ev-sum">${sum}</span>` +
+        (chips ? `<span class="ev-chips">${chips}</span>` : '') +
+        `</button>` + detail + `</div>`;
     }).join('');
+
+    $('report-title').textContent = title;
+    const body = $('report-body');
+    body.innerHTML = html;
+    body.scrollTop = 0;
+
+    // one line opens one assessment; the footer toggle is for the player who
+    // wants all of them, every turn, without clicking twelve times
+    if (collapsible) {
+      body.onclick = (e) => {
+        const row = e.target.closest('.ev-row');
+        if (!row) return;
+        const det = document.getElementById('ev-d' + row.dataset.i);
+        const nowOpen = det.classList.toggle('hidden') === false;
+        row.setAttribute('aria-expanded', nowOpen);
+        row.querySelector('.ev-caret').textContent = nowOpen ? '−' : '+';
+      };
+    } else {
+      body.onclick = null;
+    }
+
+    const toggle = $('btn-report-detail');
+    toggle.classList.toggle('hidden', !collapsible);
+    if (collapsible) {
+      const sync = () => {
+        const all = verbose();
+        toggle.textContent = all ? 'HIDE DETAIL' : 'FULL DETAIL';
+        body.querySelectorAll('.ev-detail').forEach(el => el.classList.toggle('hidden', !all));
+        body.querySelectorAll('.ev-row').forEach(r => {
+          r.setAttribute('aria-expanded', all);
+          r.querySelector('.ev-caret').textContent = all ? '−' : '+';
+        });
+      };
+      toggle.onclick = () => { setVerbose(!verbose()); sync(); };
+      toggle.textContent = verbose() ? 'HIDE DETAIL' : 'FULL DETAIL';
+    }
+
     $('report-modal').classList.remove('hidden');
     $('btn-report-ok').onclick = () => {
       $('report-modal').classList.add('hidden');
@@ -1098,7 +1242,7 @@ const UI = (() => {
           'for a bomb. Read it off what Iran actually does, or spend an intelligence slot to assess their ' +
           'intent. Fight the war in front of you, not the one you expected.' },
     ];
-    showReport('PRESIDENTIAL PRIMER — HOW THIS WAR IS FOUGHT', panels, null);
+    showReport('PRESIDENTIAL PRIMER — HOW THIS WAR IS FOUGHT', panels, null, { prose: true });
   }
 
   return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport,
