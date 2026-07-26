@@ -8,8 +8,8 @@
 // depth:   how far inside Iran the target sits, which is what a strike package
 //          actually costs in tanker tracks (see TANKER_COST). 1 = the Gulf
 //          littoral, a short leg fighters fly unrefuelled; 2 = the interior;
-//          3 = the far northwest and the Caspian, where the tanker chain is the
-//          mission. Fighters only book tankers at depth 2+ — deep, past Abadan
+//          3 = the far northwest and the Caspian, the longest legs in the
+//          theater. Fighters only book tankers at depth 2+ — deep, past Abadan
 //          and Nojeh; the bombers book them everywhere.
 const TARGETS = [
   {
@@ -366,10 +366,24 @@ const PKG_DAMAGE = 55;
 // bombers are the opposite: a B-1, B-52 or B-2 is on the tanker every night, at
 // every depth, because it is staging from Fairford or Diego Garcia in the first
 // place and neither of those is anywhere near Iran.
+//
+// v1.19 RESCALE. These numbers used to be 2+d for fighters and 3+d for the
+// heavies, against a night-one capacity of ten. That made fuel the only thing
+// the player was ever actually deciding about: two deep packages a night, every
+// night, for thirty turns, and the answer to every question was "wait for the
+// tanker wing." The war it produced was the same war every time. The charge is
+// now roughly a quarter of what it was at the fighter end, which takes fuel out
+// of the role of universal brake and leaves it as what it should have been — the
+// thing that makes the far northwest expensive and the littoral cheap. What
+// binds instead is the magazine and, more to the point, world opinion: with the
+// tracks no longer rationing sorties, a player who flies everything at
+// everything now runs the standing down through the basing tiers (see
+// BASING_TIERS) and loses the ramps that the deep targets are only reachable
+// from. The constraint moved from fuel to politics on purpose.
 const AIR_ASSETS = {
-  f35:     { ad: 0.02, loss: 0.015, weight: 45, tanker: (d) => d >= 2 ? 2 + d : 0 },
-  fighter: { ad: 0.11, loss: 0.060, weight: 62, tanker: (d) => d >= 2 ? 2 + d : 0, needs: 'degraded' },
-  heavy:   { ad: 0.20, loss: 0.090, weight: 92, tanker: (d) => 3 + d, needs: 'superiority' },
+  f35:     { ad: 0.02, loss: 0.015, weight: 45, tanker: (d) => d >= 2 ? d - 1 : 0 },
+  fighter: { ad: 0.11, loss: 0.060, weight: 62, tanker: (d) => d >= 2 ? d - 1 : 0, needs: 'degraded' },
+  heavy:   { ad: 0.20, loss: 0.090, weight: 92, tanker: (d) => 1 + d, needs: 'superiority' },
   stealth: { ad: 0.02, loss: 0,     weight: 55, tanker: () => 4 },
   cruise:  { ad: 0,    loss: 0,     weight: 55, tanker: () => 0 },
 };
@@ -442,17 +456,23 @@ const HEAVY_READY = 2;      // generated and ready the turn they land
 // ============================================================
 // TANKER TRACKS
 // ------------------------------------------------------------
-// The binding constraint on an air campaign flown from the sea against a
-// country the size of Iran is not aircraft and it is not weapons — it is fuel
-// in the air. Deep packages book tanker tracks out of a nightly theater total;
-// Tomahawks book none, because a missile does not refuel — and fighters on the
-// littoral book none either, because they have the legs to reach the coast and
-// come home dry. It is depth that starts the meter: fighters pay once the target
-// is past Abadan and Nojeh, the bombers pay everywhere. What this buys
-// the war is geography: Tabriz and the Caspian cost most of a night's tanker
-// plan, so the decision "two targets on the littoral or one in the far
-// northwest" is a real one every turn. The heavies book the most of anyone —
-// they are the longest legs in the theater and they fly with a tanker apiece.
+// An air campaign flown from the sea against a country the size of Iran runs on
+// fuel in the air. Deep packages book tanker tracks out of a nightly theater
+// total; Tomahawks book none, because a missile does not refuel — and fighters
+// on the littoral book none either, because they have the legs to reach the
+// coast and come home dry. It is depth that starts the meter: fighters pay once
+// the target is past Abadan and Nojeh, the bombers pay everywhere. What this
+// buys the war is geography — the far northwest costs real fuel and the coast
+// costs none, so "the littoral or the Caspian" stays a live question.
+//
+// What it deliberately no longer buys is the campaign's only limit. Through
+// v1.18 the tracks rationed the entire war down to two deep packages a night
+// and every other system was decoration; the charges were cut hard in v1.19 (see
+// the rescale note above AIR_ASSETS) so that the ceiling on how hard a player
+// can hit is the political one instead. The heavies still book the most of
+// anyone — longest legs in the theater, a tanker apiece — which keeps the
+// tonnage phase feeling like something you staged for rather than something you
+// switched on.
 const TANKER_COST = Object.fromEntries(
   Object.entries(AIR_ASSETS).map(([k, a]) => [k, a.tanker]));
 

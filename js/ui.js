@@ -264,15 +264,17 @@ const UI = (() => {
     html += rows.map(([n, v, gate]) =>
       `<div class="res-row"><span>${n}${gate}</span>` +
       `<span class="res-count${gate.includes('crit') ? ' crit' : ''}">${v}</span></div>`).join('');
-    // Tanker tracks are the other magazine, and the one that actually runs out.
-    // Shown with the reach it buys, because "6 tracks" means nothing on its own
-    // and "6 tracks — one deep package" means everything.
+    // Tanker tracks are the other magazine. Shown with the reach it buys,
+    // because "3 tracks" means nothing on its own and "3 tracks — a heavy on the
+    // interior, or three deep fighter packages" means everything. Thresholds
+    // moved with the v1.19 charge rescale: crit is the point where nothing but
+    // fighters and Tomahawks will fly, warn is losing the deep heavy option.
     const tk = G.tankers, cap = G.tankerCap || Game.tankerCapacity();
-    const tkCls = tk <= 2 ? 'crit' : tk <= 5 ? 'warn' : '';
+    const tkCls = tk <= 1 ? 'crit' : tk <= 3 ? 'warn' : '';
     html += `<div class="res-row tanker-row"><span>Tanker tracks tonight</span>` +
       `<span class="res-count ${tkCls}">${tk} / ${cap}</span></div>`;
-    html += `<div class="res-note dim">Fighters: littoral unrefuelled · interior 4 · deep 5. ` +
-      `Bombers tank at every depth — B-1/B-52 littoral 4 · interior 5 · deep 6 · ` +
+    html += `<div class="res-note dim">Fighters: littoral unrefuelled · interior 1 · deep 2. ` +
+      `Bombers tank at every depth — B-1/B-52 littoral 2 · interior 3 · deep 4 · ` +
       `B-2 mission 4 · Tomahawks fly unrefuelled.` +
       (!G.basing.gulf ? ' <span class="crit">Gulf ramps closed — nothing deep is reachable.</span>'
         : !G.basing.nato ? ' <span class="warn">NATO and Saudi tracks withdrawn.</span>' : '') +
