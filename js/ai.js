@@ -401,10 +401,22 @@ const IranAI = (() => {
     const foundTels = liveTels().filter(t => t.located).length;
     const brk = Game.breakoutEstimate();
 
-    const secdef = { name: 'SecDef Whitfield', cls: 'hawk', text: '' };
-    const secstate = { name: 'SecState Okafor', cls: 'dove', text: '' };
-    const nsa = { name: 'NSA Reyes', cls: '', text: '' };
-    const cjcs = { name: 'Gen. Halvorsen, CJCS', cls: 'mil', text: '' };
+    // Every advisor carries two things: `line` is the tasking — the thing the
+    // player is actually being asked to do, in one clause — and `text` is the
+    // argument for it. The panel renders the line and hides the argument behind
+    // it, the same summary-first bargain the turn report makes with `ev.sum`.
+    // Four paragraphs of good prose that get scrolled past for twenty-nine
+    // turns are worth less than four lines that get read for thirty.
+    //
+    // `urgent` means this is new tonight and perishable — a fix that expires, a
+    // clock inside the time it takes to do anything else, a vote about to
+    // happen. It is NOT "important": every branch here is important or it would
+    // not have been written. Mark sparingly; an urgent flag on every turn is
+    // the wall again with extra steps.
+    const secdef = { name: 'SecDef Whitfield', cls: 'hawk', line: '', text: '' };
+    const secstate = { name: 'SecState Okafor', cls: 'dove', line: '', text: '' };
+    const nsa = { name: 'NSA Reyes', cls: '', line: '', text: '' };
+    const cjcs = { name: 'Gen. Halvorsen, CJCS', cls: 'mil', line: '', text: '' };
 
     const warStr = missileStrength() + navalStrength();
 
@@ -412,25 +424,38 @@ const IranAI = (() => {
     // it is the one situation where the battle damage assessment is actively
     // lying to the player about how the war is going.
     if (foundTels > 0) {
+      // the one branch on this table with an expiry date measured in one turn
+      secdef.urgent = true;
+      secdef.line = foundTels === 1
+        ? 'Fix on a launcher group — service it tonight.'
+        : `Fix on ${foundTels} launcher groups — service them tonight.`;
       secdef.text = `We have a fix on ${foundTels === 1 ? 'a launcher group' : `${foundTels} launcher groups`} ` +
         'and fixes on those do not keep. They shoot and move — service them tonight or spend another ' +
         'week of ISR earning the same fix twice. This is the part of the missile force that is still ' +
         'killing Americans, and it is the part that is not on any of the imagery you have been shown.';
     } else if (hiddenTels > 0) {
+      secdef.line = 'The BDA is lying to you — launchers are still loose.';
       secdef.text = `Understand what the battle damage assessment is not telling you: the bases are rubble ` +
         `and the brigade is not dead. ${hiddenTels === 1 ? 'A launcher group is' : `${hiddenTels} launcher groups are`} ` +
         'out in the country, they are still shooting, and the capacity meter is counting them whether ' +
         'we can see them or not. Put the collection assets on the hunt or accept the salvos indefinitely.';
     // early on, the force-flow decision outranks everything else SecDef has to say
     } else if (!G.bombersOrdered && !G.secondCarrierOrdered && G.turn <= 3 && nukeDeg < 100) {
+      // a choice that stops being available quietly, which is why it is flagged
+      secdef.urgent = true;
+      secdef.line = 'The Ford or the 509th — one moves tonight.';
       secdef.text = 'Two things are outside this theater and Fifth Fleet cuts one transit plan a night to move them: the Ford, five turns out and worth double what one deck gives you, and the 509th, one turn out and the only thing that opens Fordow. One goes tonight, the other tomorrow. My advice is to decide which rather than discover in a week that you needed the one you left at home.';
     } else if (nukeDeg >= 100 && warStr <= 1.5) {
+      secdef.line = 'They are beaten. End it on our terms.';
       secdef.text = 'They\'re beaten and they know it. Finish the missile force, the navy, and the IRGC command node — end this on our terms, not theirs.';
     } else if (nukeDeg >= 100) {
+      secdef.line = 'Program is dead. Now break the sword.';
       secdef.text = 'The nuclear program is finished — half the job. Now break the sword: missile brigades, the swarm-boat navy, IRGC command. Victory is destroying their ability to fight, not their will to.';
     } else if (G.turn >= 4) {
+      secdef.line = 'Sustain the sortie rate. Give them no quiet night.';
       secdef.text = 'This is a war now, Mr. President — fight it like one. Sustain the sortie rate, service the full target list, and don\'t give them a night to reconstitute.';
     } else {
+      secdef.line = 'Air defenses first, then the enrichment halls.';
       secdef.text = 'The mission is victory: kill the program and break their war machine. Roll back the air defenses first, then take the enrichment sites while the skies are ours.';
     }
 
@@ -439,21 +464,32 @@ const IranAI = (() => {
       G.israelPatience <= 2 && nukeDeg < 50;
 
     if (G.israelPosture === 'unilateral') {
+      secstate.line = 'Coalition is bleeding out. Get me an end state.';
       secstate.text = 'The Israelis went without us and the world has decided we blessed it. I am losing basing rights and coalition partners by the hour. Nothing I say in New York lands until this war has an end state — get me one.';
     } else if (G.israelPosture === 'coordinated') {
+      secstate.line = 'Spend the joint package before it expires.';
       secstate.text = 'We own Israel\'s war now as well as our own. That joint package is real capability and I would rather we spend it than watch it expire — but understand that every hour it sits unused, Tehran is still shooting at Haifa on our account.';
     } else if (israelUrgent) {
+      secstate.urgent = true;
+      secstate.line = `Jerusalem flies alone in ${G.israelPatience} turn${G.israelPatience === 1 ? '' : 's'} unless you move.`;
       secstate.text = `Jerusalem has stopped asking. My read is ${G.israelPatience} turn${G.israelPatience === 1 ? '' : 's'} before they fly it themselves — and a unilateral Israeli strike is the worst version of this: the escalation without the results. Bring them in on our terms or finish the program before they lose patience.`;
     } else if (G.negotiationReady()) {
+      // the window where a signed win exists at all — it does not stay open
+      secstate.urgent = true;
+      secstate.line = 'Tehran might sign. Authorize the Omani channel.';
       secstate.text = 'Tehran is broken — this is the rare moment a backchannel might actually close. If you want the win signed instead of just shattered, authorize the Omani channel now.';
     } else if (nukeDeg >= 75 && warStr <= 2) {
+      secstate.line = 'Too early to talk. Keep breaking things.';
       secstate.text = 'They\'re not ready to fold yet — an overture now would be read as weakness and spun against us. Keep destroying what they fight with; I\'ll be ready when they break.';
     } else {
+      secstate.line = 'No talks while they can still shoot. Pair strikes with pressure.';
       secstate.text = 'No one in Tehran will talk while they can still shoot. My job right now is holding the coalition together while you win — pair the strikes with UN pressure and sanctions.';
     }
 
     // Americans on the ground outrank everything else on this table
     if (G.downed) {
+      nsa.urgent = true;
+      nsa.line = `${G.downed.callsign} is alive on Iranian soil and the cordon is closing.`;
       nsa.text = `We have ${G.downed.crew === 2 ? 'two aircrew' : 'an aviator'} alive on Iranian soil — ` +
         `${G.downed.callsign}, ${G.downed.loc} — and a search cordon closing on them. This is the ` +
         `decision that will define the news cycle either way, and it does not keep. Recovered, it is the ` +
@@ -462,6 +498,8 @@ const IranAI = (() => {
     // The clock the entire war is against. It outranks everything except
     // Americans on the ground.
     } else if (!brk.halted && brk.hi <= 6) {
+      nsa.urgent = true;
+      nsa.line = `${brk.lo}–${brk.hi} turns from a device. Everything else is a distraction.`;
       nsa.text = `This is the number that matters tonight: the Agency puts Iran ${brk.lo}–${brk.hi} turns ` +
         `from a device, ${brk.conf} confidence. ${brk.conf === 'low'
           ? 'That band is wide enough that the low end may already have passed. I would spend a slot ' +
@@ -470,52 +508,74 @@ const IranAI = (() => {
         'Everything that is not enrichment is a distraction from here.';
     } else if (!G.warPowers.done && G.turn >= Game.WAR_POWERS_TURN - 3) {
       const t = Game.WAR_POWERS_TURN - G.turn;
+      nsa.urgent = true;
+      nsa.line = `The Hill votes in ${t <= 0 ? 'hours' : `${t} turn${t === 1 ? '' : 's'}`}. Change the arithmetic now.`;
       nsa.text = `The authorization lapses in ${t <= 0 ? 'a matter of hours' : `${t} turn${t === 1 ? '' : 's'}`} ` +
         'and the Hill will vote on whether this campaign continues. They will be voting on your approval ' +
         `number, the casualty list, whether we still have allies, and whether you ever went on television ` +
         `to explain it — you have addressed the nation ${G.addresses} time${G.addresses === 1 ? '' : 's'}. ` +
         'A no vote ends the war where it stands. There is still time to change the arithmetic.';
     } else if (israelUrgent) {
+      nsa.line = `Israeli readiness is unambiguous — they go in about ${G.israelPatience} turn${G.israelPatience === 1 ? '' : 's'}.`;
       nsa.text = `Israeli readiness indicators are unambiguous — tanker movements, reserve call-ups, the whole signature. They are going, with or without you, in roughly ${G.israelPatience} turn${G.israelPatience === 1 ? '' : 's'}. If it happens on their timetable you get the blame and none of the targeting.`;
     } else if (G.israelPosture === 'unilateral') {
+      nsa.line = 'We inherited the escalation without the result.';
       nsa.text = 'Israel struck on its own and Fordow is still under the mountain. We inherited the escalation without the result — expect Iranian salvos to go west as well as at us, and expect the Gulf states to start putting distance between themselves and our aircraft.';
     } else if (G.israelPosture === 'coordinated' && missileStrength() > 0) {
+      nsa.line = 'Two enemies, one missile force — their fires are split.';
       nsa.text = 'With the Israelis in openly, Tehran is fighting two enemies with one missile force. That splits their fires — some of those launchers are now dying to the IAF instead of to us. It also means this war ends when both of our wars end, not just ours.';
     } else if (G.hormuz === 'CLOSED') {
+      nsa.urgent = true;
+      nsa.line = 'The Strait is closed and it bleeds every turn.';
       nsa.text = 'The Strait is the whole ballgame right now. Every turn it stays closed bleeds the economy — hit their naval bases or cool this down fast.';
     } else if (G.hostageCrisis) {
+      nsa.line = 'Every deal now runs through that cell block.';
       nsa.text = 'Our people are in an IRGC prison and on their televisions. Every deal now runs through that cell block — no agreement survives politically unless it brings them home.';
     } else if (G.regimeChaosTurns > 0) {
+      nsa.urgent = true;
+      nsa.line = 'Command chain is decapitated. This window closes fast.';
       nsa.text = 'Tehran\'s command chain is decapitated and their retaliation is uncoordinated. This window closes fast — whoever consolidates power will need to look strong. Use it or lose it.';
     } else if (G.approval < 35) {
+      nsa.line = 'Political capital nearly spent. Drift is fatal.';
       nsa.text = 'Your political capital is nearly spent. Congress smells blood. We need visible wins or visible peace — drift is fatal.';
     } else if (G.casualties.us >= 170) {
+      nsa.line = `${G.casualties.us} dead. Win it before the arithmetic does.`;
       nsa.text = `${G.casualties.us} dead and the country is counting. The home front will not fund this war past ${Game.casualtyLimit()} — win it before the arithmetic wins it for them.`;
     } else if (warStr >= 3) {
+      nsa.line = 'Near full strength. Watch the exchange rate.';
       nsa.text = 'Their war machine is still near full strength and they will throw everything they have. What matters is the exchange rate: their launchers and hulls have to die faster than our people do.';
     } else {
+      nsa.line = 'Tempo is mercy. The clock is the real enemy.';
       nsa.text = 'The clock and the casualty count are the real enemies. Every turn their war machine survives is a turn it spends killing Americans — tempo is mercy.';
     }
 
     if (!G.basing.gulf) {
+      cjcs.urgent = true;
+      cjcs.line = 'Gulf ramps lost. This is diplomatic, not targeting.';
       cjcs.text = 'We have lost the Gulf ramps and with them the northern tanker tracks. Al Udeid and Al ' +
         'Dhafra are parking lots for aircraft that are not allowed to fly, the nightly tanker plan is down ' +
         `to ${Game.tankerCapacity()} tracks, and anything past the interior — Tabriz, the Caspian — is ` +
         'simply not reachable. This is not a targeting problem, Mr. President, it is a diplomatic one. ' +
         'Get the number up and I get the runways back.';
     } else if (!G.basing.nato) {
+      cjcs.line = `Incirlik closed — down to ${Game.tankerCapacity()} tanker tracks a night.`;
       cjcs.text = `Incirlik is closed to us and Riyadh has asked that Prince Sultan not be used offensively. ` +
         `That is two squadrons and two tanker tracks off tonight's plan — we are down to ${Game.tankerCapacity()} ` +
         'tracks a night, and the tanker plan is what caps the deep targets. It gets worse below fifteen.';
     } else if (Game.airPhase() === 'contested') {
       // the single most important thing the staff can tell a player who is
       // wondering why two thirds of the air force will not fly
+      cjcs.urgent = true;
+      cjcs.line = `Kill the SAM belt first — ${adLeft} complex${adLeft === 1 ? '' : 'es'} still active.`;
       cjcs.text = 'Sequence, Mr. President. Two thirds of the air component is sitting on ramps, and I will ' +
         `not send it off them — ${adLeft} SAM complex${adLeft === 1 ? '' : 'es'} still active, and an F-16 ` +
         'over that belt is a dead pilot on Iranian television. What we have tonight is F-35s and Tomahawks, and what ' +
         'they are for is not damage, it is taking the sky. Kill the air defense network first. Everything ' +
         'else in this war gets three times easier the moment it is down.';
     } else if (Game.airPhase() === 'degraded' && !G.heaviesArrived) {
+      cjcs.line = G.heaviesOrdered
+        ? `Belt is broken and the heavies are moving — ${G.heavyEta} turn${G.heavyEta === 1 ? '' : 's'} out.`
+        : 'Belt is broken. Finish the network and I can call the heavies.';
       cjcs.text = 'The belt is broken and the fourth-generation squadrons are flying — that is the volume ' +
         'you have been waiting for. The next step is the heavies. Take the rest of the air defense network ' +
         'and Tabriz down and I can put B-1s and B-52s over Iran, and a heavy cell takes a site apart in one ' +
@@ -523,28 +583,38 @@ const IranAI = (() => {
         (G.heaviesOrdered ? `They are already moving — ${G.heavyEta} turn${G.heavyEta === 1 ? '' : 's'} out.`
           : 'They can be called forward now; they just cannot fly until the sky is ours.');
     } else if (Game.airPhase() === 'superiority' && adLeft >= 1) {
+      cjcs.line = 'Superiority is rented. Keep going back to the SAM sites.';
       cjcs.text = 'We hold air superiority tonight and we do not hold it permanently. Their crews are out ' +
         'there right now rolling spare launchers out of the revetments, and the night that number crosses ' +
         'back the heavies come off the tasking order and the plan gets small again. Keep going back to the ' +
         'SAM sites. It is the least satisfying tasking in this war and it is the one holding the rest up.';
     } else if (blind >= 3) {
+      cjcs.line = `Stale picture — ${blind} assessments too soft to plan against. Buy a collection deck.`;
       cjcs.text = `We are flying on a stale picture. ${blind} sites on the list have assessments wide ` +
         'enough to be useless — anywhere from "nearly finished" to "back at full" — and every package ' +
         'planned against a number that soft is a package we may be wasting on rubble or throwing at a ' +
         'target that needs three more. Buy a collection deck. Knowing costs a night; not knowing costs ' +
         'the ordnance.';
     } else if (!G.bombersArrived && nukeDeg < 100) {
+      // the un-ordered case is the one the player can still fix tonight
+      if (!G.bombersOrdered) cjcs.urgent = true;
+      cjcs.line = G.bombersOrdered
+        ? `509th airborne — ${G.bomberEta} turn${G.bomberEta === 1 ? '' : 's'} to Diego Garcia.`
+        : 'No B-2 within eight thousand miles. Fordow is untouchable.';
       cjcs.text = G.bombersOrdered
         ? `The 509th is airborne out of Whiteman with the tanker train strung out behind it — ${G.bomberEta} turn${G.bomberEta === 1 ? '' : 's'} to Diego Garcia. Until those aircraft are on that ramp, Fordow is a target we can photograph and not one we can service.`
         : 'Be clear on what you do not have: there is not a B-2 within eight thousand miles of this war. They are parked at Whiteman. One turn on the tankers puts them at Diego Garcia and puts the GBU-57 in play, and nothing else in the inventory touches Fordow — not a Tomahawk, not a fighter, nothing. The bill is one night of the naval transit: the turn they move, nothing else does.';
     } else if (reconstituting.length >= 2) {
+      cjcs.line = `${reconstituting.length} hit sites are repairing tonight. Concentrate the packages.`;
       cjcs.text = `We are renting damage instead of buying it, Mr. President. ${reconstituting.length} sites we have already ` +
         `hit are working through the night — ${reconstituting.slice(0, 3).map(t => `${t.short} at ${Game.condition(t)}`).join(', ')} — ` +
         `and every one of them climbs back toward full while we service something else. Concentrate the ` +
         `packages: two on target in the same turn finishes a site, one a turn just keeps it wounded.`;
     } else if (nukeDeg < 100) {
+      cjcs.line = 'Skies are permissive. Fordow needs a B-2; Natanz does not.';
       cjcs.text = 'Skies are relatively permissive now. Fordow requires a B-2 with penetrators — nothing else touches it. Natanz we can service with either bombers or a heavy Tomahawk package.';
     } else {
+      cjcs.line = 'Nuclear set serviced. Missile brigades, both navies, IRGC command.';
       cjcs.text = 'Nuclear target set serviced. For decisive victory the remaining list is their missile brigades, both naval bases, and the IRGC command complex — kill those and Iran is out of the war.';
     }
 

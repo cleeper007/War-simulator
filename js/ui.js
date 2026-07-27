@@ -535,10 +535,70 @@ const UI = (() => {
     }
   }
 
+  // Which advisors the player has opened, and the turn that was true for.
+  // Deliberately NOT on `G` and NOT in save/load `FIELDS`: what you had open
+  // when you quit is not part of the war, and an advisor says something
+  // different every turn, so carrying an expansion across the turn boundary
+  // would reopen a paragraph the player never asked for. Cleared on the turn
+  // roll; survives the many re-renders inside one turn, which is the point.
+  let advOpen = new Set();
+  let advTurn = 0;
+
+  // When more than one advisor is urgent, only the top of this order opens
+  // itself — the rest are marked and left shut. The order is the one the
+  // branch comments in advise() already argue for: Americans on the ground and
+  // the enrichment clock live on NSA and outrank everything; a perishable fix
+  // on launchers is SecDef's; the staff's sequencing problem is CJCS; State's
+  // windows are real but measured in turns rather than tonight.
+  const ADV_PRIORITY = ['NSA Reyes', 'SecDef Whitfield', 'Gen. Halvorsen, CJCS', 'SecState Okafor'];
+
   function renderAdvisors(G) {
     const advice = IranAI.advise(G);
-    $('advisors-list').innerHTML = advice.map(a =>
-      `<div class="advisor ${a.cls}"><div class="adv-name">${a.name}</div>${a.text}</div>`).join('');
+
+    if (advTurn !== G.turn) { advOpen = new Set(); advTurn = G.turn; }
+
+    // the single advisor whose paragraph opens without being asked
+    const lead = ADV_PRIORITY
+      .map(n => advice.find(a => a.name === n))
+      .find(a => a && a.urgent);
+    if (lead) advOpen.add(lead.name);
+
+    $('advisors-list').innerHTML = advice.map(a => {
+      const open = advOpen.has(a.name);
+      return `<div class="advisor ${a.cls}${a.urgent ? ' urgent' : ''}${open ? ' open' : ''}" data-adv="${a.name}">` +
+        `<button type="button" class="adv-head" aria-expanded="${open}">` +
+        `<span class="adv-caret" aria-hidden="true">▾</span>` +
+        `<span class="adv-name">${a.name}</span>` +
+        (a.urgent ? '<span class="adv-flag">URGENT</span>' : '') +
+        `<span class="adv-line">${a.line}</span>` +
+        `</button>` +
+        `<div class="adv-text">${a.text}</div></div>`;
+    }).join('');
+
+    for (const head of $('advisors-list').querySelectorAll('.adv-head')) {
+      head.addEventListener('click', () => {
+        const box = head.parentElement;
+        const key = box.dataset.adv;
+        const open = !box.classList.contains('open');
+        box.classList.toggle('open', open);
+        head.setAttribute('aria-expanded', String(open));
+        if (open) advOpen.add(key); else advOpen.delete(key);
+      });
+    }
+
+    // The panel is collapsed most of the time, so the header is the only place
+    // an urgent advisor can be seen without opening anything. This goes in the
+    // meta line rather than the badge for the same reason the fleet's threat
+    // warning does: "SITUATION ROOM — ADVISORS" is long enough that a badge
+    // beside it wraps the title, and the meta row is already the slot for a
+    // condition rather than a count.
+    const urgent = advice.filter(a => a.urgent).length;
+    const status = $('advisors-status');
+    if (!status) return;
+    // lowercase noun: the meta row is uppercased by CSS, and plural() would
+    // otherwise pluralise "ADVISOR" to "ADVISORs"
+    status.textContent = urgent ? `— ${plural(urgent, 'advisor')} flagged urgent` : '';
+    status.style.color = 'var(--red)';
   }
 
   function renderDiplo(G) {

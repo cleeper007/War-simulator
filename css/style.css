@@ -269,14 +269,40 @@ button { font-family: var(--mono); }
 }
 #resources-list .res-count { color: var(--amber); }
 
+/* The situation room is summary-first: the name and the tasking are always
+   visible, the argument for it is one click down. Four paragraphs here used to
+   run 660px in an 800px viewport — taller than the window, on a panel the
+   player passes every one of thirty turns. */
 .advisor {
-  border-left: 2px solid var(--line); padding: 6px 10px; margin-bottom: 8px;
+  border-left: 2px solid var(--line); margin-bottom: 8px;
   font-size: 11.5px; line-height: 1.45;
 }
-.advisor .adv-name { color: var(--blue); font-weight: bold; font-size: 11px; }
 .advisor.hawk { border-left-color: var(--red); }
 .advisor.dove { border-left-color: var(--green); }
 .advisor.mil  { border-left-color: var(--amber); }
+
+.adv-head {
+  display: grid; grid-template-columns: 10px 1fr auto; gap: 2px 6px;
+  width: 100%; padding: 6px 10px; text-align: left;
+  background: none; border: 0; color: inherit; font: inherit; cursor: pointer;
+}
+.adv-head:hover { background: rgba(255, 255, 255, 0.03); }
+.adv-caret {
+  color: var(--dim); font-size: 9px; line-height: 1.6;
+  transform: rotate(-90deg); transition: transform 0.12s;
+}
+.advisor.open .adv-caret { transform: none; }
+.advisor .adv-name { color: var(--blue); font-weight: bold; font-size: 11px; }
+/* the tasking spans back under the caret — it is the line meant to be read */
+.adv-line { grid-column: 2 / 4; color: var(--text); }
+.adv-flag {
+  font-size: 9px; letter-spacing: 1px; color: var(--red);
+  border: 1px solid var(--red); padding: 0 4px; align-self: center;
+}
+.advisor.urgent .adv-line { color: var(--amber); }
+
+.adv-text { display: none; padding: 0 10px 8px 26px; color: var(--dim); }
+.advisor.open .adv-text { display: block; }
 
 /* ---- carrier strike groups ---- */
 .cv-row { padding: 5px 0; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
