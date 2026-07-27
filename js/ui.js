@@ -58,10 +58,59 @@ const UI = (() => {
 
   // For a section that has just become relevant on its own account rather than
   // because the player went looking for it. Everything in the sidebar opens by
-  // being clicked; this is the exception, and CSAR is currently the only caller.
-  function openPanel(key) {
+  // being clicked; this is the exception — CSAR when aircrew go down, and the
+  // turn-one advisors.
+  //
+  // `reveal` scrolls it back into the window afterwards. A panel opened FOR the
+  // player can still open below the fold: on a landscape phone the scroll pane
+  // is barely 200px and three collapsed heads sit above the advisors, so the
+  // tasking that was the whole reason for opening it lands off-screen.
+  //
+  // NOT scrollIntoView({block:'nearest'}) — the same trap openStrikeModal
+  // documents. The panel's HEAD is inside the pane while everything under it
+  // hangs below, so `nearest` calls it visible and moves nothing. Drive the
+  // scroller directly instead. What it aims for is described at SLICE below.
+  function openPanel(key, reveal) {
     const panel = document.querySelector(`.panel[data-panel="${key}"]`);
-    if (panel) setPanelOpen(panel, true);
+    if (!panel) return;
+    setPanelOpen(panel, true);
+    if (!reveal) return;
+    // The body animates open on grid-template-rows, so its height is a moving
+    // target and a panel measured mid-animation is still a sliver — which reads
+    // as "it very nearly fits" and scrolls by the few tens of pixels it was
+    // short, leaving the tasking off-screen anyway.
+    //
+    // Neither a fixed delay nor transitionend survives this. The delay is a
+    // guess, and transitionend BUBBLES — the action rows inside the body have
+    // transitions of their own, so it fires early from a descendant. So poll
+    // instead: wait until the panel's height stops changing, then measure. Two
+    // equal frames is settled; the frame cap stops a permanently-animating child
+    // from holding the scroll hostage.
+    const scroll = $('sidebar-scroll');
+    if (!scroll) return;
+    // Bring the panel's LEADING SLICE on screen — its head, its status line and
+    // the first tasking — not the whole panel. Chasing the whole thing scrolls
+    // as far as it takes to fit 600px of advisors, which on a desktop window
+    // pushed the three collapsed heads above it off the top; those heads carry
+    // the breakout clock, the tanker count and the air-superiority phase, so
+    // buying the fourth panel by hiding three badges is a bad trade. Enough to
+    // read the first tasking is the whole requirement.
+    const SLICE = 140;
+    const doReveal = () => {
+      const sr = scroll.getBoundingClientRect(), pr = panel.getBoundingClientRect();
+      // a panel shorter than the slice only needs its own bottom brought in
+      const want = Math.min(pr.top + SLICE, pr.bottom) - sr.bottom;
+      // never scroll past aligning the head with the top of the pane
+      if (want > 0) scroll.scrollTop += Math.min(pr.top - sr.top, want);
+    };
+    let last = -1, frames = 0;
+    const settle = () => {
+      const h = panel.getBoundingClientRect().height;
+      if (h === last || frames++ > 40) return doReveal();
+      last = h;
+      requestAnimationFrame(settle);
+    };
+    requestAnimationFrame(settle);
   }
 
   function initPanels() {
@@ -223,8 +272,12 @@ const UI = (() => {
       return;
     }
     const urgent = brk.hi <= 6 ? ' urgent' : brk.hi <= 12 ? ' warn' : '';
-    // shut, the objectives panel still has to show the clock the war is run against
-    setBadge('objectives', `${brk.lo}–${brk.hi}T`, urgent ? '' : 'badge-none');
+    // Shut, the objectives panel still has to show the clock the war is run
+    // against — and it has to say what the number IS. "5–16T" is the most
+    // important figure on the screen rendered as a crossword clue: a player who
+    // has not yet opened the panel has no way to know the T is turns, let alone
+    // turns until Iran has a weapon. The word BOMB is what makes it a clock.
+    setBadge('objectives', `BOMB IN ${brk.lo}–${brk.hi}`, urgent ? '' : 'badge-none');
     box.className = 'breakout' + urgent;
     box.innerHTML = '<span class="bo-label">EST. TIME TO A DEVICE</span>' +
       `<span class="bo-value">${brk.lo}–${brk.hi} turns</span>` +
@@ -331,8 +384,22 @@ const UI = (() => {
       }).join('');
     }
     $('resources-list').innerHTML = html;
-    // shut, the assets panel shows the magazine that actually runs out first
-    setBadge('resources', `${tk} TKR`, tkCls === 'crit' ? '' : 'badge-none');
+    // Shut, the assets panel shows the magazine that actually runs out first.
+    // Spelled out: TKR is ramp shorthand, and this badge is one of five words a
+    // player sees before they have opened anything at all.
+    setBadge('resources', `${tk} TANKER${tk === 1 ? '' : 'S'}`, tkCls === 'crit' ? '' : 'badge-none');
+    // The ladder itself, on the shut panel. renderAirPhase draws the full bar
+    // with both release thresholds marked on it, but that lives inside the body
+    // — and the phase is what decides whether the fourth-gen squadrons and the
+    // heavies fly at all. A player who never opens this panel still has to know
+    // which rung the campaign is on.
+    const phaseNow = Game.airPhase();
+    const rs = $('resources-status');
+    if (rs) {
+      rs.textContent = `— ${Game.PHASE_LABEL[phaseNow]} ${Math.round(Game.airSuperiority() * 100)}%`;
+      rs.style.color = phaseNow === 'superiority' ? 'var(--green)'
+        : phaseNow === 'degraded' ? 'var(--amber)' : 'var(--red)';
+    }
     // bombers still on the long leg in get a transit card in the scope panel
     MapView.updateTransit(G.missions);
   }
@@ -924,10 +991,16 @@ const UI = (() => {
       const ok = stockOk && fuelOk && !gate;
       const div = document.createElement('div');
       div.className = 'pkg-option' + (ok ? '' : ' unavailable') + (gate ? ' pkg-gated' : '');
-      // when a package can't fly, the reason matters: an empty magazine, an
+      // When a package can't fly, the reason matters: an empty magazine, an
       // empty tanker plan and an intact SAM belt are three different problems
-      // with three different answers
-      const why = stockOk ? '' : ' — MAGAZINE SHORT';
+      // with three different answers.
+      //
+      // A gated tier is short of a magazine too — a force that is not in theater
+      // has generated no sorties — but MAGAZINE SHORT is the wrong answer to it
+      // and points at the wrong fix: an empty magazine refills next turn, while a
+      // wing in Missouri and a grounded squadron both wait on something the
+      // player has to go and DO. The gate already says which, so it wins.
+      const why = stockOk || gate ? '' : ' — MAGAZINE SHORT';
       const fuelWhy = !fuelOk ? ' — NO TANKER TRACKS' : '';
       div.innerHTML = `<span class="pkg-name">${pkg.label}</span>` +
         (gate ? `<span class="pkg-detail pkg-gate">${gate}</span>` : '') +
@@ -1472,24 +1545,38 @@ const UI = (() => {
   }
 
   // ---- primer ----
-  // Reuses the report modal to teach the one thing the advisors cannot say
-  // loudly enough: the war is fought in the sidebar as much as on the map.
-  // Shown at the start of every war on easy and normal — the reminder is cheap
-  // and the mistake it heads off is the most common one there is. Never shown on
-  // hard: a player who has chosen the hardest setting does not need the tutorial,
-  // and the difficulty description already warns them the staff refuses nothing.
-  function showPrimer() {
-    if ((Game.G.difficulty || 'normal') === 'hard') return;
+  // Reuses the report modal to teach what the advisors cannot say loudly enough
+  // on a screen the player has not opened yet.
+  //
+  // ORDER IS THE POINT HERE. This used to lead with the two free action slots —
+  // true, and the most common way a campaign is lost, but it is the SECOND
+  // lesson. The first click of a new player's first war is the nuclear program,
+  // because the title screen just told them to destroy it, and that click lands
+  // on a buried target whose only effective package is a bomber still parked in
+  // Missouri. Leading with the ladder and the bomber answers the question the
+  // player actually has at the moment they read this; the action slots follow.
+  //
+  // Auto-shown on easy and normal only — a player who picked hard was warned the
+  // staff refuses nothing. `manual` is the PRIMER button, which works at every
+  // difficulty: suppressing the brief at boot is a judgement about pacing, not a
+  // reason to make it unreachable for the rest of the war.
+  function showPrimer(manual) {
+    if (!manual && (Game.G.difficulty || 'normal') === 'hard') return;
     const panels = [
-      { cls: 'friendly', title: 'COMMAND IS MORE THAN AIRSTRIKES',
-        text: 'Click any Iranian target on the map to plan a strike — but that is only half the job. ' +
-          'Every turn you also get TWO free actions in the sidebar: one INTELLIGENCE tasking and one ' +
-          'DIPLOMATIC action. They win wars as often as bombs do. Open those panels early and keep using them.' },
-      { cls: '', title: 'THE FOUR NUMBERS THAT BEAT YOU',
-        text: 'Watch approval, oil, world opinion and casualties along the bottom bar. When approval slips, ' +
-          'ADDRESS THE NATION. When oil spikes, release the STRATEGIC PETROLEUM RESERVE. When allies drift, ' +
-          'build a COALITION or take it to the UN. A war that is being won on the map is routinely lost at ' +
-          'home by a president who never touched these levers.' },
+      { cls: 'friendly', title: 'FIRST, TAKE THE SKY',
+        text: 'Click any Iranian target to plan a strike — but most of your force is grounded until the ' +
+          'SAM belt comes down. F-35s and Tomahawks fly tonight; fourth-generation squadrons release at ' +
+          '40%, heavy bombers at 80%. STRIKE ASSETS shows which rung you are on. Air defenses repair ' +
+          'overnight, so a belt you stop hitting climbs back.' },
+      { cls: '', title: 'THE NUCLEAR SITES NEED A BOMBER YOU HAVE NOT MOVED YET',
+        text: 'Fordow and Natanz are buried. Only the B-2 and its GBU-57 penetrator reach them, and the ' +
+          '509th is still at Whiteman AFB — call it forward from THEATER FORCES. It is one turn out, and ' +
+          'Fifth Fleet moves only one force a night, so it competes with surging the Ford.' },
+      { cls: '', title: 'TWO FREE ACTIONS EVERY TURN',
+        text: 'One INTELLIGENCE tasking and one DIPLOMATIC action, and they cost you nothing to spend. ' +
+          'Watch approval, oil, world opinion and casualties along the bottom bar: when approval slips, ' +
+          'ADDRESS THE NATION; when oil spikes, release the STRATEGIC PETROLEUM RESERVE. A war that is ' +
+          'being won on the map is routinely lost at home.' },
       { cls: 'iran', title: 'AND A WAR PLAN YOU CANNOT SEE',
         text: 'Tehran has chosen a hidden strategy — strangle the Strait, bleed you with missiles, or sprint ' +
           'for a bomb. Read it off what Iran actually does, or spend an intelligence slot to assess their ' +

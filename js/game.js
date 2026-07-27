@@ -1362,6 +1362,20 @@ const Game = (() => {
         ? `HEAVY BOMBER FORCE EN ROUTE — ${G.heavyEta} turn${G.heavyEta === 1 ? '' : 's'} from the Fairford ramp.`
         : 'HEAVY BOMBER FORCE NOT IN THEATER — the B-1s and B-52s are in CONUS and have to be called forward.';
     }
+    // The 509th needs the same sentence the heavies get, and needs it more. A
+    // B-2 package with nothing behind it otherwise falls through to the strike
+    // modal's bare "MAGAZINE SHORT", which is true and useless: an empty
+    // magazine waits for the turn, but a wing still sitting in Missouri waits
+    // for an ORDER, and it is the only thing on the board that opens Fordow.
+    // This is the first wall a new player hits — the primary objective is a
+    // penetrator target, so the very first click of the campaign lands here.
+    if (pkg.asset === 'stealth' && !G.bombersArrived) {
+      return G.bombersOrdered
+        ? `B-2 FORCE EN ROUTE — ${G.bomberEta} turn${G.bomberEta === 1 ? '' : 's'} from Diego Garcia.`
+        : 'B-2 FORCE NOT IN THEATER — the 509th is at Whiteman AFB and has to be called forward. ' +
+          'Order it from THEATER FORCES; it is one turn out, and the GBU-57 is the only weapon in ' +
+          'the inventory that reaches a buried hall.';
+    }
     return null;
   }
 
@@ -2663,9 +2677,31 @@ const Game = (() => {
     UI.renderAll(G);
     // First-war primer: the single most common way a new player loses is by
     // fighting this as a pure targeting game and never touching the free action
-    // slots that actually hold approval, oil and the coalition together. Shown
-    // once, ever — dismissed and never seen again.
-    if (!resume) UI.showPrimer();
+    // slots that actually hold approval, oil and the coalition together. Auto-
+    // shown once at the top of a fresh war; the PRIMER button in the sidebar
+    // brings it back for the rest of the campaign.
+    if (!resume) {
+      UI.showPrimer();
+      // Turn one, fresh war only. The sidebar's own opening-night content IS the
+      // tutorial: two advisors start the campaign flagged URGENT and between
+      // them they name the first move — kill the SAM belt, and move either the
+      // Ford or the 509th tonight, because Fifth Fleet only cuts one transit
+      // plan a night. Shipping that behind a shut drawer meant the last thing a
+      // new player saw before their first order was seven closed panels and a
+      // row of badges. This does not reverse the shut-sidebar policy in ui.js:
+      // nextTurn's closeAllPanels shuts it again at the top of turn 2, and a
+      // resumed save never sees it at all.
+      //
+      // ONE panel, not two. Opening the objectives checklist as well sounds
+      // helpful and is not: together they overrun the scroll pane at every
+      // screen size — and on a landscape phone the checklist alone overruns it —
+      // so the advisors have to be scrolled to, which leaves the checklist open
+      // above the fold and invisible. The war aim is already carried three other
+      // ways: the title screen states it, the primer restates it, and the
+      // OBJECTIVES badge shows the breakout clock while the panel is shut. The
+      // turn-one tasking is carried nowhere else, so it is the one that opens.
+      UI.openPanel('advisors', true);
+    }
   }
 
   function restoreAndStart(data) {
@@ -2816,6 +2852,12 @@ const Game = (() => {
       if (!confirm('Abandon the current war? The save will be erased.')) return;
       Save.clear();
       window.location.reload();
+    });
+    // Passed `true` so the brief opens at every difficulty: it is suppressed at
+    // boot on hard, but a player who asks for it is asking, not being tutored.
+    document.getElementById('btn-primer').addEventListener('click', () => {
+      if (busy()) return;   // never over a resolving turn or an open set piece
+      UI.showPrimer(true);
     });
   }
 

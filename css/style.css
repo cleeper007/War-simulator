@@ -1339,7 +1339,14 @@ button { font-family: var(--mono); }
   #sidebar-scroll { gap: 8px; }
   .panel { padding: 8px 10px; }
   #btn-end-turn, #btn-skip-turn { padding: 11px; }
-  #session-buttons button { padding: 8px; }
+  /* Three buttons share this row since PRIMER joined it, which on a 300px
+     sidebar leaves ~77px each — not enough for "SAVE & QUIT" at the standard
+     1px letter-spacing, and it broke across two lines. The tracking and the
+     side padding go rather than the words: these are the only three controls
+     in the sidebar whose labels a player has to recognise at a glance. */
+  #session-buttons button {
+    padding: 8px 4px; font-size: 9.5px; letter-spacing: 0; white-space: nowrap;
+  }
 
   /* The scroll window is barely 200px on a landscape phone and the objectives
      panel alone overruns it, so the sections below were being cut with nothing

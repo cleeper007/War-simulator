@@ -33,7 +33,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.25<span class="beta-tag">BETA</span></div>
+  <div class="version-badge">v1.26<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -111,7 +111,10 @@
       <div class="panel collapsed" id="objectives-panel" data-panel="objectives">
         <button type="button" class="panel-head" aria-expanded="false">
           <span class="panel-caret" aria-hidden="true">▾</span>
-          <span class="panel-title">MISSION OBJECTIVES</span>
+          <!-- "MISSION" came off for the same reason "AVAILABLE" came off Strike
+               Assets: the badge now spells the breakout clock out in words, and
+               on a 300px landscape-phone sidebar the pair wrapped to two rows. -->
+          <span class="panel-title">OBJECTIVES</span>
           <span class="panel-badge"></span>
           <span class="panel-meta"></span>
         </button>
@@ -127,9 +130,16 @@
       <div class="panel collapsed" id="resources-panel" data-panel="resources">
         <button type="button" class="panel-head" aria-expanded="false">
           <span class="panel-caret" aria-hidden="true">▾</span>
-          <span class="panel-title">STRIKE ASSETS AVAILABLE</span>
+          <!-- "AVAILABLE" came off the title: the badge and the phase line now
+               sit beside it, and the three together wrapped onto a second row.
+               The panel lists what is available; the word was doing no work. -->
+          <span class="panel-title">STRIKE ASSETS</span>
           <span class="panel-badge"></span>
-          <span class="panel-meta"></span>
+          <!-- The air-superiority phase reads on the SHUT panel, the same way the
+               anti-ship threat reads on Theater Forces. It decides which two
+               thirds of the force are allowed to fly, so it is the one number in
+               here that a player must not have to open a drawer to find. -->
+          <span class="panel-meta" id="resources-status"></span>
         </button>
         <div class="panel-body"><div class="panel-body-inner">
           <div id="resources-list"></div>
@@ -204,7 +214,11 @@
 
       <button id="btn-end-turn" class="btn-primary">END TURN — AWAIT DEVELOPMENTS</button>
       <button id="btn-skip-turn" class="btn-primary hidden">SKIP TO RESULTS ▸</button>
+      <!-- PRIMER re-opens the opening brief. It was shown once at boot and then
+           gone forever, which made the one screen explaining how the war is
+           fought the only screen a player could not go back to. -->
       <div id="session-buttons">
+        <button id="btn-primer" class="btn-secondary">PRIMER</button>
         <button id="btn-save-quit" class="btn-secondary">SAVE &amp; QUIT</button>
         <button id="btn-new-game" class="btn-secondary">NEW GAME</button>
       </div>
