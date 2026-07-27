@@ -317,6 +317,8 @@ button { font-family: var(--mono); }
 .cv-state.cv-away    { color: var(--dim); }
 .cv-state.cv-lost    { color: var(--red); text-decoration: line-through; }
 .cv-note { font-size: 10.5px; line-height: 1.4; margin-top: 2px; }
+/* an asset whose whole story is the order row below it says nothing here */
+.cv-note:empty { display: none; }
 
 /* ---- action lists ----
    Every panel that offers the player something to click renders the same
@@ -327,24 +329,66 @@ button { font-family: var(--mono); }
 #fleet-buttons, #diplo-buttons, #intel-buttons, #specops-buttons, #csar-buttons {
   display: flex; flex-direction: column; gap: 6px;
 }
-#fleet-buttons button, #diplo-buttons button, #intel-buttons button,
-#specops-buttons button, #csar-buttons button {
+/* `:not(.action-why)` throughout: the disclosure caret is a button in these
+   same containers but it is not an order, and these ID-scoped rules would
+   otherwise out-specify everything the .action rules below try to say about
+   it — including its width, which is a touch target. */
+#fleet-buttons button:not(.action-why), #diplo-buttons button:not(.action-why),
+#intel-buttons button:not(.action-why), #specops-buttons button:not(.action-why),
+#csar-buttons button:not(.action-why) {
   text-align: left; padding: 7px 10px; font-size: 11.5px; line-height: 1.35;
   background: var(--bg-panel2); border: 1px solid var(--line);
   color: var(--text); cursor: pointer;
 }
-#fleet-buttons button:hover:not(:disabled), #diplo-buttons button:hover:not(:disabled),
-#intel-buttons button:hover:not(:disabled), #specops-buttons button:hover:not(:disabled),
-#csar-buttons button:hover:not(:disabled) { border-color: var(--blue); }
+#fleet-buttons button:not(.action-why):hover:not(:disabled),
+#diplo-buttons button:not(.action-why):hover:not(:disabled),
+#intel-buttons button:not(.action-why):hover:not(:disabled),
+#specops-buttons button:not(.action-why):hover:not(:disabled),
+#csar-buttons button:not(.action-why):hover:not(:disabled) { border-color: var(--blue); }
 #fleet-buttons button:disabled, #diplo-buttons button:disabled,
 #intel-buttons button:disabled, #specops-buttons button:disabled,
 #csar-buttons button:disabled { opacity: 0.35; cursor: not-allowed; }
-/* the order line reads first; the cost of giving it reads second */
+/* the order line reads first; the cost of giving it reads second.
+   Special operations and recovery still render this shape directly — they are
+   one-button panels whose whole description IS the odds, so there is nothing
+   to fold away. */
 #fleet-buttons .diplo-desc, #diplo-buttons .diplo-desc, #intel-buttons .diplo-desc,
 #specops-buttons .diplo-desc, #csar-buttons .diplo-desc {
   color: var(--dim); display: block; font-size: 10.5px; line-height: 1.45;
   margin-top: 3px;
 }
+
+/* An action is an order, its live state, and — folded away — what the order
+   actually is. The mechanism text is identical every turn for thirty turns;
+   holding it open by default was costing 600-840px of panel to say things the
+   player learned once. The caret is a sibling of the order button, not a child:
+   the order fires on click, so a control nested inside it could not be read
+   without giving it. */
+.action { display: grid; grid-template-columns: 1fr auto; gap: 0; }
+.action .action-do { grid-column: 1; }
+.action .action-why {
+  grid-column: 2; align-self: stretch; padding: 0 8px;
+  background: var(--bg-panel2); border: 1px solid var(--line); border-left: 0;
+  color: var(--dim); cursor: pointer; font-size: 9px; line-height: 1;
+}
+.action .action-why:hover { color: var(--blue); border-color: var(--blue); }
+/* rotate the glyph, not the button — the button carries the border */
+.why-caret { display: inline-block; transition: transform 0.12s; transform: rotate(-90deg); }
+.action.open .why-caret { transform: none; }
+.action.open .action-why { color: var(--text); }
+.action.off .action-why { opacity: 0.35; }
+.action-name { display: block; }
+.action-desc {
+  grid-column: 1 / 3; display: none;
+  color: var(--dim); font-size: 10.5px; line-height: 1.45;
+  padding: 6px 10px; border: 1px solid var(--line); border-top: 0;
+  background: rgba(0, 0, 0, 0.15);
+}
+.action.open .action-desc { display: block; }
+/* the live state — what changed, and what the order costs — never folds */
+.action .il-current { color: var(--amber); display: block; margin-top: 3px; font-size: 10.5px; }
+.action.off .action-desc, .action.off .il-current { opacity: 0.6; }
+
 #fleet-status { font-size: 10px; letter-spacing: 1px; }
 
 /* a deck under way, and one that has taken a hit */
@@ -371,9 +415,9 @@ button { font-family: var(--mono); }
 #intel-buttons .intel-line .il-value { color: var(--amber); letter-spacing: 0; }
 #intel-buttons .intel-line .il-value.known { color: var(--green); }
 #intel-buttons .intel-line .il-value.unknown { color: var(--red); }
-#intel-buttons button .diplo-desc .il-current {
-  color: var(--amber); display: block; margin-bottom: 2px;
-}
+/* the tasking's own live line is styled with the shared .action rules above —
+   intelligence was the first panel to separate state from explanation, and is
+   now simply one of four doing it */
 
 #btn-end-turn, #btn-skip-turn { width: 100%; padding: 14px; }
 
@@ -1249,8 +1293,12 @@ button { font-family: var(--mono); }
   #toggle-bases { height: 36px; }
   #btn-mute { font-size: 18px; padding: 6px 10px; }
   /* the sidebar taskings are the primary touch surface — give them room */
-  #fleet-buttons button, #diplo-buttons button, #intel-buttons button,
-  #specops-buttons button, #csar-buttons button { padding: 10px 12px; }
+  #fleet-buttons button:not(.action-why), #diplo-buttons button:not(.action-why),
+  #intel-buttons button:not(.action-why), #specops-buttons button:not(.action-why),
+  #csar-buttons button:not(.action-why) { padding: 10px 12px; }
+  /* the disclosure sits right beside the order it explains: too narrow and a
+     thumb reaching for "why" gives the order instead */
+  .action .action-why { padding: 0 14px; }
   .panel-head { padding: 4px 0; }
   .modal-close { font-size: 20px; padding: 4px 6px; }
 }

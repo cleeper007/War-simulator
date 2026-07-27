@@ -132,8 +132,10 @@ const UI = (() => {
     for (const key in ACTION_PANELS) {
       const box = $(ACTION_PANELS[key]);
       if (!box) continue;
-      const total = box.querySelectorAll('button').length;
-      const live = box.querySelectorAll('button:not(:disabled)').length;
+      // the disclosure carets are not orders and must not be counted — they are
+      // never disabled, so counting them would report every panel as READY
+      const total = box.querySelectorAll('button:not(.action-why)').length;
+      const live = box.querySelectorAll('button:not(.action-why):not(:disabled)').length;
       if (!total) { setBadge(key, ''); continue; }
       setBadge(key, live ? `${live} READY` : 'NONE', live ? '' : 'badge-none');
     }
@@ -338,6 +340,12 @@ const UI = (() => {
   // ---- carrier strike groups ----
   // The panel answers three questions at a glance: where is each deck, what is
   // it worth there, and can it be shot at.
+  //
+  // These notes say what an asset IS doing. What it would cost to change that
+  // is the order row underneath, which now carries the trade explicitly — so
+  // the note no longer lists the Aegis umbrella, the weight on the strait and
+  // the oil lid only for the button below it to list them again as the price.
+  // State here, consequence there.
   function carrierLine(cv) {
     if (cv.lost) return { label: 'LOST', cls: 'cv-lost', note: 'Sunk in the North Arabian Sea.' };
     if (!cv.arrived) return null;   // handled by the order/ETA button below
@@ -345,21 +353,20 @@ const UI = (() => {
       return {
         label: cv.moving === 'forward' ? 'CLOSING NORTHWEST' : 'WITHDRAWING',
         cls: 'cv-moving',
-        note: 'Repositioning — full strike either way, but still inside the envelope until she is clear, and the forward presence effects are not up yet.',
+        note: 'Repositioning — full strike either way, but still inside the envelope until she is clear.',
       };
     }
     if (cv.posture === 'forward') {
       return {
         label: 'ON STATION — N. ARABIAN SEA', cls: 'cv-forward',
         note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
-          'Full sortie generation. Aegis over the Gulf bases, weight on the strait, ' +
-          'a lid on the oil premium — and a hull inside Iranian anti-ship fires.',
+          'Full sortie generation — and a hull inside Iranian anti-ship fires.',
       };
     }
     return {
       label: 'DEEP ARABIAN SEA', cls: 'cv-back',
       note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
-        'Out of reach — and flying her full air wing. But no Aegis over the Gulf bases, no weight on the strait, no lid on the oil premium.',
+        'Out of reach, and flying her full air wing.',
     };
   }
 
@@ -382,7 +389,7 @@ const UI = (() => {
     }
     return {
       label: 'NOT IN THEATER', cls: 'cv-away',
-      note: 'At Whiteman AFB, Missouri. One turn to Diego Garcia — and the only aircraft in the inventory that can reach Fordow.',
+      note: 'At Whiteman AFB, Missouri.',
     };
   }
 
@@ -409,9 +416,7 @@ const UI = (() => {
     }
     return {
       label: 'NOT IN THEATER', cls: 'cv-away',
-      note: Game.phaseAtLeast('degraded')
-        ? 'B-1s at Dyess and B-52s at Barksdale. Two turns to RAF Fairford — and the heaviest conventional weight in the inventory.'
-        : 'B-1s at Dyess and B-52s at Barksdale. They will not be moved into a theater whose air defenses are still intact.',
+      note: 'B-1s at Dyess and B-52s at Barksdale.',
     };
   }
 
@@ -428,10 +433,11 @@ const UI = (() => {
       const st = carrierLine(cv);
       const head = `<div class="cv-head"><span class="cv-hull">${info.short}</span>` +
         `<span class="cv-state ${st ? st.cls : 'cv-away'}">${st ? st.label : 'NOT IN THEATER'}</span></div>`;
+      // a deck that is not here yet has its whole story in the order row below
       const note = st ? st.note
         : G.secondCarrierOrdered
           ? `Under way from the Indian Ocean — ${turns(G.secondCarrierEta)} out.`
-          : 'Available to be surged into the theater.';
+          : '';
       return `<div class="cv-row"><div class="cv-name dim">${info.name}</div>${head}` +
         `<div class="cv-note dim">${note}</div></div>`;
     }).join('');
@@ -455,77 +461,95 @@ const UI = (() => {
     const planCut = Game.transitCommitted();
     const bomberInbound = G.bombersOrdered && !G.bombersArrived;
 
-    const buttons = G.carriers.map(cv => {
+    // Force-flow orders go through the shared action list like every other
+    // tasking: the order and what it costs stay up, the explanation of what a
+    // transit plan is folds away. Each entry needs its own data attribute
+    // because these do not go through doDiplo — the wiring below reads them.
+    const acts = [];
+
+    G.carriers.forEach(cv => {
       const info = CARRIER_INFO[cv.id];
-      if (cv.lost) return '';
+      if (cv.lost) return;
       if (!cv.arrived) {
         if (G.secondCarrierOrdered) {
-          return `<button disabled>${info.short} EN ROUTE<span class="diplo-desc">` +
-            `ETA ${turns(G.secondCarrierEta)}. She cannot be hurried.</span></button>`;
+          acts.push({ id: `cv-eta-${cv.id}`, attrs: '', name: `${info.short} EN ROUTE`,
+            current: `ETA ${turns(G.secondCarrierEta)}.`,
+            desc: 'She cannot be hurried.', disabled: true });
+        } else if (planCut) {
+          acts.push({ id: `cv-cut-${cv.id}`, attrs: '', name: 'NAVAL TRANSIT COMMITTED — B-2 FORCE MOVING',
+            current: `${info.short} can be surged next turn.`,
+            desc: 'Fifth Fleet cuts one transit plan a night, and tonight\'s is the 509th.',
+            disabled: true });
+        } else {
+          acts.push({ id: `cv-surge-${cv.id}`, name: `SURGE ${info.short} TO THE THEATER`,
+            attrs: 'data-carrier-order="1"',
+            current: `${turns(Game.FORD_TRANSIT_TURNS)} out. Costs tonight's naval transit.`,
+            desc: `Orders ${info.name} into theater; she arrives at standoff in the deep Arabian Sea. ` +
+              'Costs no money and no lives — but the B-2s cannot be moved until next turn.' });
         }
-        if (planCut) {
-          return `<button disabled>NAVAL TRANSIT COMMITTED — B-2 FORCE MOVING` +
-            `<span class="diplo-desc">Fifth Fleet cuts one transit plan a night, and tonight's is the ` +
-            `509th. ${info.short} can be surged next turn.</span></button>`;
-        }
-        return `<button data-carrier-order="1">SURGE ${info.short} TO THE THEATER` +
-          `<span class="diplo-desc">Orders ${info.name} into theater. ${Game.FORD_TRANSIT_TURNS} turns out; ` +
-          `arrives at standoff in the deep Arabian Sea. Costs no money and no lives — it costs tonight's naval ` +
-          `transit, so the B-2s cannot be moved until next turn.</span></button>`;
+        return;
       }
       const fwd = cv.posture === 'forward';
-      return `<button data-carrier-toggle="${cv.id}" ${cv.moving ? 'disabled' : ''}>` +
-        (cv.moving ? `${info.short} REPOSITIONING`
+      acts.push({
+        id: `cv-post-${cv.id}`,
+        name: cv.moving ? `${info.short} REPOSITIONING`
           : fwd ? `PULL ${info.short} BACK TO THE DEEP ARABIAN SEA`
-          : `SEND ${info.short} FORWARD TO THE NORTH ARABIAN SEA`) +
-        `<span class="diplo-desc">` +
-        (cv.moving ? 'The order is given. She is between stations until the end of the turn.'
-          : fwd ? 'Takes one turn, exposed until she is clear. Full strike either way — but the Aegis umbrella, the pressure on the strait, and the lid on oil all come off with her.'
-          : 'Takes one turn, exposed until she is on station. Full strike either way — going forward adds Aegis BMD over the Gulf-state bases, a harder strait to close, and a lower oil premium. The cost is a hull inside Iran\'s anti-ship envelope.') +
-        `</span></button>`;
-    }).join('');
+          : `SEND ${info.short} FORWARD TO THE NORTH ARABIAN SEA`,
+        attrs: `data-carrier-toggle="${cv.id}"`,
+        current: cv.moving ? 'Between stations until the end of the turn.'
+          : fwd ? 'One turn, exposed until clear. Aegis, strait pressure and the oil lid come off with her.'
+          : 'One turn, exposed until on station. Adds Aegis BMD, a harder strait, a lower oil premium.',
+        desc: cv.moving ? 'The order is given.'
+          : fwd ? 'Full strike either way — what you give up is the Aegis umbrella over the Gulf-state bases, the weight on the strait, and the lid on the oil premium.'
+          : 'Full strike either way. The cost is a hull inside Iran\'s anti-ship envelope.',
+        disabled: cv.moving,
+      });
+    });
 
-    let bomberBtn = '';
     if (!G.bombersArrived) {
       if (bomberInbound) {
-        bomberBtn = `<button disabled>B-2 FORCE EN ROUTE<span class="diplo-desc">` +
-          `ETA ${turns(G.bomberEta)}. They land, they get built up, then they fly.</span></button>`;
+        acts.push({ id: 'b2-eta', attrs: '', name: 'B-2 FORCE EN ROUTE', current: `ETA ${turns(G.bomberEta)}.`,
+          desc: 'They land, they get built up, then they fly.', disabled: true });
       } else if (planCut) {
-        bomberBtn = `<button disabled>NAVAL TRANSIT COMMITTED — FORD UNDER WAY` +
-          `<span class="diplo-desc">Tonight's transit plan is the carrier surge. The 509th moves on ` +
-          `tomorrow's — they do not wait on her arrival.</span></button>`;
+        acts.push({ id: 'b2-cut', attrs: '', name: 'NAVAL TRANSIT COMMITTED — FORD UNDER WAY',
+          current: 'The 509th moves on tomorrow\'s plan.',
+          desc: 'Tonight\'s transit plan is the carrier surge. They do not wait on her arrival.',
+          disabled: true });
       } else {
-        bomberBtn = `<button data-bomber-order="1">DEPLOY B-2 FORCE — WHITEMAN → DIEGO GARCIA` +
-          `<span class="diplo-desc">Moves the 509th into theater. ${Game.B2_TRANSIT_TURNS} turn out; unlocks ` +
-          `GBU-57 penetrator missions — the only way to reach Fordow. Takes tonight's naval transit, so the ` +
-          `${CARRIER_INFO['csg-ford'].short} cannot be surged until next turn.</span></button>`;
+        acts.push({ id: 'b2-go', name: 'DEPLOY B-2 FORCE — WHITEMAN → DIEGO GARCIA',
+          attrs: 'data-bomber-order="1"',
+          current: `${turns(Game.B2_TRANSIT_TURNS)} out. Unlocks the GBU-57 — the only way to reach Fordow.`,
+          desc: 'Moves the 509th into theater. Takes tonight\'s naval transit, so the ' +
+            `${CARRIER_INFO['csg-ford'].short} cannot be surged until next turn.` });
       }
     }
 
     // the heavies want the sky to be breaking before anyone will move them, and
     // they take a transit slot like everything else
-    let heavyBtn = '';
     if (!G.heaviesArrived) {
       if (G.heaviesOrdered) {
-        heavyBtn = `<button disabled>HEAVY BOMBER FORCE EN ROUTE<span class="diplo-desc">` +
-          `ETA ${turns(G.heavyEta)} to RAF Fairford.</span></button>`;
+        acts.push({ id: 'hv-eta', attrs: '', name: 'HEAVY BOMBER FORCE EN ROUTE',
+          current: `ETA ${turns(G.heavyEta)} to RAF Fairford.`, disabled: true });
       } else if (!Game.phaseAtLeast('degraded')) {
-        heavyBtn = `<button disabled>HEAVY BOMBERS — AIRSPACE STILL CONTESTED<span class="diplo-desc">` +
-          `Air Combat Command will not flow B-1s and B-52s into a theater with an intact SAM belt. ` +
-          `Degrade the air defense network and the force becomes available to call forward.</span></button>`;
+        acts.push({ id: 'hv-blocked', attrs: '', name: 'HEAVY BOMBERS — AIRSPACE STILL CONTESTED',
+          current: 'Degrade the air defense network first.',
+          desc: 'Air Combat Command will not flow B-1s and B-52s into a theater with an intact SAM belt.',
+          disabled: true });
       } else if (planCut) {
-        heavyBtn = `<button disabled>TRANSIT COMMITTED — ANOTHER FORCE IS MOVING` +
-          `<span class="diplo-desc">One force flow a night. The heavies go out on tomorrow's plan.</span></button>`;
+        acts.push({ id: 'hv-cut', attrs: '', name: 'TRANSIT COMMITTED — ANOTHER FORCE IS MOVING',
+          current: 'The heavies go out on tomorrow\'s plan.',
+          desc: 'One force flow a night.', disabled: true });
       } else {
-        heavyBtn = `<button data-heavy-order="1">DEPLOY HEAVY BOMBER FORCE — CONUS → RAF FAIRFORD` +
-          `<span class="diplo-desc">Moves the B-1 and B-52 force into theater. ${Game.HEAVY_TRANSIT_TURNS} turns out. ` +
-          `Each package takes roughly half again what a fighter package takes off a target — but they will not be ` +
-          `tasked until air superiority is declared, so calling them early is a bet on the campaign going well.</span></button>`;
+        acts.push({ id: 'hv-go', name: 'DEPLOY HEAVY BOMBER FORCE — CONUS → RAF FAIRFORD',
+          attrs: 'data-heavy-order="1"',
+          current: `${turns(Game.HEAVY_TRANSIT_TURNS)} out. Roughly half again a fighter package per target.`,
+          desc: 'Moves the B-1 and B-52 force into theater. They will not be tasked until air superiority ' +
+            'is declared, so calling them early is a bet on the campaign going well.' });
       }
     }
 
-    $('fleet-buttons').innerHTML = buttons + bomberBtn + heavyBtn;
-    for (const btn of $('fleet-buttons').querySelectorAll('button')) {
+    $('fleet-buttons').innerHTML = actionButtons(acts, false);
+    for (const btn of $('fleet-buttons').querySelectorAll('.action-do')) {
       if (btn.dataset.carrierOrder) btn.addEventListener('click', () => Game.orderCarrier());
       else if (btn.dataset.bomberOrder) btn.addEventListener('click', () => Game.orderBombers());
       else if (btn.dataset.heavyOrder) btn.addEventListener('click', () => Game.orderHeavies());
@@ -533,6 +557,7 @@ const UI = (() => {
         btn.addEventListener('click', () => Game.toggleCarrierPosture(btn.dataset.carrierToggle));
       }
     }
+    wireWhy('#fleet-buttons');
   }
 
   // Which advisors the player has opened, and the turn that was true for.
@@ -605,49 +630,64 @@ const UI = (() => {
     const used = G.diploUsed;
     $('diplo-status').textContent = used ? '— USED THIS TURN' : '';
     const negReady = G.negotiationReady();
+    // `current` is what the player needs to choose — the odds, the price, the
+    // countdown. `desc` is what the instrument is. Anything with a number in it
+    // that the player is spending belongs above the fold.
     const actions = [
       {
         id: 'backchannel', name: 'Omani backchannel',
+        current: negReady
+          ? 'Tehran is breaking — a deal is possible.'
+          : 'Tehran will not talk while it can still fight.',
         desc: negReady
-          ? 'Tehran is breaking. A deal is possible — but far from certain. Attempt to bring them to the table.'
-          : 'Tehran won\'t talk while it can still fight. An overture now will be rebuffed and read as weakness at home.',
+          ? 'Far from certain, but this is the moment an overture can land. Attempt to bring them to the table.'
+          : 'An overture now will be rebuffed and read as weakness at home.',
       },
       {
         id: 'un', name: 'UN Security Council push',
-        desc: 'Rally international support and diplomatic cover. World opinion +.',
+        current: 'World opinion +.',
+        desc: 'Rally international support and diplomatic cover.',
       },
       {
         id: 'sanctions', name: 'Snap-back sanctions package',
-        desc: 'Tighten economic pressure. Improves negotiation leverage; small oil-price cost.',
+        current: 'Negotiation leverage +, small oil cost.',
+        desc: 'Tighten the economic screws. Leverage is what a backchannel spends when the time comes.',
       },
       {
         id: 'coalition', name: 'Build strike coalition',
-        desc: G.coalition ? 'Coalition assembled — allied sorties added.' : 'Bring in allied support',
+        current: G.coalition ? 'Coalition assembled — allied sorties added.' : 'Adds allied sorties.',
+        desc: G.coalition ? '' : 'Brings allied air into the operation and spreads the political weight of it.',
         disabled: G.coalition,
       },
       {
         id: 'israel', name: 'Coordinate with Israel',
-        desc: G.israelPosture === 'coordinated'
-          ? 'Israel is in the operation. Joint deep-strike package available at Natanz/Fordow.'
+        current: G.israelPosture === 'coordinated'
+          ? 'Israel is in. Joint deep-strike package available.'
           : G.israelPosture === 'unilateral'
             ? 'Too late — Israel acted on its own.'
-            : `Bring the IAF in openly. Adds fighter capacity and ONE joint deep-strike package against Natanz or Fordow. Widens the war: world opinion −8, and Iran starts shooting at Israel. They go alone in ${turns(G.israelPatience)} regardless.`,
+            : `World opinion −8. They go alone in ${turns(G.israelPatience)} regardless.`,
+        desc: G.israelPosture === 'sidelined'
+          ? 'Brings the IAF in openly: fighter capacity, and ONE joint deep-strike package against Natanz ' +
+            'or Fordow — the only path to the buried halls that does not need a B-2. It also widens the war, ' +
+            'and Iran starts shooting at Israel on our account.'
+          : '',
         disabled: G.israelPosture !== 'sidelined',
       },
       {
         id: 'spr', name: 'Release the Strategic Reserve',
-        desc: G.sprReleases >= 2
-          ? 'Reserve drawn down — the tanks are too low for another release of scale.'
-          : `Coordinated SPR draw to push the pump price down. Oil ${G.sprReleases === 0 ? '−$20' : '−$12'}, approval +2. ` +
-            `${plural(2 - G.sprReleases, 'release')} left.`,
+        current: G.sprReleases >= 2
+          ? 'Tanks too low for another release of scale.'
+          : `Oil ${G.sprReleases === 0 ? '−$20' : '−$12'}, approval +2. ${plural(2 - G.sprReleases, 'release')} left.`,
+        desc: G.sprReleases >= 2 ? '' : 'A coordinated draw on the Strategic Petroleum Reserve to push the pump price down.',
         disabled: G.sprReleases >= 2,
       },
       {
         id: 'address', name: 'Address the nation',
-        desc: G.addressCooldown > 0
+        current: G.addressCooldown > 0
           ? `Available in ${turns(G.addressCooldown)}.`
-          : `Rally the public. Approval +6 — and it is counted when the War Powers vote comes up ` +
-            `(${G.addresses} so far).`,
+          : `Approval +6. ${plural(G.addresses, 'address')} so far.`,
+        desc: G.addressCooldown > 0 ? '' :
+          'Rally the public — and the count is read out when the War Powers vote comes up.',
         disabled: G.addressCooldown > 0,
       },
     ];
@@ -658,18 +698,67 @@ const UI = (() => {
 
   // one control for every order the player can give, so a tasking looks like a
   // tasking wherever it is rendered
+  // Which action explainers are open. Unlike the advisors' `advOpen` this is NOT
+  // cleared on the turn roll: an advisor says something different every turn, so
+  // a stale expansion would show a paragraph nobody asked for, but "what a
+  // collection deck is" is the same sentence on turn 1 and turn 30. A player who
+  // opens it is learning the game and should keep it open until they close it.
+  const actOpen = new Set();
+
+  // One control for every order the player can give, so a tasking looks like a
+  // tasking wherever it is rendered — and so the split between what changed and
+  // what it means is made once instead of per panel.
+  //
+  // `name` and `current` are the decision: the order, its live state, and what
+  // it costs. `desc` is the mechanism — what an SPR draw is, why the heavies
+  // will not fly — which is the same prose every turn for thirty turns and is
+  // the part that was making these panels 600-840px tall. It renders collapsed.
+  //
+  // The explainer sits OUTSIDE the button rather than inside it: the button
+  // performs the action on click, so a disclosure nested in it would be an
+  // invalid control that fires an order when the player only wanted to read.
   function actionButtons(list, used) {
-    return list.map(a =>
-      `<button data-diplo="${a.id}" ${used || a.disabled ? 'disabled' : ''}>` +
-      `${a.name}<span class="diplo-desc">` +
-      (a.current ? `<span class="il-current">${a.current}</span>` : '') +
-      `${a.desc}</span></button>`).join('');
+    return list.map(a => {
+      const off = used || a.disabled;
+      const open = actOpen.has(a.id);
+      // `attrs: ''` marks a status row — something the panel is telling the
+      // player rather than an order they can give. Omitting attrs entirely is
+      // the diplomacy/intelligence default, where the id IS the order.
+      const attrs = a.attrs === undefined ? `data-diplo="${a.id}"` : a.attrs;
+      return `<div class="action${off ? ' off' : ''}${open ? ' open' : ''}" data-action="${a.id}">` +
+        `<button class="action-do" ${attrs} ${off ? 'disabled' : ''}>` +
+        `<span class="action-name">${a.name}</span>` +
+        (a.current ? `<span class="il-current">${a.current}</span>` : '') +
+        `</button>` +
+        (a.desc
+          ? `<button type="button" class="action-why" aria-expanded="${open}" ` +
+            `aria-label="Why this order matters"><span class="why-caret">▾</span></button>` +
+            `<div class="action-desc">${a.desc}</div>`
+          : '') +
+        `</div>`;
+    }).join('');
+  }
+
+  // Wires the disclosure carets in a panel. The action itself is wired by the
+  // caller, because a diplomatic action, a carrier order and a bomber order all
+  // go somewhere different — but every panel hides its prose the same way.
+  function wireWhy(sel) {
+    for (const why of document.querySelectorAll(`${sel} .action-why`)) {
+      why.addEventListener('click', () => {
+        const row = why.parentElement;
+        const open = !row.classList.contains('open');
+        row.classList.toggle('open', open);
+        why.setAttribute('aria-expanded', String(open));
+        if (open) actOpen.add(row.dataset.action); else actOpen.delete(row.dataset.action);
+      });
+    }
   }
 
   function wireActions(sel) {
-    for (const btn of document.querySelectorAll(`${sel} button`)) {
+    for (const btn of document.querySelectorAll(`${sel} .action-do`)) {
       btn.addEventListener('click', () => Game.doDiplo(btn.dataset.diplo));
     }
+    wireWhy(sel);
   }
 
   // ---- intelligence tasking ----
