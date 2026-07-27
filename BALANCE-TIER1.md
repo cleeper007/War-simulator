@@ -1,11 +1,16 @@
 # Tier 1 balance work — handoff
 
-Three changes that together fix "the war is over by turn 8 of 30." Item 1 is
-**done and verified**; items 2 and 3 are specced below and not started.
+Three changes that together fix "the war is over by turn 8 of 30." Items 1 and 2
+are **done and verified**; item 3 is specced below and not started.
 
 **Do them in order and playtest between each.** They interact hard: item 1 alone
 lengthens the war, item 2 alone slows it, item 3 alone makes it harsher. All
 three at once will overshoot and you will have no idea which knob did it.
+
+**Item 3 is therefore the one to hold.** Items 1 and 2 have both landed and the
+war has not been played end-to-end by a human since. Approval is still a
+one-way ratchet and should still be fixed, but find out what the campaign feels
+like at three-to-six packages a night first.
 
 ---
 
@@ -94,7 +99,74 @@ so this is arguably correct. Revisit only if it reads wrong in play.
 
 ---
 
-## Item 2 — price packages, do not cap them ⬜ NOT STARTED
+## Item 2 — price packages, do not cap them ✅ DONE
+
+Shipped in v1.28, save `VERSION` 14. See `ATO` (`js/data.js`), `planSize` /
+`atoSlots` / `atoOver` / `atoWall` (`js/game.js`), the `surge`/`surgeLoss` terms
+in `computeStrike`, fatigue accrual in `executeStrike`, decay and the writing of
+tomorrow's order in `nextTurn`, and the late-frag line in `showEstimate`
+(`js/ui.js`). Built to the spec below with three changes, all of which came out
+of playtesting rather than the design:
+
+**The plan is a document, not a running total.** The spec computes `atoSlots()`
+live off `G.fatigue`. That is subtly wrong and it showed up immediately: the
+fourth package accrues debt, the debt shrinks the plan the fourth package is
+being measured against, so the fifth is three past a plan of two instead of two
+past a plan of three. The surge accelerates mid-night, the wall arrives four
+packages early, and the modal quotes a multiplier that is stale by the time the
+player authorizes the next package. The order is now written once at the turn
+boundary into `G.atoPlan` and does not move until tomorrow. Both `atoPlan` and
+`fatigue` are in `FIELDS`.
+
+**Fatigue decay is unconditional.** The spec pays the debt down only on a night
+that stayed inside the plan — "surging again pays nothing back, which is the
+whole point of a debt." It produced a trap. A wing at maximum debt has a plan of
+one (the `max(1, …)` floor in `planSize`), flying two is one package over, and
+one package over paid back nothing — so a single greedy night pinned the
+campaign at one package a night for the remaining twenty-nine turns. A bot doing
+nothing but "fly the best package available" hit that on turn one and never
+recovered. Nothing on screen distinguishes flying one from flying two on a plan
+of one, and an unstated rule should not decide a campaign in its first hour.
+Each late frag now costs exactly one package-night of future tempo.
+
+**The boat is not on the tasking order.** `atoOver` returns 0 for `pkg.sub`, and
+`barred` skips the wall on any target holding a submarine option. Consistent with
+how the shot is already treated everywhere else — no theater magazine, no fuel,
+not logged for `adapt` — and her torpedo room is its own hard limit.
+
+### Verified
+
+Surge curve on a plan of 3, and the wall:
+
+```
+package     1    2    3     4     5     6     7     8
+over        0    0    0     1     2     3     4     —
+effects    69   69   69    60    51    42    28   REFUSED
+loss ×    1.0  1.0  1.0  1.55  2.10  2.65  3.20
+```
+
+Recovery after a full seven-package opening night, standing down after:
+
+```
+turn        1    2    3    4    5    6
+fatigue     4    3    2    1    0    0
+plan        3    1    1    2    3    4   ← the turn-3 and turn-5 flow waves land
+```
+
+Also confirmed: save → reload → CONTINUE round-trips `fatigue`/`atoPlan`; a v13
+blob leaves CONTINUE disabled; the panel row, the shut-panel badge, the modal
+banner and the map tooltip all agree on the same three states (inside the plan /
+plan spent / order closed); no console errors over 30 simulated turns.
+
+### One thing found and NOT fixed
+
+`G.forceFlow.landed` stays `[]` for a whole campaign under sustained striking,
+even with `G.basing` open — so the theater buildup never arrives. **Reproduces
+identically on `bf55cf4`, before any of this work.** Pre-existing, out of scope,
+and now slightly worse in consequence: `ATO.perFlow` means a dead force flow
+also pins the tasking order at 3 forever. Worth a look in `forceFlowTick`.
+
+### The original spec follows
 
 ### Do NOT just add a hard cap
 

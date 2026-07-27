@@ -365,6 +365,32 @@ const UI = (() => {
     // interior, or three deep fighter packages" means everything. Thresholds
     // moved with the v1.19 charge rescale: crit is the point where nothing but
     // fighters and Tomahawks will fly, warn is losing the deep heavy option.
+    // ---- tonight's tasking order ----
+    // The magazine that runs out first now (see ATO in data.js), so it sits
+    // above the tanker plan. It has to be readable BEFORE a target is clicked:
+    // the whole decision this constant exists to create is "what is the third
+    // package worth, and is there a fourth", and a player who only learns the
+    // plan is spent from a refusal in the strike modal is being asked to
+    // sequence a night they cannot see.
+    const slots = Game.atoSlots();
+    const flown = G.strikesThisTurn;
+    const over = Math.max(0, flown - slots);
+    const atoCls = flown >= slots + ATO.ceiling ? 'crit' : flown >= slots ? 'warn' : '';
+    html += `<div class="res-row plan-row"><span>Packages tasked tonight</span>` +
+      `<span class="res-count ${atoCls}">${flown} / ${slots}</span></div>`;
+    html += `<div class="res-note dim">` +
+      (flown >= slots + ATO.ceiling
+        ? `<span class="crit">The order is closed — nothing else flies tonight.</span>`
+        : over > 0
+          ? `<span class="crit">${plural(over, 'late frag')} outside the plan.</span> Each flies degraded, ` +
+            `costs aircrew, and takes a package off tomorrow.`
+        : flown >= slots
+          ? `<span class="warn">The plan is spent.</span> More can still be flown as late frags — worse ` +
+            `effects, more risk, and a shorter plan tomorrow.`
+          : `Packages past the plan still fly, and are charged against tomorrow's.`) +
+      (G.fatigue ? ` <span class="warn">${plural(G.fatigue, 'package')} held back for crew rest.</span>` : '') +
+      `</div>`;
+
     const tk = G.tankers, cap = G.tankerCap || Game.tankerCapacity();
     const tkCls = tk <= 1 ? 'crit' : tk <= 3 ? 'warn' : '';
     html += `<div class="res-row tanker-row"><span>Tanker tracks tonight</span>` +
@@ -384,10 +410,18 @@ const UI = (() => {
       }).join('');
     }
     $('resources-list').innerHTML = html;
-    // Shut, the assets panel shows the magazine that actually runs out first.
-    // Spelled out: TKR is ramp shorthand, and this badge is one of five words a
+    // Shut, the assets panel shows the magazine that actually runs out first —
+    // which as of v1.28 is the tasking order and not the tanker plan. Tankers
+    // were the binding constraint until v1.19 deliberately took them out of that
+    // role; leaving the badge on them was the panel still reporting the old war.
+    // Spelled out: PKG is ramp shorthand, and this badge is one of five words a
     // player sees before they have opened anything at all.
-    setBadge('resources', `${tk} TANKER${tk === 1 ? '' : 'S'}`, tkCls === 'crit' ? '' : 'badge-none');
+    const left = Math.max(0, slots - flown);
+    setBadge('resources',
+      flown >= slots + ATO.ceiling ? 'ORDER CLOSED'
+        : left === 0 ? 'PLAN SPENT'
+        : `${left} PACKAGE${left === 1 ? '' : 'S'}`,
+      left === 0 ? '' : 'badge-none');
     // The ladder itself, on the shut panel. renderAirPhase draws the full bar
     // with both release thresholds marked on it, but that lives inside the body
     // — and the phase is what decides whether the fourth-gen squadrons and the
@@ -1114,6 +1148,27 @@ const UI = (() => {
         ? `<span class="est-warn">DESTROYING IT COSTS ${MINUS}${Math.abs(target.worldOnKill)}</span> ` +
           `<span class="dim">— the diplomatic bill lands once, the night the site is finished, ` +
           `not for the packages that get it there.</span><br>` : '');
+    // Flying outside the tasking order (see ATO in data.js). The ordinal is what
+    // makes this land — "fourth package tonight" is a decision and "surge
+    // penalty applied" is a status bar — and the line has to carry the half of
+    // the cost that appears in no number on this screen: tomorrow's plan. The
+    // aircrew multiplier is the figure meant to stop the player, so it is stated
+    // rather than left inside the loss-risk percentage at the bottom.
+    if (est.over > 0) {
+      const nth = ['', 'FIRST', 'SECOND', 'THIRD', 'FOURTH', 'FIFTH', 'SIXTH', 'SEVENTH', 'EIGHTH',
+        'NINTH', 'TENTH'];
+      const n = G.strikesThisTurn + 1;
+      // A wing already at maximum debt owes nothing further — saying "one
+      // package shorter" there would be a promise the next turn does not keep.
+      const maxed = (G.fatigue || 0) >= ATO.maxFatigue;
+      html += `<span class="est-bad">${nth[n] || `PACKAGE ${n}`} PACKAGE TONIGHT — LATE FRAG.</span> ` +
+        `<span class="dim">Outside a tasking order of ${est.slots}: hasty target study, whatever ` +
+        `tanker is airborne, a crew briefed on the ramp. ${MINUS}${Math.round(est.surge * 100)}% ` +
+        `effects and aircrew risk ×${est.surgeLoss.toFixed(2)}` +
+        (maxed
+          ? ', and the wing is already as far into crew-rest debt as it goes.'
+          : `, and tomorrow's plan is one package shorter.`) + `</span><br>`;
+    }
     // flying a tier outside its phase — only reachable on hard, and the player
     // is told in as many words what they are ordering
     if (est.raw) {
@@ -1576,6 +1631,15 @@ const UI = (() => {
           'SAM belt comes down. F-35s and Tomahawks fly tonight; fourth-generation squadrons release at ' +
           '40%, heavy bombers at 80%. STRIKE ASSETS shows which rung you are on. Air defenses repair ' +
           'overnight, so a belt you stop hitting climbs back.' },
+      // The tasking order is the currency the whole campaign is priced in as of
+      // v1.28, and it is the first thing a new player runs into — three packages
+      // on night one, and the fourth costs. Discovering that from a refusal on
+      // the fourth click is the wrong way to learn the rule the game is about.
+      { cls: '', title: 'THE NIGHT IS PLANNED, AND THE PLAN IS SHORT',
+        text: 'Tonight\'s tasking order holds three strike packages. It grows as the force flow lands. ' +
+          'You can fly past it — the fourth package goes out as a LATE FRAG, degraded, with a heavier ' +
+          'bill in aircrew, and it comes off tomorrow\'s plan. Surging is for a night that matters, not ' +
+          'for every night. STRIKE ASSETS carries the count.' },
       { cls: '', title: 'THE NUCLEAR SITES NEED A BOMBER YOU HAVE NOT MOVED YET',
         text: 'Fordow and Natanz are buried. Only the B-2 and its GBU-57 penetrator reach them, and the ' +
           '509th is still at Whiteman AFB — call it forward from THEATER FORCES. It is one turn out, and ' +

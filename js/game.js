@@ -93,6 +93,10 @@ const Game = (() => {
     deployTurn: 0,
     alliedFighters: 0,     // coalition and IAF squadrons folded into the fighter cap
     strikesThisTurn: 0, struckThisTurn: [],
+    // crew-rest debt: packages the wing owes itself for the late frags it has
+    // already flown. It is charged against the NEXT order written, not this one
+    // — `atoPlan` is tonight's, fixed at the turn boundary (see ATO, atoSlots).
+    fatigue: 0, atoPlan: 0,
     missions: [],          // strike packages in flight: {targetId, pkg, eta}
     sanctions: 0, coalition: false, addressCooldown: 0, sprReleases: 0,
     // the allied heads of government who ring once the coalition forms, in the
@@ -215,6 +219,11 @@ const Game = (() => {
 
   // ---- save / continue (localStorage) ----
   const Save = (() => {
+    // v13: the SAM belt stopped being a one-way ratchet. Air defense sites
+    // reconstitute out of the national reserve after three quiet nights, capped
+    // at 60% forever once killed, and targets carry the `lastStruck`/`killedOnce`
+    // bookkeeping that decides both. A v12 save has neither and would resume with
+    // a belt that comes back on the wrong schedule.
     // v12: the coalition rings twice. The single random `leaderCall` became a
     // two-entry `leaderCalls` queue — London on the cable, Paris the following
     // turn — each carrying which take of the call it is going to play. A v11
@@ -242,11 +251,18 @@ const Game = (() => {
     // no `downed` field and a stats block missing three counters — retired
     // rather than migrated, the same as every version before it.
     const KEY = 'cic-save-v10';  // bump the version to invalidate old saves
-    const VERSION = 13;   // v1.27: SAM belt reconstitutes from zero; targets carry lastStruck
+    // v14: a package acquired a price. `strikesThisTurn` had been saved since v8
+    // and read by nothing at all; it is now the night's position against a
+    // tasking order, and `fatigue` is the crew-rest debt that order is written
+    // against. A v13 save holds a count that meant nothing and no debt, so it
+    // would resume as a war with a free surge — a different game than the one it
+    // was saved from.
+    const VERSION = 14;   // v1.28: packages are tasked against an ATO; crew-rest debt
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
-      'strikesThisTurn', 'struckThisTurn', 'missions', 'sanctions', 'coalition', 'leaderCalls',
+      'strikesThisTurn', 'struckThisTurn', 'fatigue', 'atoPlan',
+      'missions', 'sanctions', 'coalition', 'leaderCalls',
       'addressCooldown', 'sprReleases', 'negotiationsAccepted', 'negotiationMomentum',
       'diploUsed', 'intelUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep', 'downed',
       'israelPosture', 'israelPatience', 'israelStrikesUsed', 'israelJointAvailable',
@@ -1343,6 +1359,64 @@ const Game = (() => {
   }
 
   // ============================================================
+  // THE TASKING ORDER
+  // ------------------------------------------------------------
+  // How many packages tonight's plan holds, and what it costs to fly past it.
+  // See ATO in data.js for why any of this exists — the short version is that
+  // until v1.28 a package was the only thing in the game with no price on it.
+  //
+  // The plan grows with the force flow and shrinks with crew-rest debt, and it
+  // never reaches zero: a president who surged four nights running still gets
+  // to hit something tonight. A plan of nothing is a turn the player watches.
+  //
+  // THE PLAN IS A DOCUMENT, NOT A RUNNING TOTAL. It is written once, at the turn
+  // boundary, against the debt as it stands then — and it does not move again
+  // until tomorrow. Computing it live off `G.fatigue` looks equivalent and is
+  // not: the fourth package accrues debt, which shrinks the plan it is being
+  // measured against, so the fifth is suddenly three past a plan of two instead
+  // of two past a plan of three. The surge accelerates mid-night, the wall
+  // arrives four packages early, and the planning modal quotes the player a
+  // multiplier that is wrong by the time they authorize the next one. The bill
+  // for a late frag lands on TOMORROW's plan. That is the whole mechanic.
+  // ============================================================
+  function planSize(fatigue) {
+    const flown = G.forceFlow.landed.length;
+    return Math.max(1, Math.floor(ATO.base + flown * ATO.perFlow - (fatigue || 0)));
+  }
+
+  // Tonight's plan as written. The fallback covers the opening turn, before any
+  // turn boundary has run to write one.
+  function atoSlots() {
+    return G.atoPlan || planSize(G.fatigue);
+  }
+
+  // How far past the plan the NEXT package would be: 0 inside the tasking order,
+  // 1 for the first late frag, and up from there. Everything that prices a surge
+  // reads this one function, so the number in the planning modal and the number
+  // in the strike math cannot drift apart.
+  //
+  // The boat is not on the tasking order. A submarine attack is planned aboard
+  // the submarine: it spends no theater magazine, books no fuel, and teaches
+  // Iran nothing (see executeStrike). The CAOC does not frag her, so the CAOC's
+  // plan does not bind her — and her torpedo room is its own hard limit anyway.
+  function atoOver(pkg) {
+    if (pkg && pkg.sub) return 0;
+    return Math.max(0, G.strikesThisTurn - atoSlots() + 1);
+  }
+
+  // The wall above the plan. Not a refusal to fly a surge — the surge is the
+  // whole point — but the end of the surge: at some hour the wing has no rested
+  // crew and no turned aircraft left, and the answer is tomorrow.
+  function atoWall() {
+    const slots = atoSlots();
+    if (G.strikesThisTurn < slots + ATO.ceiling) return null;
+    return `TASKING ORDER CLOSED — ${G.strikesThisTurn} packages have gone out tonight against a plan ` +
+      `of ${slots}. Everything past the plan has been flown by crews who were briefed on the ramp, ` +
+      `and there is nothing left to turn around. The staff is writing tomorrow's ATO; the rest of ` +
+      `this target list is on it.`;
+  }
+
+  // ============================================================
   // THE GATE
   // ------------------------------------------------------------
   // Why a package the player can see is not a package the player can fly. This
@@ -1356,6 +1430,15 @@ const Game = (() => {
   // has not been taken down.
   // ============================================================
   function pkgBlock(target, pkg) {
+    // The tasking order is checked first because it is the answer for every
+    // tier equally — a plan that is spent is spent whether the belt is up or
+    // down and whether the 509th is on the ramp or in Missouri. It is also the
+    // only one of these that fixes itself by ending the turn, which is exactly
+    // what the player should do about it.
+    if (!pkg.sub) {
+      const wall = atoWall();
+      if (wall) return wall;
+    }
     const need = assetProfile(pkg.asset).needs;
     if (need && !phaseAtLeast(need) && !diff().softGate) {
       return need === 'degraded'
@@ -1441,13 +1524,22 @@ const Game = (() => {
     // TLAMs fly under the SAM belt — air defense doesn't degrade a Tomahawk.
     // Its misses come from weather, targeting, or launch faults, not the threat.
     const adPenalty = prof.ad * ad + (raw ? RAW_PENALTY : 0);
+    // What it costs to fly outside the tasking order (see ATO in data.js). A
+    // late frag is a package the staff had thirty-six hours less to plan: a
+    // hasty target study, whatever tanker happens to be airborne, and a crew
+    // that was briefed on the ramp. Kept as its own term rather than folded
+    // into adPenalty, because the planning modal names each penalty out loud
+    // and "air defenses degrade this package" is the wrong sentence for it.
+    const over = atoOver(pkg);
+    const surge = over * ATO.surgeEffects;
+    const surgeLoss = 1 + over * ATO.surgeLoss;
     const dmgBonus = target.hp < 100 ? 0.15 : 0;
     // What Iran has learned about the way this campaign is being flown. Fly one
     // platform into the ground and this is the bill for it (see IranAI.adaptStep).
     // Nothing is learned from a submarine attack: decoys and dispersal are an
     // answer to weapons somebody saw coming, and nobody has ever seen this one.
     const adaptPenalty = pkg.sub ? 0 : IranAI.adaptPenalty(pkg.asset);
-    const success = clamp(pkg.base - adPenalty - adaptPenalty + dmgBonus, 0.05, 0.95);
+    const success = clamp(pkg.base - adPenalty - adaptPenalty - surge + dmgBonus, 0.05, 0.95);
     // A packed bomber cell over a live SAM belt is not a risk, it is a funeral —
     // hence the higher cap when the tier is being flown outside its phase.
     //
@@ -1456,7 +1548,13 @@ const Game = (() => {
     // does not buy back (see AIR_ASSETS). Without it this whole expression
     // multiplies by ad and a campaign that has taken the SAM sites down is
     // flying unmanned aircraft with people in them.
-    const lossRisk = clamp((prof.attrition || 0) + prof.loss * ad * (raw ? RAW_LOSS : 1),
+    //
+    // The surge multiplier is applied to the WHOLE expression, attrition floor
+    // included. A late frag does not only fly into more missiles — it flies
+    // tired, at the end of a cycle, off a plan written in an hour, and the
+    // things that kill aircrew with the belt already down are exactly the
+    // things fatigue makes worse.
+    const lossRisk = clamp(((prof.attrition || 0) + prof.loss * ad * (raw ? RAW_LOSS : 1)) * surgeLoss,
       0, raw ? 0.70 : 0.35);
     // What the player is buying: full effects on the good half of the success
     // band, half effects on the rest of it. Sites that wear down lose condition;
@@ -1470,6 +1568,7 @@ const Game = (() => {
     const oneShot = target.type === 'ship';
     return {
       success, adPenalty, adaptPenalty, lossRisk, gradual, oneShot, raw,
+      over, surge, surgeLoss, slots: atoSlots(),
       fullOdds: success * (oneShot ? 1 : gradual ? 0.5 : 0.6),
       damage: gradual ? pkgDamage(pkg) : 50,
       tanker: tankerCost(target, pkg),
@@ -1523,6 +1622,14 @@ const Game = (() => {
     // submarine shot is not logged at all — she is never held on sonar, and a
     // pattern nobody can observe is a pattern nobody can counter.
     if (!pkg.sub) G.adapt[pkg.asset] = (G.adapt[pkg.asset] || 0) + 1;
+
+    // The bill for a late frag lands on tomorrow's plan, not tonight's: the
+    // crews flying it are the crews who were going to fly tomorrow. Read BEFORE
+    // the counter moves, so it is the same `over` computeStrike just priced and
+    // the same one the planning modal warned about.
+    if (atoOver(pkg) > 0) {
+      G.fatigue = Math.min(ATO.maxFatigue, (G.fatigue || 0) + ATO.fatiguePerSurge);
+    }
     G.strikesThisTurn++;
     G.stats.strikes++;
     G.missions.push({ targetId: target.id, pkg: { ...pkg }, eta: pkg.eta || MISSION_ETA[pkg.asset] });
@@ -1928,6 +2035,18 @@ const Game = (() => {
   // What the Hill has taken off the table. Checked in the strike path and shown
   // in the planning modal, so a barred target reads as barred rather than broken.
   function barred(t) {
+    // The night's plan is spent. Shown here rather than only on the package rows
+    // so the map itself says it — a player clicking around a board where every
+    // target answers "click to plan strike" and every modal then refuses is
+    // being made to discover the rule one target at a time.
+    //
+    // Except against a hull the boat can shoot at: she is not on the tasking
+    // order (see atoOver), so a target holding a submarine option is still a
+    // target, and the air packages inside it carry the refusal themselves.
+    if (!t.packages.some(p => p.sub)) {
+      const wall = atoWall();
+      if (wall) return wall;
+    }
     if (G.warPowers.noOil && t.type === 'oil') return 'Prohibited by the War Powers resolution — no strikes on Iranian energy infrastructure.';
     if (G.warPowers.noDeep && (t.depth || 2) >= 3) return 'Prohibited by the War Powers resolution — outside the declared theater.';
     if (!canReach(t)) return 'Unreachable: with Gulf basing and overflight revoked there is no tanker track that puts a package this deep.';
@@ -2577,6 +2696,26 @@ const Game = (() => {
 
     if (G.addressCooldown > 0) G.addressCooldown--;
     if (G.regimeChaosTurns > 0) G.regimeChaosTurns--;
+    // Crew rest pays back one package a night, unconditionally, against the
+    // accrual each late frag already booked. So a late frag costs exactly one
+    // package-night of future tempo and no more: surge four past the plan and
+    // the wing is +4 −1 = three packages in debt tomorrow and climbing out from
+    // there, while flying the plan as written is a clean −1.
+    //
+    // This decay used to be conditional — only a night that stayed inside the
+    // plan paid anything down. It produced a trap. A wing at maximum debt has a
+    // plan of one (the floor in planSize), flying two is one package over, and
+    // one package over paid back nothing, so a single greedy night locked the
+    // campaign at one package a night for the remaining twenty-nine turns. A
+    // bot doing nothing but "fly the best package available" pinned there on
+    // turn one and never recovered. That cliff is invisible — nothing on the
+    // screen distinguishes flying one from flying two on a plan of one — and an
+    // unstated rule should not be able to decide a campaign in its first hour.
+    // Unconditional decay keeps the debt real without making it permanent.
+    if (G.fatigue > 0) G.fatigue = Math.max(0, G.fatigue - ATO.fatigueDecay);
+    // and the staff writes tomorrow's order against what the debt is now. Like
+    // the tanker plan two lines up, this is written fresh and does not bank.
+    G.atoPlan = planSize(G.fatigue);
     G.diploUsed = false;
     G.intelUsed = false;
     G.strikesThisTurn = 0;
@@ -2898,6 +3037,10 @@ const Game = (() => {
 
     G.tankerCap = tankerCapacity();
     G.tankers = G.tankerCap;
+
+    // night one: no debt, and the opening tasking order is the base plan
+    G.fatigue = 0;
+    G.atoPlan = planSize(0);
   }
 
   // The three difficulty options, built from the tuning table rather than
@@ -2968,6 +3111,9 @@ const Game = (() => {
     // the air-superiority ladder: what the sky is worth tonight, and what that
     // releases. pkgBlock is the single answer to "why can't I fly this".
     airSuperiority, airPhase, phaseAtLeast, pkgBlock, PHASE_LABEL, minPackage, resKey, pkgStock,
+    // the tasking order: how many packages tonight's plan holds, and how far
+    // past it the next one would be. The panel and the modal both read these.
+    atoSlots, atoOver,
     // the uncertainty layer: everything the player sees goes through these
     estimate, condition, staleEstimates, targetDesc, breakoutEstimate, barred, canReach, tankersFor, tankerCapacity,
     casualtyLimit, difficulty: diff,

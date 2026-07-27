@@ -518,6 +518,69 @@ const FORCE_FLOW = [
 ];
 
 // ============================================================
+// THE AIR TASKING ORDER
+// ------------------------------------------------------------
+// What a package COSTS. For six versions the answer was nothing. The magazine
+// refills every night, the tanker charge was cut to roughly a quarter of what
+// it had been (see the v1.19 rescale note above, and it was the right call),
+// and there was never a third thing. A player who simply flew the
+// highest-value package at every surviving target, eight times a night, won on
+// hard by turn eight of thirty.
+//
+// No single model was wrong. The problem is that every interesting decision in
+// this game is priced in packages — grind a missile base down over four nights
+// or kill it in one, chase dispersed launchers or service fixed targets, buy
+// air superiority or fly fourth-gen raw into the belt — and packages were free.
+// A tradeoff whose currency is free is not a tradeoff, it is a checklist.
+//
+// The obvious fix is a hard cap: three packages a night, one line, done. DO NOT
+// DO THIS. It is the fuel brake of v1.19 wearing a different hat, and it
+// produces the same war it did — "wait for the tanker wing" becomes "wait for
+// tomorrow" and the answer to every question is the same answer. The surge has
+// to stay available. It just has to cost.
+//
+// So: a night's flying is planned about thirty-six hours out. Packages inside
+// the plan get the full intel cycle, real mission planning, rested crews, and
+// the tankers they were promised. Anything past it is a LATE FRAG — it flies,
+// because the President said so, and it flies worse. Then the bill lands on
+// tomorrow's plan, because the crews who flew it tonight are the crews who were
+// going to fly tomorrow.
+//
+// `base`    — packages in the plan on night one.
+// `perFlow` — planned packages bought by each landed FORCE_FLOW wave. Six waves
+//             across the campaign takes the plan from three a night to six:
+//             this is the buildup being felt in the currency that actually
+//             binds, rather than as sortie counts nobody was spending.
+// `ceiling` — the wall ABOVE the plan. Past this the staff does not write the
+//             frag at all. There is no quantity of presidential insistence that
+//             turns aircraft around faster than they can be turned around, and
+//             a game that lets the player fly the twelfth package is back to
+//             where it started.
+// `surge*`  — what each package past the plan pays, and it compounds. The
+//             seventh package on a three-package night flies at −36% effects
+//             with the aircrew bill more than tripled. That number is meant to
+//             be the one that stops the player, not the effects number.
+// `fatigue*`— crew-rest debt. Each late frag books one package against future
+//             plans, up to `maxFatigue`, and the wing pays back `fatigueDecay`
+//             a night no matter what it flew. So one late frag costs exactly
+//             one package-night and no more, while a seven-package night on a
+//             plan of three books four and claws out of it over four turns.
+//             The decay is deliberately unconditional: a version that only paid
+//             down on nights inside the plan let a single greedy night pin the
+//             campaign at one package for the rest of the war, off a cliff the
+//             player had no way to see.
+const ATO = {
+  base: 3,
+  perFlow: 0.5,
+  ceiling: 4,
+  surgeEffects: 0.09,
+  surgeLoss: 0.55,
+  fatiguePerSurge: 1,
+  fatigueDecay: 1,
+  maxFatigue: 4,
+};
+
+// ============================================================
 // THE HEAVY BOMBER FORCE
 // ------------------------------------------------------------
 // B-1Bs and B-52s off the RAF Fairford ramp — a different field from the 509th

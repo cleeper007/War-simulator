@@ -5,3 +5,6 @@ node_modules/
 .vscode/
 .idea/
 .claude/
+
+# Claude Code working file — local only, never published
+CLAUDE.md

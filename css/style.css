@@ -1088,7 +1088,8 @@ button { font-family: var(--mono); }
 #breakout-line.halted .bo-value { color: var(--green); font-size: 11.5px; }
 
 /* ============ tanker tracks ============ */
-.res-row.tanker-row { margin-top: 5px; border-top: 1px solid var(--line); padding-top: 5px; }
+.res-row.tanker-row,
+.res-row.plan-row { margin-top: 5px; border-top: 1px solid var(--line); padding-top: 5px; }
 .res-note { font-size: 10px; line-height: 1.45; margin-top: 3px; }
 .res-count.warn { color: var(--amber); }
 .res-count.crit { color: var(--red); }
