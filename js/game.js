@@ -967,6 +967,33 @@ const Game = (() => {
     MapView.setAssetActive('diego', G.bombersArrived);
   }
 
+  // ---- the watch-floor arrival calls ----
+  // Ford checking in with Fifth Fleet and the 509th on the ramp are voice
+  // traffic, and they arrive at the noisiest point of the turn: the BDA readout
+  // is already talking, and Tehran's salvo and the retaliation alert are right
+  // behind it. Played where the arrival actually happens they talk over all of
+  // it, so they are queued here instead and read out at the one point in the
+  // turn the room is quiet — after the president closes the night's last report.
+  // Transient by design: a queue that survived a reload would announce a ship
+  // that checked in yesterday, so it never goes near FIELDS.
+  let arrivalCalls = [];
+
+  // Read the queue back, one clip at a time — playThen chains them so a night
+  // that brings in two forces takes turns instead of stacking two voices. `done`
+  // runs after the last one, and immediately when there is nothing to play or
+  // nothing can play (muted, audio still locked), so a caller can hand its
+  // continuation straight through.
+  function flushArrivalCalls(done) {
+    const queue = arrivalCalls;
+    arrivalCalls = [];
+    const next = () => {
+      const clip = queue.shift();
+      if (clip) AudioSys.playThen(clip, next);
+      else if (done) done();
+    };
+    next();
+  }
+
   // Call the 509th forward. One turn wingtip-to-wingtip across the Pacific with
   // the whole tanker force behind it — and for that turn, nothing else moves.
   function orderBombers() {
@@ -989,7 +1016,7 @@ const Game = (() => {
     G.caps.stealth = BOMBER_CAP;
     G.res.stealth = BOMBER_READY;
     syncBomberMap();
-    AudioSys.play('b2Arrival');
+    arrivalCalls.push('b2Arrival');   // read out once the night's reports are closed
     return {
       cls: 'friendly', title: 'B-2 FORCE IN THEATER — DIEGO GARCIA',
       text: 'The 509th Bomb Wing flew from Whiteman with the tanker force strung out behind it across the Pacific, and the aircraft are on the ramp at Diego Garcia under cover. Munitions handlers are building up GBU-57s tonight. From here the Massive Ordnance Penetrator is on the table — which means Fordow is finally a target and not a briefing slide.',
@@ -1112,7 +1139,7 @@ const Game = (() => {
     G.tlamPool = (G.tlamPool || 0) + 10;
     syncFleetCaps();
     MapView.setCarrierPosture(ford);
-    AudioSys.play('fordArrival');
+    arrivalCalls.push('fordArrival');   // read out once the night's reports are closed
     return {
       cls: 'friendly', title: 'FORD ON STATION — DEEP ARABIAN SEA',
       text: 'The USS Gerald R. Ford Carrier Strike Group has come up out of the Indian Ocean into the deep Arabian Sea and checked in with Fifth Fleet. Her full air wing is available from standoff — bring her northwest into the North Arabian Sea box and she flies the same sorties, now with her Aegis escorts over the Gulf bases, weight on the strait, and a lid on the oil premium, on the same terms as every other hull that far forward.',
@@ -2389,13 +2416,16 @@ const Game = (() => {
             // goes back to END TURN for the next one
             MapView.setFastForward(false);
             setResolving(false);
-            if (result) { finish(result); return; }
+            // a war that ended tonight has its own music: the arrival calls are
+            // dropped rather than played under the endgame screen
+            if (result) { arrivalCalls = []; finish(result); return; }
             nextTurn();
-            // Paris was always going to be a night behind London. The new turn
-            // has just started, so if the second coalition call is due this is
-            // where it comes in — a beat after the president has finished
-            // reading what Tehran did to them overnight.
-            if (!G.over) maybeLeaderCall(null);
+            // This is the quiet the arrival calls were held for — the reports are
+            // closed and nothing else is talking (see arrivalCalls). Paris was
+            // always going to be a night behind London, so the second coalition
+            // call queues up behind them rather than over them: a beat after the
+            // president has finished reading what Tehran did overnight.
+            flushArrivalCalls(() => { if (!G.over) maybeLeaderCall(null); });
           };
           if (!theirs.length) { close(); return; }
           UI.showReport(`IRANIAN RETALIATION — DAY ${day}, TURN ${G.turn}`, theirs, close);
