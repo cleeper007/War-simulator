@@ -340,7 +340,8 @@ const TEL_RELOCATE = 0.45;
 // spend somewhere else is repair — spare radars rolled out of the dispersal
 // revetments, craters filled, a replacement crane barged in — so anything left
 // standing at 20% is back at 60% in a few days if you look away. Zero is
-// permanent: nobody reconstitutes rubble in the middle of a war.
+// permanent for almost everything: nobody reconstitutes rubble in the middle of
+// a war. The one exception is the SAM belt — see AD_RECONSTITUTION below.
 //
 // Two kinds of target sit outside this and take damage in whole steps the way
 // they always have. A hull is afloat or it is on the bottom and it never comes
@@ -353,6 +354,41 @@ const TARGET_REPAIR = {
   missile:    10,   // the TELs were always hidden; the brigade rebuilds around them
   naval:       8,   // piers, cranes and fuel farms take longer than a runway does
   oil:         5,   // refinery trains and loading berths are the slowest of all
+};
+
+// ============================================================
+// THE SAM BELT COMES BACK
+// ------------------------------------------------------------
+// The one target type that reconstitutes from zero, and the reason is that a
+// SAM "site" is a LOCATION, not an order of battle. Flattening it kills the
+// launchers and the engagement radars that happened to be parked there. It does
+// not kill the air defense force of a country that fields hundreds of systems,
+// keeps most of them mobile, and has spent twenty years planning to fight this
+// exact war out of dispersal. Left alone long enough, the reserve moves in.
+//
+// This exists because airSuperiority() has always CLAIMED it: "the heavy force
+// is not a reward you unlock, it is a condition you maintain, and the night you
+// look away is the night the plan gets smaller." That was true of the airbases
+// and false of the SAM belt, because the belt is three targets and a player
+// takes all three to zero by the end of the first week — after which
+// airDefenseWeight() is zero forever, every strike is free forever, and the
+// campaign is a checklist. Three sites deep is not a threat model.
+//
+// It never comes back to full and it never comes back fast. What returns is
+// what the reserve can field: older systems, worse crews, less of it.
+// `quiet` is what makes this a decision rather than a tax — go back and keep
+// the rubble smoking and it stays rubble. Look away for three nights and it
+// doesn't.
+const AD_RECONSTITUTION = {
+  quiet: 3,    // nights of being left alone before the reserve starts moving
+  rate: 7,     // condition per night once it does — slower than a live site repairs
+  // PERMANENT ceiling on a site that has been finished once, enforced by
+  // repairCeiling() in game.js against the ordinary overnight repair as well as
+  // against the return itself. Without it the reserve arrives at 7% and then
+  // repairs to 100% like any other damaged site, and destroying air defense
+  // buys the player nothing that lasts. With it, killing a battery is permanent
+  // progress that is simply not permanent REMOVAL — which is the whole point.
+  cap: 60,
 };
 
 // Fallback full-effect damage for anything not carrying its own weight in
@@ -408,12 +444,29 @@ const PKG_DAMAGE = 55;
 // everything now runs the standing down through the basing tiers (see
 // BASING_TIERS) and loses the ramps that the deep targets are only reachable
 // from. The constraint moved from fuel to politics on purpose.
+//
+// ATTRITION — the loss rate that has nothing to do with the SAM belt, and
+// therefore the one the player cannot bomb away. Shoulder-launched missiles in
+// the target area. Triple-A nobody bothers to target and nobody can suppress. A
+// hydraulic failure nine hundred miles from a divert field. A bad night trap on
+// a pitching deck at the end of a six-hour cycle. Desert Storm went on losing
+// aircraft to exactly these for six weeks after the Iraqi IADS was dead.
+//
+// `loss` is multiplied by surviving SAM coverage and goes to zero when the belt
+// does; `attrition` is added flat and never goes anywhere. It is small — one
+// airframe roughly every twelve nights of fighter packages — and it is the
+// difference between an air campaign where aircrew are people and one where
+// they stop existing after night eight. It is also the only thing that keeps
+// csar.js reachable in a war the player is winning.
 const AIR_ASSETS = {
-  f35:     { ad: 0.02, loss: 0.015, weight: 45, tanker: (d) => d >= 2 ? d - 1 : 0 },
-  fighter: { ad: 0.11, loss: 0.060, weight: 62, tanker: (d) => d >= 2 ? d - 1 : 0, needs: 'degraded' },
-  heavy:   { ad: 0.20, loss: 0.090, weight: 92, tanker: (d) => 1 + d, needs: 'superiority' },
-  stealth: { ad: 0.02, loss: 0,     weight: 55, tanker: () => 4 },
-  cruise:  { ad: 0,    loss: 0,     weight: 55, tanker: () => 0 },
+  f35:     { ad: 0.02, loss: 0.015, attrition: 0.004, weight: 45, tanker: (d) => d >= 2 ? d - 1 : 0 },
+  fighter: { ad: 0.11, loss: 0.060, attrition: 0.013, weight: 62, tanker: (d) => d >= 2 ? d - 1 : 0, needs: 'degraded' },
+  heavy:   { ad: 0.20, loss: 0.090, attrition: 0.010, weight: 92, tanker: (d) => 1 + d, needs: 'superiority' },
+  // the B-2 flies one aircraft at a time, at night, from Missouri or Diego
+  // Garcia, with the whole Air Force arranged around getting it home
+  stealth: { ad: 0.02, loss: 0,     attrition: 0.002, weight: 55, tanker: () => 4 },
+  // nobody is aboard a Tomahawk, and nobody is aboard an Mk-48
+  cruise:  { ad: 0,    loss: 0,     attrition: 0,     weight: 55, tanker: () => 0 },
 };
 
 // How much of the sky Iran still owns, and what that permits. Air superiority

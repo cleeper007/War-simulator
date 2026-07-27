@@ -1129,8 +1129,16 @@ const UI = (() => {
       html += `<span class="est-warn">Iran has adapted to this platform (−${Math.round(est.adaptPenalty * 100)}%) ` +
         `— mixing the force is what walks this back.</span> `;
     }
-    if (est.lossRisk > 0.01) {
+    // Three states, not two. The middle one is the attrition floor (see
+    // AIR_ASSETS): with the belt suppressed the risk rounds to zero and the old
+    // two-branch version told the player "No aircrew at risk" about a night
+    // package over a hostile country. It never reads zero for anything with
+    // somebody aboard, because it never is zero.
+    if (est.lossRisk >= 0.01) {
       html += `<span class="est-bad">Aircrew loss risk: ${Math.round(est.lossRisk * 100)}%.</span>`;
+    } else if (est.lossRisk > 0) {
+      html += `<span class="est-warn">Aircrew loss risk: under 1% — the threat is suppressed, ` +
+        `not absent.</span>`;
     } else {
       html += `<span class="est-good">No aircrew at risk.</span>`;
     }

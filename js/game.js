@@ -242,7 +242,7 @@ const Game = (() => {
     // no `downed` field and a stats block missing three counters — retired
     // rather than migrated, the same as every version before it.
     const KEY = 'cic-save-v10';  // bump the version to invalidate old saves
-    const VERSION = 12;
+    const VERSION = 13;   // v1.27: SAM belt reconstitutes from zero; targets carry lastStruck
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -267,9 +267,16 @@ const Game = (() => {
         for (const f of FIELDS) data.fields[f] = G[f];
         // condition is the source of truth; status is derived from it on load.
         // Dispersal state travels with it — a launcher group that has driven out
-        // into the country, and whether anyone currently knows where it is.
+        // into the country, and whether anyone currently knows where it is —
+        // and so does the reconstitution bookkeeping: the night a site was last
+        // serviced, and whether it has ever been finished. A war reloaded
+        // without those has a SAM belt that comes back on the wrong schedule and
+        // pays a first-kill bump twice.
         for (const t of TARGETS) {
-          data.targets[t.id] = { hp: t.hp, dispersed: !!t.dispersed, located: !!t.located };
+          data.targets[t.id] = {
+            hp: t.hp, dispersed: !!t.dispersed, located: !!t.located,
+            lastStruck: t.lastStruck || 0, killedOnce: !!t.killedOnce,
+          };
         }
         localStorage.setItem(KEY, JSON.stringify(data));
       } catch (e) { /* storage unavailable — play without saves */ }
@@ -632,7 +639,9 @@ const Game = (() => {
   // theater stops being contested airspace and starts being a range.
   //
   // Nothing about this is a one-way ratchet. Air defense sites repair overnight
-  // like everything else, so a phase that was bought in week one is gone by
+  // like everything else, and — alone among the target types — they come back
+  // even from zero, out of a national reserve that the target list never
+  // covered (see AD_RECONSTITUTION). So a phase bought in week one is gone by
   // week two if nobody keeps going back. That is the intended shape of the
   // campaign: the heavy force is not a reward you unlock, it is a condition you
   // maintain, and the night you look away is the night the plan gets smaller.
@@ -1441,7 +1450,14 @@ const Game = (() => {
     const success = clamp(pkg.base - adPenalty - adaptPenalty + dmgBonus, 0.05, 0.95);
     // A packed bomber cell over a live SAM belt is not a risk, it is a funeral —
     // hence the higher cap when the tier is being flown outside its phase.
-    const lossRisk = clamp(prof.loss * ad * (raw ? RAW_LOSS : 1), 0, raw ? 0.70 : 0.35);
+    //
+    // The `attrition` term is added OUTSIDE the air-defense multiplier on
+    // purpose: it is the floor, the part of the risk that suppressing the belt
+    // does not buy back (see AIR_ASSETS). Without it this whole expression
+    // multiplies by ad and a campaign that has taken the SAM sites down is
+    // flying unmanned aircraft with people in them.
+    const lossRisk = clamp((prof.attrition || 0) + prof.loss * ad * (raw ? RAW_LOSS : 1),
+      0, raw ? 0.70 : 0.35);
     // What the player is buying: full effects on the good half of the success
     // band, half effects on the rest of it. Sites that wear down lose condition;
     // the buried nuclear sites take a whole step.
@@ -1527,6 +1543,10 @@ const Game = (() => {
     }
 
     G.struckThisTurn.push(target.id);
+    // The night this site last had ordnance on it. struckThisTurn is cleared at
+    // the turn boundary and only answers "tonight?"; reconstitution needs to
+    // know how many nights of quiet a wrecked SAM site has actually had.
+    target.lastStruck = G.turn;
     // a joint strike carries its own diplomatic surcharge on top of the target's
     // (the big economic aimpoints charge nothing here — see worldOnKill below)
     const worldCost = target.world + (pkg.extraWorld || 0);
@@ -1565,10 +1585,18 @@ const Game = (() => {
         : `${target.short} — no effect`;
 
     if (outcome === 'destroyed') {
-      G.stats.destroyed++;
+      // A site that has already been destroyed once and came back out of the
+      // reserve is not a new headline and not a new line on the campaign
+      // scoreboard. Without this, reconstitution is an approval farm: flatten
+      // the same battery every four nights forever at +3 a time. Only the SAM
+      // belt can reach this branch twice — nothing else returns from zero.
+      const firstKill = !target.killedOnce;
+      target.killedOnce = true;
+      if (firstKill) G.stats.destroyed++;
       if (target.type === 'tel') G.stats.telsKilled++;
-      G.approval = clamp(G.approval + 3, 0, 100);
-      ev.dApproval = 3;
+      const bump = firstKill ? 3 : 1;
+      G.approval = clamp(G.approval + bump, 0, 100);
+      ev.dApproval = bump;
       text = est.oneShot
         ? `Battle damage assessment confirms ${target.name.split(' — ')[0]} is sunk. She broke up and went down inside ` +
           'twenty minutes; the P-8 on station counted survivors in the water and Iranian craft recovering them. ' +
@@ -1714,7 +1742,24 @@ const Game = (() => {
   // finished, and anything you put ordnance on tonight is too busy burning to
   // start. This is the whole reason a half-serviced target list is worse than a
   // short one — damage you don't follow up on is damage you rent, not own.
+  //
+  // One exception, and it is the load-bearing one: a SAM site that has been at
+  // zero and unvisited for AD_RECONSTITUTION.quiet nights comes back from the
+  // national reserve. Everything else that reaches zero stays there. Returns an
+  // ARRAY — the reserve moving is its own headline and does not belong buried in
+  // the nightly work-parties line.
   // ============================================================
+  // How far back up a site can be worked. Full, for anything that has never
+  // been finished — but a SAM site the campaign once took to zero never returns
+  // to what it was, because what stands there now is the reserve and the
+  // reserve is the second team. This is what makes killing air defense worth
+  // doing in a world where it comes back: the work is not undone, it is
+  // permanently capped. Finish a battery once and that ground never carries
+  // more than 60% of the threat it opened the war at, however many nights
+  // Tehran is given to work on it.
+  const repairCeiling = (t) =>
+    (t.type === 'airdefense' && t.killedOnce) ? AD_RECONSTITUTION.cap : 100;
+
   function repairTargets() {
     // a decapitated command chain cannot organize a national repair effort:
     // parts, crews and priorities all come down the same wire you just cut
@@ -1728,11 +1773,35 @@ const Game = (() => {
     eff *= 0.55 + 0.45 * oilLeft;
 
     const back = [];
+    const returned = [];
     for (const t of TARGETS) {
-      if (!wearsDown(t) || t.hp <= 0 || t.hp >= 100) continue;
+      if (!wearsDown(t) || t.hp >= repairCeiling(t)) continue;
       if (G.struckThisTurn.includes(t.id)) continue;   // still burning
+      // ---- the reserve moves ----
+      // Rubble does not repair; a destroyed site is replaced. The `quiet` window
+      // is the decision: go back and keep the wreckage smoking and it stays
+      // wreckage, because the reserve will not roll a battery into a place that
+      // is still being serviced nightly. This runs on the national repair
+      // effort like everything else, so a decapitated command chain and a
+      // wrecked fuel network slow it down too.
+      if (t.hp <= 0) {
+        if (t.type !== 'airdefense') continue;
+        if (G.turn - (t.lastStruck || 0) < AD_RECONSTITUTION.quiet) continue;
+        const wasDown = t.status === 'destroyed';
+        t.hp = Math.min(AD_RECONSTITUTION.cap,
+          t.hp + Math.max(1, Math.round(AD_RECONSTITUTION.rate * eff)));
+        syncStatus(t);
+        MapView.updateTarget(t);
+        // The player is told the belt is back, and NOT told how strong it is —
+        // observe() is deliberately not called. The stale intel record from
+        // before the site died is what the estimate keeps working from, which
+        // means the band opens up over exactly the nights the threat is
+        // returning. That is the collection tasking earning its slot.
+        if (wasDown) returned.push(t.short);
+        continue;
+      }
       const rate = Math.max(1, Math.round(TARGET_REPAIR[t.type] * eff));
-      t.hp = Math.min(100, t.hp + rate);
+      t.hp = Math.min(repairCeiling(t), t.hp + rate);
       syncStatus(t);
       MapView.updateTarget(t);
       // Note what is happening, not by how much: nobody is standing over these
@@ -1741,16 +1810,38 @@ const Game = (() => {
       // being asked to buy with an ISR tasking.
       back.push(t.short);
     }
-    if (!back.length) return null;
 
-    return {
-      cls: 'iran', title: 'DAMAGED SITES RECONSTITUTING OVERNIGHT', internal: true,
-      text: 'Overhead imagery shows work parties at every site CENTCOM did not revisit — craters filled, ' +
-        'spare radars trucked out of the dispersal revetments, generators and crews moved in from the ' +
-        `interior. Work assessed under way at: ${back.join(' · ')}. How much of it they got back is a ` +
-        'question for the analysts, and the longer nobody looks, the wider that answer gets. Damage that ' +
-        'is not followed up is damage that does not stay done.',
-    };
+    const out = [];
+    if (back.length) {
+      out.push({
+        cls: 'iran', title: 'DAMAGED SITES RECONSTITUTING OVERNIGHT', internal: true,
+        text: 'Overhead imagery shows work parties at every site CENTCOM did not revisit — craters filled, ' +
+          'spare radars trucked out of the dispersal revetments, generators and crews moved in from the ' +
+          `interior. Work assessed under way at: ${back.join(' · ')}. How much of it they got back is a ` +
+          'question for the analysts, and the longer nobody looks, the wider that answer gets. Damage that ' +
+          'is not followed up is damage that does not stay done.',
+      });
+    }
+    // A battery returning to a site the campaign wrote off is not a repair
+    // report, it is a change to the threat — and the player has been planning
+    // against a map that says that place is dead. It gets its own line, and it
+    // is not marked internal: engagement radars coming back up over a country
+    // full of Western aircraft is not a secret, it is the news.
+    if (returned.length) {
+      out.push({
+        cls: 'iran', title: `AIR DEFENSES RETURN — ${returned.join(' · ')}`,
+        sum: `SAM coverage restored at ${returned.length} site${returned.length === 1 ? '' : 's'}`,
+        text: 'Sites CENTCOM assessed as destroyed are radiating again. This is not the work parties ' +
+          'patching craters — the launchers and the engagement radars that died there are still dead. ' +
+          'What has happened is that Tehran has moved batteries forward out of the national reserve and ' +
+          'put them on the same ground, because the ground was never the point and the country has more ' +
+          'systems than the target list has lines. They are older, the crews are worse, and there is less ' +
+          'of it than there was. It is also enough to start killing aircraft again. The belt was never ' +
+          'something the campaign finished; it is something the campaign holds down, and it has not been ' +
+          'held down for three nights.',
+      });
+    }
+    return out;
   }
 
   // ran after any resolved action: persist, then check for an ending
@@ -2327,7 +2418,7 @@ const Game = (() => {
 
       const day = Math.ceil(G.turn / 2);
       const ours = [...bda, ...(israeli ? [israeli] : []), ...dispersals,
-        ...(repairs ? [repairs] : []), ...phase, ...objectives, ...fleet];
+        ...repairs, ...phase, ...objectives, ...fleet];
 
       MapView.whenFootageDone(() => {
         if (!ours.length) { iranianResponse(); return; }
@@ -2723,6 +2814,8 @@ const Game = (() => {
       t.hp = typeof rec.hp === 'number' ? rec.hp : (t.dispersal ? 0 : 100);
       t.dispersed = !!rec.dispersed;
       t.located = !!rec.located;
+      t.lastStruck = rec.lastStruck || 0;
+      t.killedOnce = !!rec.killedOnce;
       syncStatus(t);
     }
     syncJointPackages(); // packages live on static TARGETS — rebuild from saved state
@@ -2750,11 +2843,15 @@ const Game = (() => {
   function newWar(difficulty) {
     G.difficulty = DIFFICULTY[difficulty] ? difficulty : 'normal';
 
-    // launcher groups start off the board entirely
+    // launcher groups start off the board entirely. TARGETS is a module-level
+    // constant that outlives a war, so every per-war field on it is cleared
+    // here or it leaks into the next campaign.
     for (const t of TARGETS) {
       t.hp = t.dispersal ? 0 : 100;
       t.dispersed = false;
       t.located = false;
+      t.lastStruck = 0;
+      t.killedOnce = false;
       syncStatus(t);
     }
 

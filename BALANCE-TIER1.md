@@ -1,0 +1,285 @@
+# Tier 1 balance work — handoff
+
+Three changes that together fix "the war is over by turn 8 of 30." Item 1 is
+**done and verified**; items 2 and 3 are specced below and not started.
+
+**Do them in order and playtest between each.** They interact hard: item 1 alone
+lengthens the war, item 2 alone slows it, item 3 alone makes it harsher. All
+three at once will overshoot and you will have no idea which knob did it.
+
+---
+
+## Background — the diagnosis
+
+An outside review played ~70 turns with a bot whose entire strategy was "sort
+surviving targets, fly the highest-expected-damage package at each, up to 8 per
+night." It won decisively on Hard by turn 8/30 with 27 dead and 1 aircraft lost,
+at 100% approval. Whole subsystems never fired: `csar.js` (627 lines,
+`downedCrews` 0 every run), the specops raid, TEL hunting (`telsKilled: 0`),
+Israel, and the entire negotiation path.
+
+**The thesis: the design is right, the currency is free.** Every interesting
+tradeoff in this game is priced in packages — grind a missile base down over four
+nights vs. kill it in one (`disperseFrom`), chase TELs vs. hit fixed targets, buy
+air superiority vs. fly raw on Hard. All of them are real, well-modeled
+decisions. All of them are free, because a package costs nothing: `G.tankers` was
+deliberately defanged in v1.19, `G.strikesThisTurn` was never read, and
+`lossRisk` went to literal zero after ~8 packages.
+
+Fix the price of a package and most of the problem list prices itself.
+
+---
+
+## Item 1 — air defense reconstitutes + aircrew attrition floor ✅ DONE
+
+Shipped in v1.27, save `VERSION` 13. See `AD_RECONSTITUTION` (`js/data.js`),
+`repairCeiling` + the reconstitution branch in `repairTargets` (`js/game.js`),
+`attrition` in `AIR_ASSETS`, and the three-branch loss-risk line in
+`showEstimate` (`js/ui.js`).
+
+### The root cause it fixed
+
+`airSuperiority()` has always carried this comment:
+
+> *"Nothing about this is a one-way ratchet. Air defense sites repair overnight
+> like everything else... the night you look away is the night the plan gets
+> smaller."*
+
+**The code did not do this.** `repairTargets` skipped `t.hp <= 0` and
+`TARGET_REPAIR`'s header said "Zero is permanent." A player never leaves a SAM
+site at 20% — they take it to 0. Three targets, permanently dead, after which
+`airDefenseWeight()` is 0 forever, `lossRisk = prof.loss × ad` is 0 forever, and
+the campaign is a checklist. The intent was already written down; only the
+implementation leaked.
+
+### What it does now
+
+- A SAM site at zero, unvisited for `quiet: 3` nights, returns at `rate: 7`/night
+  out of the national reserve, then repairs normally.
+- `repairCeiling()` caps any `airdefense` target with `killedOnce` at
+  `cap: 60` **permanently** — against ordinary overnight repair as well as the
+  return itself. Killing a battery is permanent *degradation*, not permanent
+  *removal*. Without this the reserve arrives at 7% and walks straight back to
+  100 at 12/night, and SEAD buys nothing that lasts.
+- Targets carry `lastStruck` (set beside `G.struckThisTurn.push`) and
+  `killedOnce`. Both persist in the per-target save blob; both are cleared in
+  `newWar` — `TARGETS` is a module constant that outlives a campaign.
+- Re-killing a reconstituted battery pays **+1 approval, not +3**, and does not
+  increment `stats.destroyed`. Without that guard, reconstitution is an approval
+  farm at +3 every four nights forever.
+- `attrition` in `AIR_ASSETS` is added **outside** the air-defense multiplier in
+  `computeStrike`, so suppressing the belt does not buy it back: F-35 0.4%,
+  fighter 1.3%, heavy 1.0%, stealth 0.2%, cruise 0. Roughly one airframe every
+  twelve nights of fighter packages. This is what makes `csar.js` reachable.
+
+### Verified
+
+Reconstitution curve over 13 turns, killed site vs. merely-damaged site:
+
+```
+killed  (killedOnce): 0  0  0  0  7 19 31 43 55 60 60 60 60   ← capped, permanent
+damaged (never dead): 40 52 64 76 88 100 …                    ← unchanged
+```
+
+Also confirmed: the `AIR DEFENSES RETURN` event renders in the summary-first
+report shape; save → reload → CONTINUE round-trips `lastStruck`/`killedOnce`;
+re-kill pays +1 and leaves `stats.destroyed` alone; all three loss-risk branches
+render with the belt at zero; no console errors over ~30 simulated turns.
+
+### Known cosmetic wrinkle (left alone deliberately)
+
+On a re-kill the report digest says "1 target destroyed" while the campaign
+scoreboard shows 0. Different scopes — tonight one target *was* destroyed —
+so this is arguably correct. Revisit only if it reads wrong in play.
+
+---
+
+## Item 2 — price packages, do not cap them ⬜ NOT STARTED
+
+### Do NOT just add a hard cap
+
+The obvious fix is "cap packages at 3–4 per turn; `G.strikesThisTurn` is already
+saved, it's a one-line read." **Resist this.** It recreates precisely the failure
+the v1.19 tanker rescale note in `js/data.js` diagnoses and fixes:
+
+> *"two deep packages a night, every night, for thirty turns, and the answer to
+> every question was 'wait for the tanker wing.' The war it produced was the same
+> war every time."*
+
+A flat package cap is the fuel brake wearing a different hat. The surge has to
+remain available or the war is on rails again; it just has to **cost**.
+
+### The ATO model
+
+A night's flying is planned ~36 hours out. Packages inside the plan get full
+mission planning, a full intel cycle, rested crews, tankers where promised.
+Anything past it is a late frag: it flies, because the President said so, and it
+flies worse — and the bill comes due on tomorrow's plan.
+
+```js
+// js/data.js
+const ATO = {
+  base: 3,             // packages planned at D-day
+  perFlow: 0.5,        // each landed force-flow wave buys half a planned package
+  ceiling: 4,          // absolute wall ABOVE the plan — past this nothing flies
+  surgeEffects: 0.09,  // success penalty per package past the plan
+  surgeLoss: 0.55,     // added loss multiplier per package past the plan
+  fatiguePerSurge: 1,  // crew-rest debt incurred
+  fatigueDecay: 1,     // paid down per turn of not surging
+  maxFatigue: 4,
+};
+```
+
+```js
+// js/game.js
+function atoSlots() {
+  const flown = G.forceFlow.landed.length;   // see forceFlowTick
+  return Math.max(1, Math.floor(ATO.base + flown * ATO.perFlow - (G.fatigue || 0)));
+}
+
+// in computeStrike(), alongside adPenalty / lossRisk:
+const over = Math.max(0, G.strikesThisTurn - atoSlots() + 1);
+const surge = over * ATO.surgeEffects;          // fold into adPenalty
+const surgeLoss = 1 + over * ATO.surgeLoss;     // multiply lossRisk
+```
+
+- Block in `executeStrike` at `G.strikesThisTurn >= atoSlots() + ATO.ceiling`.
+  Route it through `pkgBlock` so it reads as a refusal with a reason, not a dead
+  button.
+- Accrue `G.fatigue` on each package past the plan; decay it in `nextTurn`
+  (beside `G.addressCooldown--`). **Add `fatigue` to `FIELDS`** or it silently
+  resets on reload — the single easiest thing to break in this codebase.
+- Surface it in `showEstimate` (`js/ui.js`), which is the best screen in the game
+  and has room for one more line:
+
+  > **FOURTH PACKAGE TONIGHT — LATE FRAG.** Outside the tasking order.
+  > −9% effects, aircrew risk ×1.55, and tomorrow's plan is one package shorter.
+
+This is finally a read of `G.strikesThisTurn`, which is incremented, persisted in
+`FIELDS`, reset in `nextTurn` — and never read anywhere.
+
+### Why it matters beyond tempo
+
+It makes the grind-vs-kill tradeoff in `disperseFrom` cost something. That model
+is already correct and even has prose for both outcomes
+(`BRIGADE DESTROYED IN PLACE` vs `BRIGADE SURVIVORS DISPERSE`) — it just has no
+teeth while grinding is free. Same for TEL hunting and the intel slot.
+
+---
+
+## Item 3 — approval is a level, not a balance ⬜ NOT STARTED
+
+`+3` per destroyed target across a 43-target board is **+129 of approval
+available from simply doing the job**, against a ceiling of 100, with no decay.
+Add `address` (+6 on a 2-turn cooldown), milestone bumps (+4/+7/+8), SPR (+2),
+raid (+8), CSAR (+8) and a president 8 days into a shooting war sits at 100%.
+
+### Mean-revert it
+
+```js
+// js/game.js — replace the flat `if (G.turn > WEARINESS_TURN) approval -= 0.5`
+// tick in resolveTurn (search: "domestic drift").
+function approvalBaseline() {
+  const lim = casualtyLimit();
+  return clamp(62
+    - 26 * (G.casualties.us / lim)
+    - 0.9 * Math.max(0, G.turn - WEARINESS_TURN)   // WEARINESS_TURN = 14, game.js:19
+    - (G.oil >= 140 ? 8 : G.oil >= 110 ? 4 : 0)
+    + (G.nukeDegraded() >= 100 ? 10 : 0)
+    + (G.negotiationsAccepted ? 8 : 0), 15, 88);
+}
+G.approval += (approvalBaseline() - G.approval) * 0.18;
+```
+
+At 100% approval against a baseline of 55 that is ~8/night of gravity. Every
+good night becomes a push against it rather than a deposit into it.
+
+### Two supporting changes
+
+- **Make the `address` rally temporary.** Rally-round-the-flag effects decay in
+  days. `G.rally = 6`, decaying 2/turn in `nextTurn`, displayed added to
+  approval. An address buys a window, not a permanent raise. (`G.rally` → `FIELDS`.)
+- **Novelty decay on kills.** Full +3 for the first destruction of a *type*, +1
+  after, 0 past the fourth of a type. The public tracks "we hit the nuclear
+  site," not aimpoint counts. Note item 1 already added a `firstKill` branch in
+  `resolveImpact` — extend that, don't add a second mechanism.
+
+---
+
+## How to verify (this worked well, reuse it)
+
+`.claude/launch.json` already has a `cic` static server. `file://` will **not**
+work — the preview pane won't reload it, so you can never reset a war.
+
+```js
+// paste in the browser console / javascript_tool after preview_start {name:"cic"}
+try { localStorage.clear(); } catch(e) {}
+document.getElementById('btn-start').click();
+// ...mutate TARGETS / Game.G to set up the scenario...
+window.__iv = setInterval(() => {
+  // pin the politics so the test can reach the turn you care about
+  Game.G.approval = 80; Game.G.casualties.us = 0; Game.G.oil = 90;
+  Game.G.hormuz = 'OPEN'; Game.G.hormuzClosedTurns = 0;
+  const rm = document.getElementById('report-modal');
+  if (rm && !rm.classList.contains('hidden')) { document.getElementById('btn-report-ok').click(); return; }
+  const skip = document.getElementById('btn-skip-turn');
+  if (skip && !skip.classList.contains('hidden')) { skip.click(); return; }
+  if (Game.G.turn >= 16 || Game.G.over) { clearInterval(window.__iv); return; }
+  const end = document.getElementById('btn-end-turn');
+  if (end && !end.classList.contains('hidden')) end.click();
+}, 250);
+```
+
+`Game.G` and `TARGETS` are globals; `Game.computeStrike` / `Game.executeStrike`
+are exported. Package rows in the strike modal are `.pkg-option`, not buttons.
+Without the approval pin the game ends around turn 4 from doing nothing, which
+will cut every test short.
+
+---
+
+## Deferred — Tier 2 and 3 (not in scope here, recorded so they aren't lost)
+
+**Tier 2 — systems that go dead**
+- `enrichRate()` reads `natanz.hp` / `fordow.hp` — **ground truth, not
+  `estimate()`**. The uncertainty layer's centerpiece is computed from numbers
+  the player isn't supposed to have. Route `breakoutEstimate` through assessed
+  condition.
+- Breakout clock is passive — only the player can move it. Add material transfer
+  (Natanz dies → Fordow's 0.6 coefficient rises to ~0.85, making the B-2 the only
+  answer) and an Iranian sprint when the regime is losing badly.
+- `un` is a free, uncapped, no-cooldown +8 world (`doDiplo`). Require a fresh
+  grievance (the event text already says "condemnation of the attack on Al
+  Asad"), scale the gain to it, diminish per use, cost 1–2 approval.
+- Endgame: make the military win a **precondition** for victory, not a
+  substitute. `nukeDegraded() >= 100 && iranBroken()` should collapse Tehran's
+  position and open the table, not end the war. Wars end when someone quits.
+  This makes ~1,800 lines of negotiation/diplomacy writing load-bearing.
+- Magazine glut: gate the last two `FORCE_FLOW` waves on the campaign still being
+  contested, and give surplus sorties a non-strike use (standing DCA/SEAD patrol
+  that blunts the next salvo, or free `huntTels` rolls).
+
+**Tier 3 — mechanical, independent, land any time**
+- **Aegis desync (worst bug, hits on turn 1).** `aegisIntercept` (`js/ai.js`)
+  rewrites `ev.casualties` but not `ev.text`, which already baked the
+  pre-intercept figure. One event, three different numbers on the first screen a
+  new player reads. Fix: `ev.body = (ev) => ...` as a function of the event, never
+  a string built beside it; `aegisIntercept` appends to `ev.appended`; `ui.js`
+  reads through one helper. ~4 builders to convert. Add the rule to CLAUDE.md.
+- `plural()` doesn't handle sibilants → "0 addresss so far" (`ui.js`). And
+  `ai.js` doesn't use the helper at all → "1 Americans were killed". Move
+  `plural/turns/signed` into a `js/text.js` loaded first — `ai.js`, `csar.js`,
+  `specops.js` all write counted prose and none can reach `UI`'s IIFE.
+- HUD contradicts the open report (stale bar under a fresh report). One line:
+  `renderHUD(G)` at the top of `showReport`.
+- `recordTurn`'s notable-picker has no dedupe → the campaign log reads
+  `MASS MISSILE BARRAGE` four nights running. Rank candidates, skip titles already
+  in `G.timeline`, and append `— FOURTH NIGHT` when everything has been said.
+- Touch targets 12–20px against a 44px guideline, and Kharg/Nav Bushehr/Bushehr
+  NPP sit within a few pixels. Invisible hit disc sized in *screen* px (radius ÷
+  zoom scale, updated in `applyView`), plus nearest-centre resolution and a
+  disambiguation sheet for the coastal cluster.
+- No Escape key anywhere, no `role="dialog"`, no focus trap. One modal stack, one
+  `document.keydown`, `aria-modal` on the four `.modal` divs in `index.html`.
+- The cartoon leader portrait (`drawLeader`, `js/ui.js`) is the only screen
+  fighting the CENTCOM aesthetic. Replace with a secure-voice terminal card —
+  waveform, the existing vector flag pin, transcript in mono.
