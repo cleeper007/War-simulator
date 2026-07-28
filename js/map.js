@@ -201,6 +201,51 @@ const MapView = (() => {
     return g;
   }
 
+  // ---- the carrier strike group ----
+  // A CSG resolves in two steps, because at chart scale it is honestly one blue
+  // flat-top and five destroyers drawn at their true spacing would be five
+  // pixels of noise. Past k=2.6 (.map-deep-zoom) the escort screen appears — the
+  // ships were out there the whole time, the chart just wasn't open enough to
+  // say so. Past k=3.8 (.map-close-zoom) every hull resolves into its class and
+  // the flight deck grows its fittings (see .cv-detail). That second step is
+  // where the hull-type codes come in too: it is the first zoom with room to
+  // print them without covering the ship they name.
+
+  // Deck fittings, close zoom only. What is actually on a flight deck: the two
+  // bow catapults, the waist cat sharing the angled deck, four wires across the
+  // landing area, three deck-edge elevators overhanging the side, and aircraft
+  // parked where a carrier parks them — which is everywhere the landing area is
+  // not, because that is the one patch of deck that has to stay clear.
+  function carrierDeck() {
+    const d = el('g', { class: 'cv-detail' });
+    for (const x of [-1.25, 0.55])   // bow cats, either side of the centreline
+      d.appendChild(el('line', { class: 'cv-cat', x1: x, y1: -7.0, x2: x, y2: -1.6 }));
+    // Everything the landing area owns lies square to the ANGLED deck rather
+    // than to the hull, so it is all drawn in one frame rotated onto that axis:
+    // origin at the round-down (the aft end of the angled deck), local +y
+    // running aft, local x across it. The 25-degree offset is the whole point of
+    // an angled deck and the one thing a plan view can actually show.
+    const land = el('g', { transform: 'translate(0.15,4.25) rotate(-24.6)' });
+    // landing centreline, then the four wires across it, then the waist cat
+    // running up the starboard side of the box out of everyone's way
+    land.appendChild(el('line', { class: 'cv-stripe', x1: 0, y1: -0.4, x2: 0, y2: -8.4 }));
+    for (const y of [-0.6, -1.15, -1.7, -2.25])
+      land.appendChild(el('line', { class: 'cv-wire', x1: -1.05, y1: y, x2: 1.05, y2: y }));
+    land.appendChild(el('line', { class: 'cv-cat', x1: 1.5, y1: -1.5, x2: 1.5, y2: -7.4 }));
+    d.appendChild(land);
+    // deck-edge elevators: two starboard either side of the island, one port aft
+    for (const [x, y] of [[2.0, -4.6], [2.0, 1.3], [-2.8, 2.3]])
+      d.appendChild(el('rect', { class: 'cv-elev', x, y, width: 0.9, height: 1.7 }));
+    // the air wing: the pack aft of the island, two more spotted on the bow
+    for (const [x, y, rot] of [[1.5, 2.5, 40], [1.5, 4.1, 40], [1.5, 5.6, 40],
+                               [1.5, -5.0, -25], [1.5, -6.4, -25]]) {
+      const p = el('path', { class: 'cv-plane', d: 'M0,-0.75 L0.5,0.3 L0,0.08 L-0.5,0.3 Z' });
+      p.setAttribute('transform', `translate(${x},${y}) rotate(${rot})`);
+      d.appendChild(p);
+    }
+    return d;
+  }
+
   // top-down aircraft-carrier silhouette (bow up): hull, angled flight deck,
   // starboard island and a faint centreline. drawn small so at map scale it
   // reads as a single flat-top; the escort screen is added separately.
@@ -214,35 +259,134 @@ const MapView = (() => {
     c.appendChild(el('line', { class: 'carrier-line', x1: 0, y1: -6.5, x2: 0, y2: 6.5 }));
     // starboard island superstructure
     c.appendChild(el('rect', { class: 'carrier-island', x: 1.2, y: -2.4, width: 1.4, height: 3.2 }));
+    c.appendChild(carrierDeck());
     return c;
   }
 
-  // small screening warship (destroyer/cruiser), bow up before rotation
-  function escortShip() {
-    return el('path', { class: 'asset-icon escort-ship', d: 'M0,-3.4 L1.3,-0.8 L1.3,3 L-1.3,3 L-1.3,-0.8 Z' });
+  // A hull in plan view, bow up: raked stem, parallel midbody, transom stern.
+  // Every ship in the screen is this one drawing at a different length and beam
+  // with a different set of fittings on top, which is also roughly how you tell
+  // the classes apart from a thousand feet. `blunt` gives the auxiliary her
+  // full-bodied merchant bow — she is built to carry fuel, not to make 30 knots.
+  function hullPath(len, beam, cls, blunt) {
+    const h = len / 2, b = beam / 2, s = blunt ? h * 0.62 : h * 0.5;
+    const stem = blunt
+      ? `M${-b * 0.55},${-h} L${b * 0.55},${-h} L${b},${-s}`
+      : `M0,${-h} L${b},${-s}`;
+    return el('path', { class: cls,
+      d: `${stem} L${b},${h * 0.8} Q${b},${h} ${b * 0.6},${h} ` +
+         `L${-b * 0.6},${h} Q${-b},${h} ${-b},${h * 0.8} L${-b},${-s} Z` });
   }
 
-  // the strike group: the carrier plus a ring of escorts, hidden until the
-  // map is zoomed way in (toggled via the .map-deep-zoom class on the svg)
+  // The screen, by class. Lengths are the real ones scaled off the carrier and
+  // then pulled in: a Burke is 155m against a Nimitz's 333m, a Ticonderoga 173m,
+  // and the fast combat support ship is longer than either of them — which looks
+  // like a drawing error until you remember she is a tanker with guns' worth of
+  // freeboard. Drawn to true ratio the escorts crowd the flat-top at the spacing
+  // the screen is plotted at, so everything here is about 60% of scale.
+  const ESCORT_CLASSES = {
+    cg:  { len: 7.4, beam: 1.9, tag: 'CG' },    // AAW commander, two deckhouses
+    ddg: { len: 6.6, beam: 1.7, tag: 'DDG' },   // Arleigh Burke — the workhorse
+    ao:  { len: 7.8, beam: 2.3, tag: 'T-AO', blunt: true },  // the oiler
+  };
+
+  function escortShip(kind) {
+    const c = ESCORT_CLASSES[kind];
+    const g = el('g', { class: `escort escort-${kind}` });
+    g.appendChild(hullPath(c.len, c.beam, 'asset-icon escort-ship', c.blunt));
+    const h = c.len / 2, d = el('g', { class: 'cv-detail' });
+    const box = (cls, x, y, w, ht) => d.appendChild(el('rect', { class: cls, x, y, width: w, height: ht }));
+    if (kind === 'ao') {
+      // An auxiliary wears her house right aft over the machinery and gives the
+      // whole middle of the ship to cargo. The two bars across that deck are the
+      // replenishment rigs, and they are what tells her from a warship at a
+      // glance: they stand athwartships, because the whole job is passing fuel
+      // sideways to something steaming a hundred feet away.
+      box('escort-deck', -0.8, -h * 0.6, 1.6, h * 0.95);
+      for (const y of [-h * 0.34, h * 0.04]) box('escort-rig', -0.95, y, 1.9, 0.26);
+      box('escort-house', -0.65, h * 0.44, 1.3, h * 0.38);
+    } else {
+      box('escort-vls', -0.55, -h * 0.62, 1.1, h * 0.2);   // forward VLS
+      box('escort-house', -0.6, -h * 0.3, 1.2, h * 0.5);   // bridge / deckhouse
+      if (kind === 'cg') box('escort-house', -0.5, h * 0.26, 1.0, h * 0.24); // after house
+      box('escort-vls', -0.5, h * 0.06, 1.0, h * 0.16);    // after VLS
+      box('escort-deck', -0.55, h * 0.55, 1.1, h * 0.3);   // flight deck aft
+    }
+    g.appendChild(d);
+    return g;
+  }
+
+  // the strike group: the carrier plus her screen, hidden until the map is
+  // zoomed way in (toggled via .map-deep-zoom / .map-close-zoom on the svg).
+  // The stationing is the textbook one — the cruiser up-threat ahead as the air
+  // defence commander, destroyers on the bows and the port quarter, and the
+  // oiler tucked astern inside everything else, because she is what the screen
+  // is partly there to protect.
   function carrierGroup() {
     const grp = el('g', { class: 'carrier-strike-group' });
-    // escort screen — revealed only on deep zoom
     const screen = el('g', { class: 'strike-group' });
     const escorts = [
-      { dx: 0, dy: -17, rot: 0 },     // plane-guard / vanguard ahead
-      { dx: -13, dy: -8, rot: -22 },  // port bow
-      { dx: 13, dy: -6, rot: 20 },    // starboard bow
-      { dx: -13, dy: 8, rot: -158 },  // port quarter
-      { dx: 13, dy: 10, rot: 152 },   // starboard quarter (astern screen)
+      { kind: 'cg',  dx: 0,   dy: -18, rot: 0 },     // vanguard
+      { kind: 'ddg', dx: -13, dy: -8,  rot: -22 },   // port bow
+      { kind: 'ddg', dx: 13,  dy: -6,  rot: 20 },    // starboard bow
+      { kind: 'ddg', dx: -14, dy: 8,   rot: -158 },  // port quarter
+      { kind: 'ao',  dx: 12,  dy: 12,  rot: 168 },   // oiler astern
     ];
     for (const e of escorts) {
-      const s = escortShip();
-      s.setAttribute('transform', `translate(${e.dx},${e.dy}) rotate(${e.rot})`);
-      screen.appendChild(s);
+      const slot = el('g', { transform: `translate(${e.dx},${e.dy})` });
+      const s = escortShip(e.kind);
+      s.setAttribute('transform', `rotate(${e.rot})`);
+      slot.appendChild(s);
+      // The tag rides in the UNROTATED slot so it reads upright on whatever
+      // heading the ship is on, and ABOVE her without exception: the two ships
+      // in the after screen are stationed either side of the carrier's own name,
+      // and a tag under those two lands on top of it.
+      const tag = el('text', { class: 'escort-tag cv-detail',
+        y: -(ESCORT_CLASSES[e.kind].len / 2 + 1.4) });
+      tag.textContent = ESCORT_CLASSES[e.kind].tag;
+      slot.appendChild(tag);
+      screen.appendChild(slot);
     }
     grp.appendChild(screen);
     grp.appendChild(carrierHull('carrier-body'));
     return grp;
+  }
+
+  // ---- USS Toledo ----
+  // The one hull on the plot drawn in profile instead of plan view, because a
+  // submarine seen from above is a cigar and nothing else: Los Angeles-class,
+  // bow left, ogive bow into a parallel midbody, the hull tapering aft into the
+  // cruciform tail and the screw. The planes are on the BOW rather than the
+  // sail — Toledo is a 688I, and at a glance that is the one thing that tells
+  // the improved boats from the older ones.
+  //
+  // The HULL is hollow and dashed (see .asset-submerged) because the plot is the
+  // last position Fifth Fleet had and not where she is; nothing else on the map
+  // is uncertain about where it is. Only the hull, though. A first version dashed
+  // the fittings too and the boat came apart into gravel — the dash is 2.6 units
+  // long and the sail is 2.5 units of chord, so it drew as one brick. Every
+  // fitting is now a thin solid line INSIDE a dashed silhouette, which says the
+  // same thing and still looks like a submarine. The fins are open paths for the
+  // same reason: closing them would draw a chord across the hull they stand on.
+  function submarineIcon() {
+    const g = el('g', { class: 'asset-icon asset-submerged' });
+    g.appendChild(el('path', { class: 'sub-hull',
+      d: 'M-7.6,0 C-7.6,-1.5 -5.9,-2.1 -3.7,-2.1 L2.9,-2.1 C4.9,-2.1 6.3,-1.4 6.9,-0.35 ' +
+         'L6.9,0.35 C6.3,1.4 4.9,2.1 2.9,2.1 L-3.7,2.1 C-5.9,2.1 -7.6,1.5 -7.6,0 Z' }));
+    // fairwater: raked leading edge, trailing edge vertical, set well forward
+    g.appendChild(el('path', { class: 'sub-detail', d: 'M-2.9,-2.05 L-2.1,-4.6 L-0.35,-4.6 L-0.35,-2.05' }));
+    // bow planes, edge-on
+    g.appendChild(el('line', { class: 'sub-detail', x1: -5.7, y1: -0.3, x2: -3.9, y2: -0.3 }));
+    // torpedo tube shutters — amidships-forward and angled out, where a 688
+    // carries them, not in the nose: the nose is full of the bow sonar sphere
+    for (const x of [-3.9, -3.0])
+      g.appendChild(el('line', { class: 'sub-detail', x1: x, y1: 1.05, x2: x + 0.85, y2: 1.6 }));
+    // cruciform tail: rudder above, lower fin below, stern planes through both
+    g.appendChild(el('path', { class: 'sub-detail', d: 'M3.2,-2.05 L4.8,-4.3 L6.0,-4.3 L6.35,-1.0' }));
+    g.appendChild(el('path', { class: 'sub-detail', d: 'M3.9,2.05 L5.1,3.8 L6.0,3.8 L6.35,1.0' }));
+    g.appendChild(el('line', { class: 'sub-detail', x1: 5.2, y1: 0, x2: 7.8, y2: 0 }));
+    g.appendChild(el('ellipse', { class: 'sub-detail', cx: 7.4, cy: 0, rx: 0.4, ry: 1.3 }));
+    return g;
   }
 
   function assetIcon(a) {
@@ -261,10 +405,7 @@ const MapView = (() => {
     } else if (a.kind === 'naval') {
       icon = el('path', { class: 'asset-icon', d: 'M0,-5.5 L4.5,0 L0,5.5 L-4.5,0 Z' });
     } else if (a.kind === 'submarine') {
-      // hull in profile with a sail — drawn dashed, because her plotted position
-      // is the last one Fifth Fleet had and not where she actually is
-      icon = el('path', { class: 'asset-icon asset-submerged',
-        d: 'M-8,0 C-8,-2.4 -4,-3.4 0,-3.4 C5,-3.4 8,-2 8,0 C8,2 5,3.4 0,3.4 C-4,3.4 -8,2.4 -8,0 Z M-1.5,-3.2 L-1.5,-6.2 L2,-6.2 L2,-3.3 Z' });
+      icon = submarineIcon();
     } else {
       icon = el('path', { class: 'asset-icon', d: 'M-5,4 L0,-5 L5,4 Z M-7,4 L7,4 L7,5.5 L-7,5.5 Z' });
     }
@@ -578,8 +719,10 @@ const MapView = (() => {
   function applyView() {
     clampView();
     world.setAttribute('transform', `translate(${view.x},${view.y}) scale(${view.k})`);
-    // reveal each carrier's escort screen once zoomed way in
+    // reveal each carrier's escort screen once zoomed way in, and the individual
+    // hull classes and deck fittings one step past that (see carrierGroup)
     svg.classList.toggle('map-deep-zoom', view.k >= 2.6);
+    svg.classList.toggle('map-close-zoom', view.k >= 3.8);
     // small/touch screens hide the site names until the chart is open enough
     // for them not to overlap — see .map-far-zoom in the stylesheet
     svg.classList.toggle('map-far-zoom', view.k < 1.7);

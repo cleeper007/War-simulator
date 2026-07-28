@@ -670,12 +670,47 @@ button { font-family: var(--mono); }
 .us-asset.under-attack .carrier-hull,
 .us-asset.under-attack .escort-ship { fill: var(--red); }
 
+/* Deck fittings and ship-class detail: the second reveal, one zoom step past
+   the escort screen. Everything here is a fraction of a map unit across, so
+   below .map-close-zoom it is not small — it is a smear, and hiding it is what
+   keeps the flat-top reading as a flat-top at chart scale. */
+.cv-detail { opacity: 0; transition: opacity 0.25s ease; pointer-events: none; }
+.map-close-zoom .cv-detail { opacity: 1; }
+/* Deck markings are painted ON the deck, so they run light: half of them lie
+   inside the angled deck, which is already cut in the map-background dark, and
+   a dark wire on a dark landing area is not a marking, it is nothing. The
+   elevators go the other way — they are holes in the deck, not paint. */
+.cv-cat    { stroke: #cfe2ff; stroke-width: 0.28; opacity: 0.45; }
+.cv-wire   { stroke: #cfe2ff; stroke-width: 0.24; opacity: 0.6; }
+.cv-stripe { stroke: #cfe2ff; stroke-width: 0.3; opacity: 0.5; stroke-dasharray: 0.9 0.7; }
+.cv-elev { fill: #0b1a2e; opacity: 0.5; }
+.cv-plane { fill: #cfe2ff; opacity: 0.85; }
+/* superstructure reads light against the hull, deck openings dark */
+.escort-house, .escort-rig { fill: #cfe2ff; opacity: 0.9; }
+.escort-deck, .escort-vls { fill: #0b1a2e; opacity: 0.6; }
+/* The hull-type code. `.us-asset` scoped because the plain `.us-asset text`
+   rule sets 8.5px, which on a 7-unit hull is taller than the ship it names.
+   It carries NO opacity of its own — the tag is a `.cv-detail` and that is what
+   hides it below close zoom, and an opacity here (0,2,0) would out-specify the
+   `.cv-detail` rule (0,1,0) and pin every tag on at every zoom. It did. */
+.us-asset .escort-tag { font-size: 3.4px; letter-spacing: 0.3px; fill: #5f92c6; }
+
 /* the attack submarine — hollow and dashed, because the plot is her last
    reported position and not where she is. Nothing else on the map is uncertain
-   about where it is, so nothing else is drawn this way. */
+   about where it is, so nothing else is drawn this way. The class sits on the
+   group and the fittings inherit it: stroke and dash are inherited properties,
+   so the whole boat is one declaration. */
 .us-asset .asset-submerged {
-  fill: none; stroke: var(--blue); stroke-width: 1.1;
-  stroke-dasharray: 2.6 1.8; opacity: 0.85;
+  fill: none; stroke: var(--blue); stroke-width: 0.95;
+  stroke-dasharray: 1.8 1.2; opacity: 0.85;
+  stroke-linejoin: round;
+}
+/* The sail, planes, shutters and tail run thin and SOLID. The dash belongs to
+   the silhouette — it is the silhouette that is in doubt — and a 2.6-unit dash
+   laid over a 2.5-unit sail draws one brick and loses the boat. */
+.us-asset .sub-detail {
+  stroke-width: 0.62; stroke-dasharray: none; opacity: 0.75;
+  stroke-linejoin: round; stroke-linecap: round;
 }
 .us-asset .asset-submerged + text,
 .us-asset:has(.asset-submerged) text { opacity: 0.8; }
