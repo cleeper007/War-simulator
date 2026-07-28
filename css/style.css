@@ -695,6 +695,28 @@ button { font-family: var(--mono); }
    `.cv-detail` rule (0,1,0) and pin every tag on at every zoom. It did. */
 .us-asset .escort-tag { font-size: 3.4px; letter-spacing: 0.3px; fill: #5f92c6; }
 
+/* A carrier's name is positioned against a 16-unit flat-top. Once her screen is
+   drawn she is a 36-unit formation, and the name is suddenly inside it: LINCOLN
+   at y=17 gets clipped by the oiler astern, and the Ford — who carries
+   `labelAbove` to keep clear of other labels on her way in — lands her name flat
+   on top of her own bow escorts' hull tags. So the name steps out for exactly as
+   long as the screen is up, and steps back when it goes away. Doing it here
+   rather than in the `y` attribute is the point: the offset has to follow the
+   zoom, and below .map-deep-zoom there is no screen to clear. */
+   Below is a short step: the after screen ends at 16 units and the name only
+   has to clear the oiler. Above is a long one — the name cannot fit in the gap
+   between the vanguard cruiser's tag and the bow destroyers', so its only home
+   is above the whole formation. It ends up reading a little far from the
+   flat-top, which is honest: at this zoom the thing being named is the
+   formation, not the ship.
+
+   `>` is load-bearing. The hull tags are `<text>` too, and a descendant
+   selector moved them by the same amount as the name — the whole group slid
+   up together and the gap it was supposed to open never opened. */
+.cv-asset > text { transition: transform 0.25s ease; }
+.map-deep-zoom .cv-asset > text { transform: translateY(6px); }
+.map-deep-zoom .cv-asset.label-above > text { transform: translateY(-22px); }
+
 /* the attack submarine — hollow and dashed, because the plot is her last
    reported position and not where she is. Nothing else on the map is uncertain
    about where it is, so nothing else is drawn this way. The class sits on the

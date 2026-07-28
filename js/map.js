@@ -204,12 +204,20 @@ const MapView = (() => {
   // ---- the carrier strike group ----
   // A CSG resolves in two steps, because at chart scale it is honestly one blue
   // flat-top and five destroyers drawn at their true spacing would be five
-  // pixels of noise. Past k=2.6 (.map-deep-zoom) the escort screen appears — the
+  // pixels of noise. Past k=1.6 (.map-deep-zoom) the escort screen appears — the
   // ships were out there the whole time, the chart just wasn't open enough to
-  // say so. Past k=3.8 (.map-close-zoom) every hull resolves into its class and
+  // say so. Past k=2.2 (.map-close-zoom) every hull resolves into its class and
   // the flight deck grows its fittings (see .cv-detail). That second step is
   // where the hull-type codes come in too: it is the first zoom with room to
   // print them without covering the ship they name.
+  //
+  // Both steps used to sit at 2.6 and 3.8. The war opens at k=1.0 and the zoom
+  // buttons step by 1.3, so that put the escorts four clicks away and every
+  // fitting six — past anything a player reaches on the way to picking targets,
+  // which meant the strike group looked exactly as it always had. 1.6 and 2.2
+  // are two clicks and three. The cost is that both carrier boxes wear a full
+  // screen at mid zoom and they are only ~50 map units apart, so the Lincoln and
+  // the Ford crowd each other once the Ford is on station. That is the trade.
 
   // Deck fittings, close zoom only. What is actually on a flight deck: the two
   // bow catapults, the waist cat sharing the angled deck, four wires across the
@@ -368,8 +376,16 @@ const MapView = (() => {
   // fitting is now a thin solid line INSIDE a dashed silhouette, which says the
   // same thing and still looks like a submarine. The fins are open paths for the
   // same reason: closing them would draw a chord across the hull they stand on.
+  //
+  // Drawn at 1.4x. She is the smallest hull in the theater and the icon with the
+  // most shape to show, which is a straight conflict: at the zoom the war opens
+  // at, the authored size renders 15x8 CSS pixels and every one of those
+  // fittings is a smear, so the boat read as the same dashed sliver she was
+  // before any of this. The scale rides on the group rather than the path
+  // coordinates so the stroke and the dash scale with her — the dash-to-chord
+  // ratio the comment above turns on is preserved exactly.
   function submarineIcon() {
-    const g = el('g', { class: 'asset-icon asset-submerged' });
+    const g = el('g', { class: 'asset-icon asset-submerged', transform: 'scale(1.4)' });
     g.appendChild(el('path', { class: 'sub-hull',
       d: 'M-7.6,0 C-7.6,-1.5 -5.9,-2.1 -3.7,-2.1 L2.9,-2.1 C4.9,-2.1 6.3,-1.4 6.9,-0.35 ' +
          'L6.9,0.35 C6.3,1.4 4.9,2.1 2.9,2.1 L-3.7,2.1 C-5.9,2.1 -7.6,1.5 -7.6,0 Z' }));
@@ -391,8 +407,14 @@ const MapView = (() => {
 
   function assetIcon(a) {
     // active === false is a unit not yet in theater (the second CSG, mid-ocean)
+    // `cv-asset`/`label-above` are hooks for the one thing the escort screen
+    // breaks: a carrier's own name is placed against a 16-unit flat-top, and
+    // once the screen is up it is inside a 36-unit formation instead. See the
+    // .map-deep-zoom label rules in the stylesheet.
     const g = el('g', {
-      class: 'us-asset' + (a.ally ? ' ally' : '') + (a.active === false ? ' hidden' : ''),
+      class: 'us-asset' + (a.kind === 'carrier' ? ' cv-asset' : '')
+        + (a.labelAbove ? ' label-above' : '')
+        + (a.ally ? ' ally' : '') + (a.active === false ? ' hidden' : ''),
       id: `asset-${a.id}`, transform: `translate(${a.x},${a.y})`,
     });
     let icon;
@@ -719,10 +741,11 @@ const MapView = (() => {
   function applyView() {
     clampView();
     world.setAttribute('transform', `translate(${view.x},${view.y}) scale(${view.k})`);
-    // reveal each carrier's escort screen once zoomed way in, and the individual
-    // hull classes and deck fittings one step past that (see carrierGroup)
-    svg.classList.toggle('map-deep-zoom', view.k >= 2.6);
-    svg.classList.toggle('map-close-zoom', view.k >= 3.8);
+    // reveal each carrier's escort screen once zoomed in, and the individual
+    // hull classes and deck fittings one step past that (see carrierGroup for
+    // why these two numbers are as low as they are)
+    svg.classList.toggle('map-deep-zoom', view.k >= 1.6);
+    svg.classList.toggle('map-close-zoom', view.k >= 2.2);
     // small/touch screens hide the site names until the chart is open enough
     // for them not to overlap — see .map-far-zoom in the stylesheet
     svg.classList.toggle('map-far-zoom', view.k < 1.7);
