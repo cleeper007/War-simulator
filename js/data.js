@@ -1058,9 +1058,9 @@ const HORMUZ_POS = { x: 607, y: 494 };
 // audio can't play (muted, autoplay refused, file missing) and is written as a
 // paraphrase rather than a transcript so it can never contradict the recording.
 // `declined` is shared across both versions — the snub reads the same however
-// warm the call was going to be. `skin` / `hair` / `suit` / `tie` drive the
-// cartoon portrait UI.drawLeader() builds, and `pin` selects which flag goes on
-// the lapel.
+// warm the call was going to be. `pin` selects which flag goes on the secure
+// terminal UI.drawLeader() builds — the only thing on that card that varies by
+// country, now that the cartoon portrait and its four colour fields are gone.
 const LEADER_STRONG_WORLD = 75;   // world opinion ABOVE this gets the unhedged call
 
 const WORLD_LEADERS = [
@@ -1072,7 +1072,6 @@ const WORLD_LEADERS = [
     office: 'The Prime Minister',
     country: 'UNITED KINGDOM',
     pin: 'union',
-    skin: '#e8b894', hair: '#4a3526', suit: '#2c3d60', tie: '#7a1f2e',
     declined: 'You let it go to the Secretary of State. It is noticed. A Number 10 spokesman is ' +
       'asked whether the Prime Minister has spoken to the President and declines to say — which ' +
       'is itself the story by the evening broadcasts.',
@@ -1104,7 +1103,6 @@ const WORLD_LEADERS = [
     office: 'The President',
     country: 'FRANCE',
     pin: 'tricolore',
-    skin: '#e3b08c', hair: '#2b2b2b', suit: '#26314a', tie: '#2f5390',
     declined: 'You let it go to the Secretary of State. Paris reads the snub exactly as a snub. ' +
       'Whatever the President intended to say to you privately is said in public instead, ' +
       'and the French position on this war hardens a degree overnight.',

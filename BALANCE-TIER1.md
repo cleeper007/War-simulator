@@ -330,7 +330,50 @@ will cut every test short.
   contested, and give surplus sorties a non-strike use (standing DCA/SEAD patrol
   that blunts the next salvo, or free `huntTels` rolls).
 
-**Tier 3 — mechanical, independent, land any time**
+**Tier 3 — mechanical, independent ✅ ALL SEVEN DONE (v1.29)**
+
+Landed together; none of them touch balance, so they did not need playtesting
+between each the way Tier 1 did. What each one turned into:
+
+- **Aegis desync** — `ev.text` is now a function of the event for the three
+  builders that quote a casualty figure, `aegisIntercept` appends to
+  `ev.appended`, and `evBody` in ui.js is the only reader. Verified over 1,500
+  simulated Iranian turns: 886 intercepted events, zero desyncs, against a clean
+  reproduction of the old bug first (prose "6 Americans were killed", chip "+4
+  US KIA"). A full-fleet intercept can drive the count to zero, so both builders
+  grew a no-fatalities branch. Rule written into CLAUDE.md.
+- **`plural()`** — moved to a new `js/text.js` (global `Txt`, loaded first) with
+  `pluralize`, `were`/`are`, `ordinal` and `signed` alongside it. Sibilants,
+  invariants and irregulars are tables; inflection is on the last word so
+  "tanker track" and "American life" work unsplit. ai.js now uses it.
+- **Stale HUD** — `renderHUD(Game.G)` at the top of `showReport`.
+- **Campaign-log dedupe** — `recordTurn` ranks every candidate instead of taking
+  the first `find`, skips titles already in `G.timeline`, and appends
+  `— SECOND NIGHT` / `— THIRD NIGHT` when there is nothing new to say. Rows
+  carry a raw `title` beside the rendered `text` so the ordinal does not defeat
+  the next turn's comparison.
+- **Modal keyboard/screen-reader** — one stack, one `document.keydown`, one
+  trap, `inert` + `aria-hidden` on `#app`, focus restored on close. Driven by a
+  MutationObserver on the `hidden` class rather than a refactor of twelve
+  open/close sites. Escape is per-dialog: the allied call and the endgame screen
+  deliberately ignore it.
+- **Touch targets** — `circle.tgt-hit` is now sized in screen pixels and
+  re-derived in `applyView`; measured at a constant 44px across from full zoom-out
+  to full zoom-in. Overlap resolves by nearest centre, and a genuinely ambiguous
+  tap opens a picker sheet (`#target-pick`). Found and fixed a real bug on the
+  way: the first version compared a **viewBox**-space pointer against
+  **world**-space target coordinates, so every pick was wrong by `view.k`.
+- **Leader portrait** — replaced with a secure-voice terminal: crypto header,
+  scrolling oscilloscope trace (green and moving only while the line is open),
+  the existing vector flag pin, TS//SCI footer. The four portrait colour fields
+  are gone from `WORLD_LEADERS`.
+
+**Known gap, deliberately not fixed here.** The strike modal now traps focus, but
+its `.pkg-option` rows carry no `tabindex` — so a keyboard player can reach only
+✕ and ABORT inside it. The trap is correct; the dialog behind it is not yet
+reachable. Same question worth asking of the CSAR and SpecOps modals.
+
+The original list follows.
 - **Aegis desync (worst bug, hits on turn 1).** `aegisIntercept` (`js/ai.js`)
   rewrites `ev.casualties` but not `ev.text`, which already baked the
   pre-intercept figure. One event, three different numbers on the first screen a

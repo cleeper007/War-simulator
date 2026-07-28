@@ -33,7 +33,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.28<span class="beta-tag">BETA</span></div>
+  <div class="version-badge">v1.29<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -82,6 +82,10 @@
           <g id="world"></g>
         </svg>
         <div id="tooltip" class="hidden"></div>
+        <!-- Shown only when a tap lands on more than one site at once — the
+             Kharg / Bushehr / Nav Bushehr cluster is a few map units across and
+             at the zoom the war opens at they share a touch target. -->
+        <div id="target-pick" class="hidden"></div>
         <div id="flight-status" class="hidden"></div>
         <!-- The leadership raid does not fly in the corner scope with everything
              else: it takes the middle of the board for its two minutes. -->
@@ -268,9 +272,9 @@
 
 <!-- ============ STRIKE PLANNING MODAL ============ -->
 <div id="strike-modal" class="overlay hidden">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="strike-modal-title">
     <div class="modal-header">
-      <span class="panel-title">STRIKE PLANNING — <span id="strike-target-name"></span></span>
+      <span class="panel-title" id="strike-modal-title">STRIKE PLANNING — <span id="strike-target-name"></span></span>
       <button class="modal-close" data-close="strike-modal">✕</button>
     </div>
     <div class="modal-body">
@@ -287,9 +291,9 @@
 
 <!-- ============ SPECIAL OPERATIONS MODAL ============ -->
 <div id="specops-modal" class="overlay hidden">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="specops-modal-title">
     <div class="modal-header">
-      <span class="panel-title">SPECIAL OPERATIONS — LEADERSHIP DECAPITATION</span>
+      <span class="panel-title" id="specops-modal-title">SPECIAL OPERATIONS — LEADERSHIP DECAPITATION</span>
       <button class="modal-close" data-close="specops-modal">✕</button>
     </div>
     <div class="modal-body">
@@ -310,9 +314,9 @@
 
 <!-- ============ PERSONNEL RECOVERY MODAL ============ -->
 <div id="csar-modal" class="overlay hidden">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="csar-modal-title">
     <div class="modal-header">
-      <span class="panel-title">PERSONNEL RECOVERY — COMBAT SEARCH AND RESCUE</span>
+      <span class="panel-title" id="csar-modal-title">PERSONNEL RECOVERY — COMBAT SEARCH AND RESCUE</span>
       <button class="modal-close" data-close="csar-modal">✕</button>
     </div>
     <div class="modal-body">
@@ -327,8 +331,10 @@
 </div>
 
 <!-- ============ TURN REPORT MODAL ============ -->
-<div id="report-modal" class="overlay hidden">
-  <div class="modal">
+<!-- data-esc: the report has no ✕ — ACKNOWLEDGE is the only way out of it, so
+     that is what Escape presses. -->
+<div id="report-modal" class="overlay hidden" data-esc="btn-report-ok">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="report-title">
     <div class="modal-header">
       <span class="panel-title" id="report-title">OVERNIGHT DEVELOPMENTS</span>
     </div>
@@ -346,9 +352,10 @@
      button and no backdrop dismissal: the whole decision is take it or don't,
      and both answers cost something, so there is deliberately no third door. -->
 <div id="leader-call-modal" class="overlay hidden">
-  <div class="modal call-modal">
+  <!-- no data-esc, by the same argument as the missing ✕ above -->
+  <div class="modal call-modal" role="dialog" aria-modal="true" aria-labelledby="lc-modal-title">
     <div class="modal-header">
-      <span class="panel-title">WHITE HOUSE SWITCHBOARD — INCOMING CALL</span>
+      <span class="panel-title" id="lc-modal-title">WHITE HOUSE SWITCHBOARD — INCOMING CALL</span>
     </div>
     <div class="modal-body">
       <div class="call-card">
@@ -380,7 +387,8 @@
 
 <!-- ============ ENDGAME MODAL ============ -->
 <div id="end-modal" class="overlay hidden">
-  <div class="modal wide">
+  <!-- no data-esc: NEW WAR is not a dismissal, and Escape must never start one -->
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="end-title">
     <div class="modal-header">
       <span class="panel-title" id="end-title"></span>
     </div>
@@ -391,6 +399,7 @@
   </div>
 </div>
 
+<script src="js/text.js"></script>
 <script src="js/geodata.js"></script>
 <script src="js/data.js"></script>
 <script src="js/map.js"></script>

@@ -92,6 +92,13 @@ body {
   box-shadow: 0 12px 60px rgba(0,0,0,0.7);
 }
 .modal.wide { width: 720px; }
+/* The box takes focus programmatically when the dialog opens — it is a landing
+   spot, not a control, so it gets no ring. Everything inside it does: with Tab
+   trapped in the dialog, the ring is the only thing telling a keyboard player
+   which of ABORT and AUTHORIZE STRIKE they are one Return away from. */
+.modal:focus { outline: none; }
+.modal button:focus-visible,
+.modal [tabindex]:focus-visible { outline: 1px solid var(--blue); outline-offset: 2px; }
 .modal-header {
   display: flex; justify-content: space-between; align-items: center;
   padding: 12px 16px; border-bottom: 1px solid var(--line);
@@ -203,6 +210,32 @@ button { font-family: var(--mono); }
 }
 #tooltip .tt-name { color: var(--amber); font-weight: bold; }
 #tooltip .tt-status { text-transform: uppercase; }
+
+/* Ambiguous-tap sheet. Rows are a full 44px so the thing that resolves a touch
+   target problem is not itself one, and it is deliberately plain: this is a
+   disambiguation, not a briefing — the tooltip and the strike modal are where
+   a site gets described. */
+#target-pick {
+  position: absolute; z-index: 21;
+  background: rgba(6, 10, 18, 0.97); border: 1px solid var(--line);
+  min-width: 210px; max-width: 260px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+}
+#target-pick .pick-head {
+  font-size: 9px; letter-spacing: 1.6px; color: var(--dim);
+  padding: 7px 10px; border-bottom: 1px solid var(--line);
+}
+#target-pick .pick-row {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  width: 100%; min-height: 44px; padding: 6px 10px;
+  background: none; border: 0; border-bottom: 1px solid var(--line);
+  color: var(--fg); font: inherit; text-align: left; cursor: pointer;
+}
+#target-pick .pick-row:last-child { border-bottom: 0; }
+#target-pick .pick-row:hover,
+#target-pick .pick-row:focus-visible { background: var(--bg-panel2); outline: none; }
+#target-pick .pick-name { font-size: 11px; letter-spacing: 0.4px; }
+#target-pick .pick-sub { font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase; }
 
 /* ============ sidebar ============ */
 #sidebar {
@@ -1185,8 +1218,25 @@ button { font-family: var(--mono); }
   border: 1px solid var(--line);
   background: linear-gradient(160deg, #101c31 0%, #0b1220 70%);
 }
-.call-portrait { flex: 0 0 108px; line-height: 0; }
-.call-portrait svg { width: 108px; height: 108px; display: block; }
+/* The secure-voice terminal that replaced the contact-photo portrait. Sized off
+   its own aspect ratio rather than a square, because it is an instrument now. */
+.call-portrait { flex: 0 0 132px; line-height: 0; }
+.call-portrait svg { width: 132px; height: 108px; display: block; }
+.lc-term-label { font-family: var(--mono); font-size: 8px; letter-spacing: 1.4px; fill: var(--text); }
+.lc-term-sub { font-family: var(--mono); font-size: 6.5px; letter-spacing: 1.2px; fill: var(--dim); }
+/* Dark and flat until the line is open — an unanswered call is not carrying a
+   voice, and the trace should not pretend otherwise. */
+.lc-trace { stroke: #24405f; stroke-width: 1; }
+.call-modal.connected .lc-trace { stroke: var(--green); }
+/* Two copies of the trace end to end, scrolled by exactly one width: the seam
+   lands where the last sample was forced back to the first, so it never shows. */
+.call-modal.connected .lc-wave { animation: lc-scroll 2.4s linear infinite; }
+@keyframes lc-scroll {
+  from { transform: translate(8px, 38px); }
+  to   { transform: translate(-108px, 38px); }
+}
+/* the call is over: the trace stays on the glass, flat and dim */
+.call-modal.ended .lc-trace { stroke: #24405f; }
 .call-meta { min-width: 0; }
 .call-country { font-size: 9.5px; letter-spacing: 1.6px; color: var(--dim); }
 .call-name { font-size: 14px; color: var(--text); margin: 3px 0 9px; line-height: 1.3; }
@@ -1406,8 +1456,8 @@ button { font-family: var(--mono); }
   /* the call popup is portrait-led, and the portrait is the one thing in it
      that can be shrunk without costing legibility */
   .call-card { padding: 10px; gap: 12px; margin-bottom: 10px; }
-  .call-portrait { flex-basis: 76px; }
-  .call-portrait svg { width: 76px; height: 76px; }
+  .call-portrait { flex-basis: 96px; }
+  .call-portrait svg { width: 96px; height: 78px; }
   .call-name { font-size: 12.5px; margin: 2px 0 7px; }
   .call-line { font-size: 11.5px; }
   .call-outcome { font-size: 11.5px; }

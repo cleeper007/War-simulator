@@ -2733,17 +2733,49 @@ const Game = (() => {
   // ---- the after-action record ----
   // One line a turn, written as the turn closes, so the endgame screen can show
   // the shape of the whole campaign rather than just its final numbers.
+  // What made a night worth remembering, most historically interesting first.
+  // This used to be a chain of `find`s that took the first match and stopped —
+  // which meant a war where Tehran threw a heavy salvo every other night read
+  // MASS MISSILE BARRAGE, MASS MISSILE BARRAGE, MASS MISSILE BARRAGE down the
+  // endgame screen, with the strikes that actually decided the campaign sitting
+  // in the same reports, outranked. So: rank every candidate, then take the
+  // best one that has not already been said.
+  const NOTABLE = [
+    (e) => e.casualties >= 10,
+    (e) => !!e.hormuz,
+    (e) => /DESTROYED|SUNK|LOST|CAPTURED|AUTHORIZ|REVOKED|DISPERSE/i.test(e.title || ''),
+    (e) => e.cls === 'iran',
+  ];
+
   function recordTurn(events) {
-    const notable = events.find(e => e.casualties >= 10) ||
-      events.find(e => e.hormuz) ||
-      events.find(e => /DESTROYED|SUNK|LOST|CAPTURED|AUTHORIZ|REVOKED|DISPERSE/i.test(e.title)) ||
-      events.find(e => e.cls === 'iran');
+    const ranked = [];
+    for (const test of NOTABLE) {
+      for (const e of events) if (test(e) && !ranked.includes(e)) ranked.push(e);
+    }
+
+    const said = G.timeline.map(r => r.title).filter(Boolean);
+    // the best thing that has not been said yet; failing that, the best thing
+    const notable = ranked.find(e => !said.includes(e.title)) || ranked[0] || null;
+
+    let text = 'No significant developments.';
+    if (notable) {
+      text = notable.title;
+      // Nothing new happened tonight that has not happened before. Say it
+      // again, but say which time it is — a barrage on the fourth consecutive
+      // night is a different fact about the war than the first one was.
+      const n = said.filter(t => t === notable.title).length + 1;
+      if (n > 1) text += ` — ${Txt.ordinal(n).toUpperCase()} NIGHT`;
+    }
+
     G.timeline.push({
       turn: G.turn,
       approval: Math.round(G.approval),
       dead: G.casualties.us,
       deg: G.nukeDegraded(),
-      text: notable ? notable.title : 'No significant developments.',
+      // the raw title is kept beside the rendered line so the next turn can
+      // tell "said already" from "said already, with an ordinal glued on"
+      title: notable ? notable.title : null,
+      text,
     });
   }
 

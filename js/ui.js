@@ -5,22 +5,10 @@
 const UI = (() => {
   const $ = (id) => document.getElementById(id);
 
-  // Counted nouns, written the way a person would write them. `aircraft` and
-  // `sorties` are invariant in the plural and a blanket +s produces "2
-  // aircrafts", so the exceptions are listed rather than guessed at.
-  const INVARIANT = ['aircraft'];
-  const plural = (n, word) =>
-    `${n} ${word}${n === 1 || INVARIANT.includes(word) ? '' : 's'}`;
-  // "1 turn" / "3 turns" without the noun — for the ETA lines that read
-  // "3 turns out" rather than counting a thing.
-  const turns = (n) => plural(n, 'turn');
-
-  // A signed cost, typeset. The tuning tables store plain JS numbers, so a
-  // world-opinion cost interpolated raw arrives as a hyphen-minus ("-1") and
-  // sits next to a real minus ("−45") two lines up in the same panel. Every
-  // signed number the player reads goes through here.
-  const MINUS = '−';
-  const signed = (n) => (n > 0 ? '+' : MINUS) + Math.abs(n);
+  // Counted nouns and signed numbers live in text.js, where ai.js and csar.js
+  // can reach them too. Pulled into locals here so the ~30 call sites below read
+  // the way they always did.
+  const { plural, turns, signed, MINUS } = Txt;
 
   let selectedPkg = null;
   let currentTarget = null;
@@ -1003,6 +991,13 @@ const UI = (() => {
 
     const box = $('strike-packages');
     box.innerHTML = '';
+    // Torn down on every open, because the two paths below disagree about what
+    // this box is: a list of choices, or a single sentence explaining that there
+    // are none. A radiogroup left over from the last target would announce the
+    // refusal as though it were selectable.
+    box.removeAttribute('role');
+    box.removeAttribute('aria-label');
+    box.onkeydown = null;
 
     // Congress, the tanker plan and the search for the target itself can all
     // take a target off the board without it being destroyed. Say which.
@@ -1012,6 +1007,25 @@ const UI = (() => {
       $('strike-modal').classList.remove('hidden');
       return;
     }
+
+    // The packages are mutually exclusive plans against the same target, so the
+    // list is a radiogroup and not a stack of buttons. That mapping buys two
+    // things a row of buttons does not: the group is ONE tab stop, so the trap
+    // installed at MODAL KEYBOARD AND SCREEN-READER BEHAVIOUR carries the player
+    // ✕ → packages → AUTHORIZE → ABORT instead of making them tab past five
+    // packages to reach the button, and a screen reader announces "2 of 4"
+    // instead of leaving them to count what they have already passed.
+    //
+    // Rows stay divs: the styling is written for divs, and a radio has no native
+    // element that would survive this markup without restructuring it.
+    box.setAttribute('role', 'radiogroup');
+    box.setAttribute('aria-label', 'Strike packages');
+
+    // The rows a keyboard can land on, in DOM order. A package that cannot fly is
+    // still rendered and still announced — it names the thing that has to change
+    // before it can — but it is not a choice, so it stays out of both the tab
+    // ring and the arrow walk.
+    const choosable = [];
 
     target.packages.forEach((pkg) => {
       // the submarine shot is counted out of the boat's tubes, not the theater
@@ -1025,6 +1039,13 @@ const UI = (() => {
       const ok = stockOk && fuelOk && !gate;
       const div = document.createElement('div');
       div.className = 'pkg-option' + (ok ? '' : ' unavailable') + (gate ? ' pkg-gated' : '');
+      div.setAttribute('role', 'radio');
+      div.setAttribute('aria-checked', 'false');
+      // aria-disabled rather than omitting the row: the reason it cannot fly is
+      // the most useful thing on the screen for a player who has to go and fix
+      // it, and a radio that announces itself as unavailable says that. What it
+      // does not get is a tabindex — see `choosable`.
+      if (!ok) div.setAttribute('aria-disabled', 'true');
       // When a package can't fly, the reason matters: an empty magazine, an
       // empty tanker plan and an intact SAM belt are three different problems
       // with three different answers.
@@ -1046,41 +1067,93 @@ const UI = (() => {
         `· ${G.tankers} left tonight${fuelWhy}` : 'no tanker requirement'}` +
         (pkg.sub ? ' · <span class="est-good">no theater magazine spent</span>' : '') + '</span>';
       if (ok) {
-        div.addEventListener('click', () => {
-          box.querySelectorAll('.pkg-option').forEach(el => el.classList.remove('selected'));
-          div.classList.add('selected');
-          selectedPkg = pkg;
-          showEstimate(G, target, pkg);
-          $('btn-confirm-strike').disabled = false;
-          // On a landscape phone the package list alone fills the window, and
-          // the estimate this click just produced — the tanker bill, the
-          // diplomatic bill, the aircrew loss risk — renders below the fold
-          // while AUTHORIZE STRIKE sits enabled and fully visible above it.
-          // Bring the numbers to the player rather than trusting them to go
-          // looking: the whole point of the panel is to be read before the
-          // button is pressed. Harmless on a desktop window, where nothing
-          // overflows and the scroll is a no-op.
-          //
-          // Scroll the box itself rather than calling scrollIntoView on the
-          // estimate: the estimate is un-hidden one line above, so its geometry
-          // is a frame stale, and `nearest` reads that as "already visible" and
-          // moves ten pixels. Waiting a frame and driving the scroller directly
-          // puts the bottom of the estimate — loss risk, the unsuppressed
-          // threat warning — against the bottom of the window every time.
-          // Assigned rather than animated: a smooth scroll is silently a no-op
-          // wherever reduced motion is in force, and a jump that always happens
-          // beats an animation that sometimes does. There is no motion worth
-          // watching here anyway — the player clicked to read a number.
-          requestAnimationFrame(() => {
-            const body = $('strike-modal').querySelector('.modal-body');
-            const est = $('strike-estimate');
-            const want = est.offsetTop + est.offsetHeight - body.clientHeight;
-            if (want > body.scrollTop) body.scrollTop = want;
-          });
-        });
+        choosable.push({ div, pkg });
+        div.addEventListener('click', () => choose(div, pkg, true));
       }
       box.appendChild(div);
     });
+
+    // Roving tabindex: the group holds a single tab stop, and before anything is
+    // selected it sits on the first package that can actually fly. When every
+    // package is barred there is no stop at all, which is correct — the dialog
+    // is then a list of things to read and two buttons.
+    if (choosable.length) choosable[0].div.tabIndex = 0;
+
+    // The one place a package becomes the selected one, whatever asked for it: a
+    // click, Enter, Space, or an arrow walking the list. Selection, the estimate
+    // box and the AUTHORIZE STRIKE gate move together, or the dialog starts
+    // lying about what is about to be launched.
+    function choose(div, pkg, reveal) {
+      for (const el of box.querySelectorAll('.pkg-option')) {
+        el.classList.remove('selected');
+        el.setAttribute('aria-checked', 'false');
+      }
+      div.classList.add('selected');
+      div.setAttribute('aria-checked', 'true');
+      // the tab stop follows the selection, so Tab comes back to the package the
+      // player chose rather than to the top of the list
+      for (const c of choosable) c.div.tabIndex = c.div === div ? 0 : -1;
+      div.focus();
+      selectedPkg = pkg;
+      showEstimate(G, target, pkg);
+      $('btn-confirm-strike').disabled = false;
+      if (!reveal) return;
+      // On a landscape phone the package list alone fills the window, and
+      // the estimate this choice just produced — the tanker bill, the
+      // diplomatic bill, the aircrew loss risk — renders below the fold
+      // while AUTHORIZE STRIKE sits enabled and fully visible above it.
+      // Bring the numbers to the player rather than trusting them to go
+      // looking: the whole point of the panel is to be read before the
+      // button is pressed. Harmless on a desktop window, where nothing
+      // overflows and the scroll is a no-op.
+      //
+      // Scroll the box itself rather than calling scrollIntoView on the
+      // estimate: the estimate is un-hidden one line above, so its geometry
+      // is a frame stale, and `nearest` reads that as "already visible" and
+      // moves ten pixels. Waiting a frame and driving the scroller directly
+      // puts the bottom of the estimate — loss risk, the unsuppressed
+      // threat warning — against the bottom of the window every time.
+      // Assigned rather than animated: a smooth scroll is silently a no-op
+      // wherever reduced motion is in force, and a jump that always happens
+      // beats an animation that sometimes does. There is no motion worth
+      // watching here anyway — the player asked to read a number.
+      requestAnimationFrame(() => {
+        const body = $('strike-modal').querySelector('.modal-body');
+        const est = $('strike-estimate');
+        const want = est.offsetTop + est.offsetHeight - body.clientHeight;
+        if (want > body.scrollTop) body.scrollTop = want;
+      });
+    }
+
+    // Assigned rather than added, because openStrikeModal runs again for every
+    // target the player opens and `box` outlives all of them — addEventListener
+    // would stack a handler per strike planned, each closed over a stale list.
+    box.onkeydown = (e) => {
+      const row = e.target.closest('.pkg-option');
+      const i = row ? choosable.findIndex(c => c.div === row) : -1;
+      if (i < 0) return;
+
+      // Enter and Space are what the row's role promises, and they get the same
+      // reveal a click does: this is the player committing to a package rather
+      // than passing over it, so the numbers come to them.
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault(); // Space would otherwise page the modal body
+        choose(row, choosable[i].pkg, true);
+        return;
+      }
+
+      // Arrows walk the group and select as they go, which is the radiogroup
+      // contract and also the right one here: comparing packages IS the decision
+      // this dialog exists for, so every stop puts its own estimate up. The walk
+      // wraps, and it deliberately does NOT scroll the estimate into view — that
+      // would push the row being walked off the screen it is being walked on.
+      const step = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1
+        : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
+      if (!step) return;
+      e.preventDefault(); // the arrows belong to the group, not to the scroller
+      const next = choosable[(i + step + choosable.length) % choosable.length];
+      choose(next.div, next.pkg, false);
+    };
 
     $('strike-modal').classList.remove('hidden');
   }
@@ -1285,11 +1358,29 @@ const UI = (() => {
   // and for Iran's events the title already is the summary.
   const evSummary = (ev) => ev.sum || ev.title;
 
+  // The one way to read an event's prose. `text` may be a function of the event
+  // rather than a string, because an event is not finished when it is built:
+  // aegisIntercept rescales casualties on every strike inside the naval BMD
+  // umbrella, and a builder that baked its figure into a string went on quoting
+  // the pre-intercept count next to chips showing the post-intercept one.
+  // Anything added after the fact lands in `appended`. Nothing outside this
+  // helper reads `.text`.
+  const evBody = (ev) =>
+    (typeof ev.text === 'function' ? ev.text(ev) : ev.text || '') + (ev.appended || '');
+
   // opts.prose forces every event open: the set pieces the player triggered on
   // purpose and just watched an animation for — a raid debrief, a recovery, the
   // primer — are read for the writing, and there is one of them, not twelve a
   // night. The summary layout is for the nightly reports that stack up.
   function showReport(title, events, onClose, opts) {
+    // Every event in this report has already been spent against G — applyEvent
+    // runs before the retaliation report is built, and strike effects land back
+    // in resolveMissions. The bar under the modal was last drawn before any of
+    // that, so without this the report says "18 Americans killed" above a
+    // casualty count that has not moved and an approval bar that disagrees with
+    // the chip beside it. renderAll comes later, when the report is dismissed.
+    renderHUD(Game.G);
+
     const d = digest(events);
     const verdict = headline(d);
     const strip = chipsFor(d);
@@ -1316,7 +1407,7 @@ const UI = (() => {
       const sum = evSummary(ev);
       const detail = `<div class="ev-detail${open ? '' : ' hidden'}" id="ev-d${i}">` +
         (ev.sum ? `<div class="ev-title">${ev.title}</div>` : '') +
-        `<div>${ev.text}</div></div>`;
+        `<div>${evBody(ev)}</div></div>`;
       if (!collapsible) {
         return `<div class="report-event ${ev.cls || ''}">` +
           `<div class="ev-sum">${sum}</div>` +
@@ -1379,15 +1470,15 @@ const UI = (() => {
   // Runs twice a campaign at most: London off the coalition cable, Paris the
   // following turn (see `leaderCalls` in game.js). Take it or don't; the numbers
   // are tiny either way and the point is the moment, not the point. Everything
-  // about the leader — name, portrait colours, which flag goes on the lapel —
+  // about the leader — office, country, which flag goes on the terminal —
   // comes from WORLD_LEADERS in data.js, and which of that leader's two takes
   // gets played is decided there too and handed in as `V`.
   // ============================================================
 
-  // The flag pin on the lapel, drawn at r=8 around a local origin so both flags
-  // are interchangeable in the portrait. Simplified on purpose: at 17px across
-  // on screen, a faithful Union Jack is mud — the diagonals and the cross are
-  // the whole recognisable signature and everything else is noise.
+  // The flag pin, drawn at r=8 around a local origin so both flags are
+  // interchangeable wherever it is dropped. Simplified on purpose: at 17px
+  // across on screen, a faithful Union Jack is mud — the diagonals and the
+  // cross are the whole recognisable signature and everything else is noise.
   function flagPin(kind, id) {
     const clip = `lc-pin-${id}`;
     const inner = kind === 'union'
@@ -1406,46 +1497,71 @@ const UI = (() => {
       `<circle cx="0" cy="0" r="8" fill="none" stroke="#d8b46a" stroke-width="1.4"/>`;
   }
 
-  // Low-detail cartoon head-and-shoulders, the way a contact photo would look.
-  // Drawn once per call and thrown away, so the clip-path ids only have to be
-  // unique against the one other portrait that could ever exist.
+  // ---- the secure voice terminal ----
+  // This slot used to hold a cartoon head-and-shoulders — skin tone, suit, tie,
+  // hair — and it was the only thing on screen fighting the rest of the game.
+  // Every other surface here is instrumentation: a chart, a scope, a readout,
+  // rendered by a machine in a windowless room. A contact photo made the one
+  // moment in the campaign where a foreign government speaks to the President
+  // directly look like a phone app, and it also meant the game was quietly
+  // asserting what two real heads of government look like.
+  //
+  // What a president actually sees on this call is a crypto terminal. So: the
+  // trace, the flag pin the portrait already used, and the classification. The
+  // leader is identified by office and country in the text beside it, which is
+  // how the call would really be announced.
+
+  // Deterministic from a string — the same leader draws the same trace every
+  // time, rather than reshuffling on every re-render of the same call.
+  const seedOf = (s) => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+
+  // An oscilloscope trace of speech. Drawn twice end to end and scrolled by
+  // exactly one width when the line is open (see .lc-wave in the stylesheet),
+  // so the loop has no seam — which is why the last sample is forced back to
+  // the first.
+  function scopeTrace(seed, w, h, step) {
+    let s = seed >>> 0 || 1;
+    const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+    const amp = [];
+    for (let x = 0; x <= w; x += step) {
+      // an envelope, so it reads as syllables rather than static
+      const env = 0.28 + 0.72 * Math.abs(Math.sin((x / w) * Math.PI * 2.5));
+      amp.push((rnd() * 2 - 1) * (h / 2) * 0.88 * env);
+    }
+    amp[amp.length - 1] = amp[0];
+    const pts = (off) =>
+      amp.map((y, i) => `${(off + i * step).toFixed(1)} ${(h / 2 + y).toFixed(1)}`);
+    return 'M' + [...pts(0), ...pts(w).slice(1)].join(' L');
+  }
+
   function drawLeader(L) {
-    return `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" ` +
-      `aria-label="Portrait of the ${L.country} head of government">` +
-      `<defs>` +
-        `<radialGradient id="lc-bg-${L.id}" cx="50%" cy="34%" r="72%">` +
-          `<stop offset="0%" stop-color="#22355a"/><stop offset="100%" stop-color="#0b1424"/>` +
-        `</radialGradient>` +
-        `<clipPath id="lc-frame-${L.id}"><circle cx="60" cy="60" r="57"/></clipPath>` +
-      `</defs>` +
-      `<circle cx="60" cy="60" r="57" fill="url(#lc-bg-${L.id})"/>` +
-      `<g clip-path="url(#lc-frame-${L.id})">` +
-        // neck first, then the jacket over it — the collar line comes for free
-        `<path d="M51 62 h18 v24 q-9 6 -18 0 z" fill="${L.skin}"/>` +
-        `<path d="M51 76 q9 8 18 0 v5 q-9 8 -18 0 z" fill="#000" opacity=".18"/>` +
-        `<path d="M2 120 C 4 98, 15 88, 34 84 L 60 101 L 86 84 C 105 88, 116 98, 118 120 Z" fill="${L.suit}"/>` +
-        `<path d="M47 83 L60 105 L73 83 L67 81 L60 91 L53 81 Z" fill="#e9eef7"/>` +
-        `<path d="M60 92 l-4.5 5.5 4.5 22.5 4.5-22.5 z" fill="${L.tie}"/>` +
-        // lapels last and on top of the shirt, one catching light and one in
-        // shadow — it is the only thing keeping the jacket off the background
-        `<path d="M34 84 L60 101 L53 120 L28 120 z" fill="#fff" opacity=".07"/>` +
-        `<path d="M86 84 L60 101 L67 120 L92 120 z" fill="#000" opacity=".18"/>` +
-        `<ellipse cx="38" cy="54" rx="4" ry="5" fill="${L.skin}"/>` +
-        `<ellipse cx="82" cy="54" rx="4" ry="5" fill="${L.skin}"/>` +
-        `<ellipse cx="60" cy="50" rx="22" ry="26" fill="${L.skin}"/>` +
-        // hair: one closed shape across the crown, receding at the temples
-        `<path d="M37 50 q-2-24 23-24 q25 0 23 24 q-3-13 -13-16 q-10 4 -20 1 ` +
-          `q-9 3 -13 15 z" fill="${L.hair}"/>` +
-        `<path d="M49 44 q5-3 9-1" stroke="${L.hair}" stroke-width="2.4" fill="none" stroke-linecap="round"/>` +
-        `<path d="M71 44 q-5-3 -9-1" stroke="${L.hair}" stroke-width="2.4" fill="none" stroke-linecap="round"/>` +
-        `<circle cx="53" cy="50" r="2.4" fill="#1b2430"/>` +
-        `<circle cx="67" cy="50" r="2.4" fill="#1b2430"/>` +
-        `<path d="M60 52 v7 q-3 1 -4-1" stroke="#00000038" stroke-width="1.6" fill="none" stroke-linecap="round"/>` +
-        `<path d="M53 65 q7 5 14 0" stroke="#8a4a45" stroke-width="2" fill="none" stroke-linecap="round"/>` +
-        // the pin sits out on the lapel, small enough to read as jewellery
-        `<g transform="translate(40,99) scale(0.8)">${flagPin(L.pin, L.id)}</g>` +
+    const W = 132, H = 108;
+    const wx = 8, wy = 38, ww = 116, wh = 40;   // the trace window
+    const clip = `lc-scope-${L.id}`;
+    return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" ` +
+      `aria-label="Secure voice terminal — encrypted line to ${L.country}">` +
+      `<defs><clipPath id="${clip}">` +
+        `<rect x="${wx}" y="${wy}" width="${ww}" height="${wh}"/>` +
+      `</clipPath></defs>` +
+      // the case
+      `<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" fill="#0a1120" stroke="#2a4a7a"/>` +
+      // header: flag pin, then the country it is a line to
+      `<g transform="translate(18,20)">${flagPin(L.pin, L.id)}</g>` +
+      `<text x="32" y="17" class="lc-term-label">SECURE VOICE</text>` +
+      `<text x="32" y="27" class="lc-term-sub">TYPE 1 · ${L.id.toUpperCase()}</text>` +
+      // the trace window
+      `<rect x="${wx}" y="${wy}" width="${ww}" height="${wh}" fill="#060d18" stroke="#1d3252"/>` +
+      `<line x1="${wx}" y1="${wy + wh / 2}" x2="${wx + ww}" y2="${wy + wh / 2}" ` +
+        `stroke="#1d3252" stroke-width="0.8"/>` +
+      `<g clip-path="url(#${clip})">` +
+        `<g class="lc-wave" transform="translate(${wx},${wy})">` +
+          `<path d="${scopeTrace(seedOf(L.id), ww, wh, 4)}" class="lc-trace" fill="none"/>` +
+        `</g>` +
       `</g>` +
-      `<circle cx="60" cy="60" r="57" fill="none" stroke="#2a4a7a" stroke-width="2"/>` +
+      // footer: the classification, which is the other thing really on that box
+      `<text x="8" y="92" class="lc-term-sub">CRYPTO SYNC</text>` +
+      `<text x="${W - 8}" y="92" class="lc-term-sub" text-anchor="end">TS//SCI</text>` +
+      `<line x1="8" y1="98" x2="${W - 8}" y2="98" stroke="#1d3252" stroke-width="0.8"/>` +
       `</svg>`;
   }
 
@@ -1589,11 +1705,130 @@ const UI = (() => {
     $('end-modal').classList.remove('hidden');
   }
 
+  // ============================================================
+  // MODAL KEYBOARD AND SCREEN-READER BEHAVIOUR
+  // ------------------------------------------------------------
+  // Six dialogs, opened and closed from a dozen places across four files, every
+  // one of them by toggling a single `hidden` class. Rather than route all of
+  // those through a new open()/close() pair — a refactor with a dozen chances to
+  // miss a site, and nothing to stop the next one being added the old way — this
+  // watches the class. The DOM is already the source of truth for what is open;
+  // a MutationObserver only makes it observable. A modal added later inherits
+  // all of this by being an `.overlay` with a `.modal` in it, which is the same
+  // deal `.modal-body` already offers for the scroll fade.
+  //
+  // Scoped to overlays that contain a `.modal`, which is what keeps the title
+  // screen — an `.overlay` too, but a screen rather than a dialog — out of it.
+  //
+  // ESCAPE IS NOT UNIVERSAL, AND THAT IS DELIBERATE. It presses the dialog's own
+  // dismiss control: the ✕ where there is one, otherwise whatever `data-esc`
+  // names. The allied call and the endgame screen have neither, because the
+  // first is take-it-or-don't by design (see the comment on its markup) and the
+  // second offers NEW WAR, which is not a way of dismissing anything. A dialog
+  // that deliberately has no third door does not get one from the keyboard.
+  const modalStack = [];
+  const lastFocus = new WeakMap();
+
+  const modalOverlays = () =>
+    [...document.querySelectorAll('.overlay')].filter(o => o.querySelector(':scope > .modal'));
+  const modalOpen = (o) => !o.classList.contains('hidden');
+
+  // Visible, reachable controls inside the dialog. `offsetParent` filters the
+  // ones the dialog itself has hidden — FULL DETAIL on a single-event report,
+  // the second footer button once the phone has been answered.
+  const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), ' +
+    'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const focusablesIn = (root) =>
+    [...root.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
+
+  const escControl = (overlay) => (overlay.dataset.esc
+    ? $(overlay.dataset.esc)
+    : overlay.querySelector('.modal-close'));
+
+  // Everything below the top dialog stops taking focus or reaching a screen
+  // reader. The dialogs are siblings of #app, not children, so making the app
+  // inert does not make the open dialog inert with it.
+  function syncInert() {
+    const top = modalStack[modalStack.length - 1] || null;
+    const app = $('app');
+    if (app) {
+      app.toggleAttribute('inert', !!top);
+      if (top) app.setAttribute('aria-hidden', 'true'); else app.removeAttribute('aria-hidden');
+    }
+    for (const o of modalOverlays()) o.toggleAttribute('inert', modalOpen(o) && o !== top);
+  }
+
+  // Reconcile the stack with what is actually on screen. Called from the
+  // observer, and again at the top of the key handler: a MutationObserver
+  // delivers on a microtask, so anything that opens a dialog and reads the
+  // keyboard in the same task would otherwise be answering for the dialog
+  // underneath. Cheap enough to run on a keystroke — six elements and a class
+  // check — and being idempotent is what makes it safe to call from both.
+  function syncStack() {
+    for (let i = modalStack.length - 1; i >= 0; i--) {
+      if (modalOpen(modalStack[i])) continue;
+      const gone = modalStack.splice(i, 1)[0];
+      // hand focus back to whatever opened it — a target on the map, a sidebar
+      // order — so keyboard play does not restart from the top of the document
+      const prev = lastFocus.get(gone);
+      lastFocus.delete(gone);
+      if (prev && document.contains(prev) && prev.offsetParent !== null) prev.focus();
+    }
+    let opened = null;
+    for (const o of modalOverlays()) {
+      if (!modalOpen(o) || modalStack.includes(o)) continue;
+      lastFocus.set(o, document.activeElement);
+      modalStack.push(o);
+      opened = o;
+    }
+    syncInert();
+    // focus moves only on the transition, never on a plain reconcile, or every
+    // keystroke would drag it back to the first button
+    if (opened) {
+      const f = focusablesIn(opened);
+      (f[0] || opened.querySelector('.modal')).focus();
+    }
+  }
+
+  function initModals() {
+    const obs = new MutationObserver(syncStack);
+    for (const o of modalOverlays()) {
+      // the box itself is the focus of last resort — the report can be one
+      // paragraph and a button that has not rendered yet
+      o.querySelector(':scope > .modal').setAttribute('tabindex', '-1');
+      obs.observe(o, { attributes: true, attributeFilter: ['class'] });
+    }
+    syncStack();
+
+    document.addEventListener('keydown', (e) => {
+      syncStack();
+      const top = modalStack[modalStack.length - 1];
+      if (!top) return;
+
+      if (e.key === 'Escape') {
+        const btn = escControl(top);
+        if (btn) { e.preventDefault(); btn.click(); }
+        return;
+      }
+      if (e.key !== 'Tab') return;
+
+      // the trap: Tab off either end wraps rather than escaping into the map
+      const f = focusablesIn(top);
+      if (!f.length) { e.preventDefault(); return; }
+      const first = f[0], last = f[f.length - 1];
+      const cur = document.activeElement;
+      const outside = !top.contains(cur);
+      if (e.shiftKey && (outside || cur === first)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (outside || cur === last)) { e.preventDefault(); first.focus(); }
+    });
+  }
+
   // ---- wiring ----
   function init() {
     initPanels();
     initScrollEdge();
     initModalScrollEdge();
+    initModals();
     document.querySelectorAll('[data-close]').forEach(btn => {
       btn.addEventListener('click', () => $(btn.dataset.close).classList.add('hidden'));
     });

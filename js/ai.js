@@ -46,6 +46,17 @@ const IranAI = (() => {
   }
 
   // ---- event builders (return event objects consumed by game.js) ----
+  //
+  // RULE: if a number appears in both a field and the prose, `text` is a
+  // FUNCTION of the event, never a string built beside it. Events are mutated
+  // after they are built — aegisIntercept rescales casualties, oil and approval
+  // on every strike inside the naval BMD umbrella — and a string baked at build
+  // time keeps quoting the figure from before the interceptors flew. That bug
+  // put three different casualty counts on the first screen a new player reads.
+  // Anything appended after the fact goes in `ev.appended`; ui.js reads both
+  // through one helper (`evBody`) and never touches `.text` directly.
+  const { plural, pluralize, were, are } = Txt;
+
   const EV = {
     cyber: () => ({
       title: 'Iranian cyber attack on US financial sector',
@@ -70,7 +81,9 @@ const IranAI = (() => {
       const c = rand(1, 4);
       return {
         title: 'Militia attack on US forces in Iraq',
-        text: `An Iranian-backed militia struck a US position with drones and rockets. ${c} American service members were killed.`,
+        text: (ev) => 'An Iranian-backed militia struck a US position with drones and rockets. ' +
+          `${ev.casualties} American service ${pluralize(ev.casualties, 'member')} ` +
+          `${were(ev.casualties)} killed.`,
         casualties: c, dApproval: -3, dOil: 4, flashAsset: 'asad',
         attack: { kind: 'drone', base: 'asad', count: 5 },
       };
@@ -91,7 +104,14 @@ const IranAI = (() => {
       const c = Math.round(rand(2, 8) * Math.max(0.3, str / 2));
       return {
         title: `Ballistic missile strike on ${names[base]}`,
-        text: `Iranian missiles penetrated air defenses at ${names[base]}. ${c} Americans were killed and aircraft were damaged on the ramp.`,
+        // the zero branch is reachable: a light salvo inside the Aegis basket
+        // can be thinned to nothing, and "0 Americans were killed" is the wrong
+        // way to report the night the screen worked
+        text: (ev) => `Iranian missiles penetrated air defenses at ${names[base]}. ` +
+          (ev.casualties
+            ? `${plural(ev.casualties, 'American')} ${were(ev.casualties)} killed and ` +
+              'aircraft were damaged on the ramp.'
+            : 'Aircraft were damaged on the ramp. There were no American fatalities.'),
         casualties: c, dApproval: -4, dOil: 8, flashAsset: base,
         attack: { kind: 'missile', base, count: 4 },
       };
@@ -117,7 +137,12 @@ const IranAI = (() => {
       const c = Math.round(rand(12, 30) * Math.max(0.4, str / 2));
       return {
         title: 'MASS MISSILE BARRAGE ACROSS THE THEATER',
-        text: `Iran launched its largest salvo of the crisis at US bases and fleet units across the region. Defenses were saturated. ${c} Americans are dead. CENTCOM assesses this as the opening of a general war.`,
+        text: (ev) => 'Iran launched its largest salvo of the crisis at US bases and fleet units ' +
+          'across the region. Defenses were saturated. ' +
+          (ev.casualties
+            ? `${plural(ev.casualties, 'American')} ${are(ev.casualties)} dead. `
+            : 'Casualty reports are still coming in. ') +
+          'CENTCOM assesses this as the opening of a general war.',
         casualties: c, dApproval: -6, dOil: 20, flashAsset: 'udeid',
         attack: { kind: 'mixed', bases: ['udeid', 'asad', 'dhafra'], count: 4 },
       };
@@ -249,10 +274,16 @@ const IranAI = (() => {
       if (ev.dOil) ev.dOil = Math.round(ev.dOil * (1 - frac));
       if (ev.dApproval) ev.dApproval = Math.round(ev.dApproval * (1 - frac));
       const saved = before - (ev.casualties || 0);
-      ev.text += ` Aegis destroyers of the carrier group standing off the Gulf ` +
+      // appended, not concatenated onto `text` — the builders write their prose
+      // as a function of the event and this runs after them, so the casualty
+      // figure above is already the post-intercept one by the time it renders
+      ev.appended = (ev.appended || '') +
+        ` Aegis destroyers of the carrier group standing off the Gulf ` +
         `caught much of it in the midcourse — SM-3 and SM-6 intercepts thinned the raid ` +
         `before it crossed the coast` +
-        (saved > 0 ? `, and an estimated ${saved} American lives were saved on the ramp.` : '.');
+        (saved > 0
+          ? `, and an estimated ${plural(saved, 'American life')} ${were(saved)} saved on the ramp.`
+          : '.');
     }
   }
 

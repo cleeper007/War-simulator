@@ -137,11 +137,51 @@ const MapView = (() => {
   // ISR has found them. Everything else about it is an ordinary target.
   const telVisible = (t) => !t.dispersal || (t.dispersed && t.located && t.hp > 0);
 
+  // ---- touch targets ----
+  // The invisible disc under each icon used to be a flat 13 map units. Map units
+  // are not screen pixels: at the zoom a war opens at that is roughly twelve
+  // pixels across, against a 44px guideline, and it got SMALLER the further out
+  // the player zoomed — exactly when the sites are hardest to hit. So the disc is
+  // sized in screen pixels and re-derived on every view change (see syncHitDiscs
+  // in applyView); `hitR` below is that radius expressed back in map units.
+  //
+  // Making the discs honestly finger-sized means they overlap, which is the real
+  // problem showing itself rather than a new one: Kharg, Bushehr NPP and Nav
+  // Bushehr sit within a few map units of each other and no disc size fixes that.
+  // Overlap is resolved by nearest centre, and a tap that is genuinely between
+  // two sites opens the picker instead of guessing. See pickTarget.
+  const HIT_PX = 22;    // half of the 44px guideline
+  const SURE_PX = 10;   // inside the drawn icon — an aim nobody would call ambiguous
+  let hitR = 13;
+
+  // Screen pixels per WORLD unit. Off `world`, not `svg`: the svg's own CTM maps
+  // viewBox space, and `world` carries the pan/zoom transform on top of it, so
+  // an svg-space measurement is short by exactly view.k. Targets are positioned
+  // in world space, so everything here has to be.
+  const pxPerUnit = () => {
+    const m = world && world.getScreenCTM();
+    return m ? m.a : 0;
+  };
+
+  // client coords → world coords, the space TARGETS are written in
+  function clientToWorld(clientX, clientY) {
+    const pt = svg.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    return pt.matrixTransform(world.getScreenCTM().inverse());
+  }
+
+  function syncHitDiscs() {
+    const ppu = pxPerUnit();
+    if (!ppu) return;
+    hitR = HIT_PX / ppu;
+    for (const c of world.querySelectorAll('circle.tgt-hit')) c.setAttribute('r', hitR);
+  }
+
   function targetIcon(t) {
     const g = el('g', { class: `target ${t.status || 'intact'}`,
       id: `tgt-${t.id}`, transform: `translate(${t.x},${t.y})` });
     // invisible filled circle so the whole icon (not just strokes) is clickable
-    g.appendChild(el('circle', { r: 13, fill: 'transparent' }));
+    g.appendChild(el('circle', { class: 'tgt-hit', r: hitR, fill: 'transparent' }));
     g.appendChild(el('circle', { class: 'tgt-ring', r: 9 }));
     g.appendChild(targetCore(t.type));
     // Labels sit centred under the icon unless the target carries a `label`
@@ -357,10 +397,87 @@ const MapView = (() => {
       });
       g.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (typeof onTargetClick === 'function') onTargetClick(t);
+        if (typeof onTargetClick !== 'function') return;
+        // `t` is only the icon the event happened to land on — with the discs
+        // overlapping that is whichever was drawn last, not whichever the
+        // player aimed at. pickTarget decides.
+        pickTarget(clientToWorld(e.clientX, e.clientY), e, t);
       });
       world.appendChild(g);
     }
+  }
+
+  // Every target on the plot whose touch disc contains a point, nearest first.
+  function targetsUnder(p) {
+    const out = [];
+    for (const t of TARGETS) {
+      if (!telVisible(t) || !document.getElementById(`tgt-${t.id}`)) continue;
+      const d = Math.hypot(p.x - t.x, p.y - t.y);
+      if (d <= hitR) out.push({ t, d });
+    }
+    return out.sort((a, b) => a.d - b.d);
+  }
+
+  function pickTarget(p, ev, fallback) {
+    closePicker();
+    const near = targetsUnder(p);
+    if (!near.length) { onTargetClick(fallback); return; }
+
+    const sureR = SURE_PX / (pxPerUnit() || 1);
+    // Landing inside one icon, with no second icon also under the finger, is an
+    // aim and not a guess — take it whatever else is inside the 44px disc.
+    const sure = near[0].d <= sureR && (near.length < 2 || near[1].d > sureR);
+    if (near.length === 1 || sure) { onTargetClick(near[0].t); return; }
+
+    openPicker(near.map(n => n.t), ev);
+  }
+
+  // ---- the ambiguous-tap sheet ----
+  // Deliberately not a hover affordance: it exists for the case where the
+  // player has already committed to a tap and the map cannot honestly say which
+  // site they meant. Guessing there is worse than asking — the wrong guess
+  // opens a strike modal for a site 20 miles from the one they wanted, and the
+  // only tell is a name they are not reading yet.
+  function openPicker(list, ev) {
+    const box = document.getElementById('target-pick');
+    const cont = document.getElementById('map-container');
+    tooltip.classList.add('hidden');
+
+    box.innerHTML = `<div class="pick-head">${list.length} SITES UNDER THIS TAP</div>` +
+      list.map((t, i) => {
+        const st = t.status || 'intact';
+        const col = st === 'intact' ? 'var(--red)' : st === 'damaged' ? 'var(--amber)' : 'var(--dim)';
+        return `<button class="pick-row" data-i="${i}">` +
+          `<span class="pick-name">${t.name}</span>` +
+          `<span class="pick-sub" style="color:${col}">ASSESSED ${st}</span></button>`;
+      }).join('');
+    box.classList.remove('hidden');
+
+    // placed off the tap, then pulled back inside the chart if it would hang off
+    const r = cont.getBoundingClientRect();
+    let x = ev.clientX - r.left + 14, y = ev.clientY - r.top + 10;
+    const bb = box.getBoundingClientRect();
+    if (x + bb.width > r.width) x = Math.max(4, x - bb.width - 28);
+    if (y + bb.height > r.height) y = Math.max(4, r.height - bb.height - 4);
+    box.style.left = x + 'px';
+    box.style.top = y + 'px';
+
+    box.onclick = (e) => {
+      const row = e.target.closest('.pick-row');
+      if (!row) return;
+      const t = list[+row.dataset.i];
+      closePicker();
+      onTargetClick(t);
+    };
+    const first = box.querySelector('.pick-row');
+    if (first) first.focus();
+  }
+
+  function closePicker() {
+    const box = document.getElementById('target-pick');
+    if (!box) return;
+    box.classList.add('hidden');
+    box.onclick = null;
   }
 
   // callback set by game.js
@@ -466,6 +583,9 @@ const MapView = (() => {
     // small/touch screens hide the site names until the chart is open enough
     // for them not to overlap — see .map-far-zoom in the stylesheet
     svg.classList.toggle('map-far-zoom', view.k < 1.7);
+    // the touch discs are sized in screen pixels, so they are re-derived here:
+    // this is the one choke point every gesture already goes through
+    syncHitDiscs();
   }
 
   function zoomAt(cx, cy, factor) {
@@ -495,8 +615,11 @@ const MapView = (() => {
     }, { passive: false });
 
     svg.addEventListener('mousedown', (e) => {
+      // any new gesture on the chart answers the picker's question with "neither"
+      closePicker();
       panStart = { px: e.clientX, py: e.clientY, vx: view.x, vy: view.y };
     });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePicker(); });
     window.addEventListener('mousemove', (e) => {
       if (!panStart) return;
       const dx = e.clientX - panStart.px, dy = e.clientY - panStart.py;
@@ -552,6 +675,7 @@ const MapView = (() => {
     const mid = (a, b) => ({ x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 });
 
     svg.addEventListener('touchstart', (e) => {
+      closePicker();   // as with mousedown: a new gesture withdraws the question
       if (e.touches.length === 1) {
         tPinch = null; moved = false;
         tPan = { px: e.touches[0].clientX, py: e.touches[0].clientY, vx: view.x, vy: view.y };
