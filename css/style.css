@@ -1447,7 +1447,7 @@ button { font-family: var(--mono); }
   #sidebar-scroll { gap: 8px; }
   .panel { padding: 8px 10px; }
   #btn-end-turn, #btn-skip-turn { padding: 11px; }
-  /* Three buttons share this row since PRIMER joined it, which on a 300px
+  /* Three buttons share this row since HOW TO PLAY joined it, which on a 300px
      sidebar leaves ~77px each — not enough for "SAVE & QUIT" at the standard
      1px letter-spacing, and it broke across two lines. The tracking and the
      side padding go rather than the words: these are the only three controls

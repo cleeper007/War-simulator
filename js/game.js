@@ -2940,8 +2940,8 @@ const Game = (() => {
     // First-war primer: the single most common way a new player loses is by
     // fighting this as a pure targeting game and never touching the free action
     // slots that actually hold approval, oil and the coalition together. Auto-
-    // shown once at the top of a fresh war; the PRIMER button in the sidebar
-    // brings it back for the rest of the campaign.
+    // shown once at the top of a fresh war; the HOW TO PLAY button in the
+    // sidebar brings it back for the rest of the campaign.
     if (!resume) {
       UI.showPrimer();
       // Turn one, fresh war only. The sidebar's own opening-night content IS the

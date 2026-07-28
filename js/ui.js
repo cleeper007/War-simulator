@@ -1855,9 +1855,9 @@ const UI = (() => {
   // player actually has at the moment they read this; the action slots follow.
   //
   // Auto-shown on easy and normal only — a player who picked hard was warned the
-  // staff refuses nothing. `manual` is the PRIMER button, which works at every
-  // difficulty: suppressing the brief at boot is a judgement about pacing, not a
-  // reason to make it unreachable for the rest of the war.
+  // staff refuses nothing. `manual` is the HOW TO PLAY button, which works at
+  // every difficulty: suppressing the brief at boot is a judgement about pacing,
+  // not a reason to make it unreachable for the rest of the war.
   function showPrimer(manual) {
     if (!manual && (Game.G.difficulty || 'normal') === 'hard') return;
     const panels = [
@@ -1889,7 +1889,7 @@ const UI = (() => {
           'for a bomb. Read it off what Iran actually does, or spend an intelligence slot to assess their ' +
           'intent. Fight the war in front of you, not the one you expected.' },
     ];
-    showReport('PRESIDENTIAL PRIMER — HOW THIS WAR IS FOUGHT', panels, null, { prose: true });
+    showReport('HOW TO PLAY — THE WAY THIS WAR IS FOUGHT', panels, null, { prose: true });
   }
 
   return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport,
