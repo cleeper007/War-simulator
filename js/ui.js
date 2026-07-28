@@ -938,7 +938,23 @@ const UI = (() => {
     const isr = SpecOps.isrTasking(G);
     if (isr) intel.push(isr);
 
-    $('intel-buttons').innerHTML = picture + actionButtons(intel, used);
+    // Only orders that can actually be given are listed. A tasking is dropped
+    // when there is nothing for it to collect against — no stale estimates, no
+    // loose launchers, enrichment already destroyed, the plan already read, the
+    // pattern-of-life picture already complete. What it would have told the
+    // player is the collection picture above, which says the same thing in one
+    // line each; a permanently dead button repeating it is a list of things the
+    // player cannot do. `used` is deliberately NOT a filter — the slot comes
+    // back next turn, so those stay visible and greyed rather than emptying the
+    // panel for half of every turn.
+    const live = intel.filter(a => !a.disabled);
+
+    const empty = '<div class="dim" style="font-size:11px;margin-top:6px">' +
+      'No tasking worth the sortie. The collection picture is as good as ' +
+      'assets can make it — strike something and let a night pass.</div>';
+
+    $('intel-buttons').innerHTML =
+      picture + (live.length ? actionButtons(live, used) : empty);
     wireActions('#intel-buttons');
   }
 
