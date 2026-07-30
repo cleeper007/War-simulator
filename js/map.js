@@ -963,9 +963,9 @@ const MapView = (() => {
     }
   }
 
-  // The second carrier's run-in: progress 0 is over the horizon, 1 is on
-  // station. She stays off the plot until she is actually inside the frame —
-  // a hull the COP can't see is a hull that isn't there yet.
+  // The second carrier's run-in: progress 0 is off India's western coast, 1 is
+  // on station. Visible on the plot for the entire transit so the president can
+  // watch her track northwest through the Arabian Sea.
   function setCarrierIngress(id, progress) {
     const st = CARRIER_STATIONS[id];
     if (!st) return;
@@ -973,7 +973,7 @@ const MapView = (() => {
     const x = FORD_INGRESS.x + (st.back.x - FORD_INGRESS.x) * progress;
     const y = FORD_INGRESS.y + (st.back.y - FORD_INGRESS.y) * progress;
     moveAsset(id, x, y, true);
-    setAssetActive(id, x < 1040 && y < 752);
+    setAssetActive(id, true);
   }
 
   function flashAsset(assetId) {

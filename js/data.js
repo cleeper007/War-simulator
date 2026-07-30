@@ -902,10 +902,10 @@ const CARRIER_STATIONS = {
   'csg-ford':    { forward: { x: 846, y: 646 }, back: { x: 940, y: 718 } },
 };
 
-// Where the Ford begins her run-in: over the horizon southeast of the plot,
-// outside the frame, coming up out of the Indian Ocean. She closes one leg per
-// turn until she's on station.
-const FORD_INGRESS = { x: 1120, y: 790 };
+// Where the Ford begins her run-in: off the western coast of India, visible on
+// the strategic plot from the moment she's called forward. She tracks northwest
+// through the Arabian Sea, closing one leg per turn until she's on station.
+const FORD_INGRESS = { x: 1015, y: 752 };
 
 // map from asset type to launch origin on the map. `sub` is not an asset type —
 // it is the cruise magazine fired from a different hull (see the `sub` flag on
