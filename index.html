@@ -16,7 +16,14 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Commander">
 
-<link rel="stylesheet" href="css/style.css">
+<!-- Every js/ and css/ URL below carries ?v=<version badge>. GitHub Pages serves
+     these with cache-control: max-age=600 and no other revalidation hint, so a
+     browser that has the game open holds the OLD script for ten minutes after a
+     deploy and a returning player can hold it far longer — a shipped change then
+     looks like a change that never shipped. Bumping the badge at line 36 renames
+     every asset URL, which is the only thing that reliably forces the fetch.
+     Bump the stamps and the badge together. -->
+<link rel="stylesheet" href="css/style.css?v=1.36">
 </head>
 <body>
 
@@ -399,15 +406,15 @@
   </div>
 </div>
 
-<script src="js/text.js"></script>
-<script src="js/geodata.js"></script>
-<script src="js/data.js"></script>
-<script src="js/map.js"></script>
-<script src="js/ai.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/specops.js"></script>
-<script src="js/csar.js"></script>
-<script src="js/game.js"></script>
+<script src="js/text.js?v=1.36"></script>
+<script src="js/geodata.js?v=1.36"></script>
+<script src="js/data.js?v=1.36"></script>
+<script src="js/map.js?v=1.36"></script>
+<script src="js/ai.js?v=1.36"></script>
+<script src="js/audio.js?v=1.36"></script>
+<script src="js/ui.js?v=1.36"></script>
+<script src="js/specops.js?v=1.36"></script>
+<script src="js/csar.js?v=1.36"></script>
+<script src="js/game.js?v=1.36"></script>
 </body>
 </html>
