@@ -592,7 +592,7 @@ button { font-family: var(--mono); }
 .end-stalemate { color: var(--amber); }
 
 /* ============ map SVG ============ */
-.country { fill: var(--land); stroke: var(--land-line); stroke-width: 1.2; }
+.country { fill: var(--land); stroke: var(--land-line); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
 .country.iran { fill: #1d2a3f; }
 .country-label {
   fill: #55688a; font-size: 15px; letter-spacing: 3px; font-family: var(--mono);

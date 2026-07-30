@@ -675,7 +675,7 @@ const MapView = (() => {
   // path in geodata.js. The literal below is only the fallback for a browser
   // that hands back an empty bbox.
   let WORLD = { x0: -350, y0: -472, x1: 1450, y1: 1303 };
-  const MAX_ZOOM = 5;
+  const MAX_ZOOM = 10;
 
   function measureWorld() {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
