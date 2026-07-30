@@ -1728,22 +1728,31 @@ const MapView = (() => {
   // The weapon can outrank the target: a torpedo hit is a column of water going
   // up under a hull, and no aimpoint footage says that.
   const TORPEDO_CLIP = 'video/torpedo-hit.mp4';
-  // A hit on a field can catch what is parked on it, so the airbases draw from a
-  // pool rather than a single clip — the same base struck twice should not look
-  // like the same footage twice. Tabriz's own aimpoint clip joins the draw as one
+  // A hit on a field or a pier can catch whatever is parked alongside, so those
+  // two types draw from a pool rather than a single clip — the same base struck
+  // twice should not look like the same footage twice. A target that also owns an
+  // aimpoint clip (Tabriz, Bandar Abbas) throws it into its type's draw as one
   // more entry, so every clip a given base can show is equally likely.
-  const AIRBASE_CLIPS = [
-    'video/f14-hit.mp4',
-    'video/airbase-hit-a.mp4',
-    'video/airbase-hit-b.mp4',
-  ];
+  const POOLS = {
+    airbase: [
+      'video/f14-hit.mp4',
+      'video/airbase-hit-a.mp4',
+      'video/airbase-hit-b.mp4',
+    ],
+    naval: [
+      'video/naval-hit-a.mp4',
+      'video/naval-hit-b.mp4',
+      'video/naval-hit-c.mp4',
+    ],
+  };
 
   function hitClip(target, pkg) {
     if (pkg && pkg.sub) return TORPEDO_CLIP;
     const own = HIT_CLIPS[target.id];
-    if (target.type === 'airbase') {
-      const pool = own ? [...AIRBASE_CLIPS, own] : AIRBASE_CLIPS;
-      return pool[Math.floor(Math.random() * pool.length)];
+    const pool = POOLS[target.type];
+    if (pool) {
+      const draw = own ? [...pool, own] : pool;
+      return draw[Math.floor(Math.random() * draw.length)];
     }
     return own || 'video/strike-hit.mp4';
   }
