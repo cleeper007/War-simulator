@@ -131,6 +131,8 @@ const IranAI = (() => {
         title: `Iranian missiles strike ${tgt.split(' at ')[0]}`,
         text: `A missile and drone salvo hit ${tgt}. Allied capitals are demanding either decisive US action or immediate de-escalation.`,
         dOil: 14, dWorld: -3, dApproval: -2,
+        // a salvo that landed on Israel is an argument in Jerusalem
+        dPressure: tgt.startsWith('Israeli') ? ISRAEL.westward : 0,
       };
     },
     massBarrage: (str) => {
@@ -158,6 +160,9 @@ const IranAI = (() => {
         title: 'MISSILE EXCHANGE BETWEEN IRAN AND ISRAEL',
         text: 'Iran fired a large ballistic and drone salvo at Israeli cities and airbases overnight; Arrow and David\'s Sling intercepted most of it. The IAF answered before dawn against launch sites in western Iran.',
         dOil: 10, dWorld: -4, dApproval: -1,
+        // Israeli cities under fire is the single loudest argument for going in
+        // properly, whatever Washington has asked for
+        dPressure: ISRAEL.westward * 1.5,
       };
       if (hitBack) {
         ev.degradeTarget = hitBack.id;
@@ -490,20 +495,26 @@ const IranAI = (() => {
       secdef.text = 'The mission is victory: kill the program and break their war machine. Roll back the air defenses first, then take the enrichment sites while the skies are ours.';
     }
 
-    // Israel outranks the usual talking points: it changes what State can do
-    const israelUrgent = G.israelPosture === 'sidelined' && !G.israelStrikesUsed &&
-      G.israelPatience <= 2 && nukeDeg < 50;
+    // Israel outranks the usual talking points: it changes what State can do.
+    // The ETA is read off the gauge rather than stored, so State cannot quote a
+    // countdown the simulation has already moved past (see Game.israelEta).
+    const israelEta = Game.israelEta();
+    const israelUrgent = G.israelPosture === 'sidelined' &&
+      israelEta !== null && israelEta <= 2 && nukeDeg < ISRAEL.standDown;
 
     if (G.israelPosture === 'unilateral') {
       secstate.line = 'Coalition is bleeding out. Get me an end state.';
-      secstate.text = 'The Israelis went without us and the world has decided we blessed it. I am losing basing rights and coalition partners by the hour. Nothing I say in New York lands until this war has an end state — get me one.';
+      secstate.text = 'The Israelis went without us and the world has decided we blessed it. I am losing basing rights and coalition partners by the hour, and they will go again — nothing I say in New York lands until this war has an end state. Get me one.';
+    } else if (G.israelPosture === 'coordinated' && G.israelJointAvailable) {
+      secstate.line = 'The joint package is on the board. Spend it.';
+      secstate.text = 'We own Israel\'s war now as well as our own, and the combined planning cell has a deep-strike package ready. That is real capability against the buried halls and I would rather we spend it than sit on it — understand that every hour it waits, Tehran is still shooting at Haifa on our account.';
     } else if (G.israelPosture === 'coordinated') {
-      secstate.line = 'Spend the joint package before it expires.';
-      secstate.text = 'We own Israel\'s war now as well as our own. That joint package is real capability and I would rather we spend it than watch it expire — but understand that every hour it sits unused, Tehran is still shooting at Haifa on our account.';
+      secstate.line = `IAF flies again in ~${israelEta === null ? 'a while' : Txt.turns(israelEta)}. The joint slot comes back with it.`;
+      secstate.text = `The Israelis are inside our tasking order, which means their impatience is working for us for once: when Jerusalem reaches the end of it they fly our corridor${israelEta === null ? '' : ` — my read is about ${Txt.turns(israelEta)}`}, and the combined deep-strike slot comes back on the board when they do. The bill is standing and it is mine: this war does not get more popular abroad while Israeli aircraft are transiting Arab airspace with our permission.`;
     } else if (israelUrgent) {
       secstate.urgent = true;
-      secstate.line = `Jerusalem flies alone in ${G.israelPatience} turn${G.israelPatience === 1 ? '' : 's'} unless you move.`;
-      secstate.text = `Jerusalem has stopped asking. My read is ${G.israelPatience} turn${G.israelPatience === 1 ? '' : 's'} before they fly it themselves — and a unilateral Israeli strike is the worst version of this: the escalation without the results. Bring them in on our terms or finish the program before they lose patience.`;
+      secstate.line = `Jerusalem flies alone in ~${Txt.turns(israelEta)} unless you move.`;
+      secstate.text = `Jerusalem has stopped asking. My read is ${Txt.turns(israelEta)} before they fly it themselves — and a unilateral Israeli strike is the worst version of this: the escalation without the results, and they will do it again. Bring them in on our terms, service the aimpoints they came for, or buy time and pay for it at home.`;
     } else if (G.negotiationReady()) {
       // the window where a signed win exists at all — it does not stay open
       secstate.urgent = true;
@@ -547,11 +558,18 @@ const IranAI = (() => {
         `to explain it — you have addressed the nation ${G.addresses} time${G.addresses === 1 ? '' : 's'}. ` +
         'A no vote ends the war where it stands. There is still time to change the arithmetic.';
     } else if (israelUrgent) {
-      nsa.line = `Israeli readiness is unambiguous — they go in about ${G.israelPatience} turn${G.israelPatience === 1 ? '' : 's'}.`;
-      nsa.text = `Israeli readiness indicators are unambiguous — tanker movements, reserve call-ups, the whole signature. They are going, with or without you, in roughly ${G.israelPatience} turn${G.israelPatience === 1 ? '' : 's'}. If it happens on their timetable you get the blame and none of the targeting.`;
+      // The one advisor line that names the mechanism, because the target list is
+      // the lever and a player who has not noticed the flag has no way to guess it
+      const want = Game.israelPriorities().filter(t => t.hp > 0).map(t => t.short);
+      nsa.line = `Israeli readiness is unambiguous — they go in about ${Txt.turns(israelEta)}.`;
+      nsa.text = `Israeli readiness indicators are unambiguous — tanker movements, reserve call-ups, the whole signature. They are going, with or without you, in roughly ${Txt.turns(israelEta)}. ` +
+        (want.length
+          ? `What is driving it is a target list, and it is short: ${want.join(', ')}. Put ordnance on any of it tonight and their clock goes backwards — that is cheaper than the phone call and far cheaper than the strike. `
+          : 'Their list is rubble already, which is the one thing that actually calms them down. ') +
+        'If it happens on their timetable you get the blame and none of the targeting.';
     } else if (G.israelPosture === 'unilateral') {
-      nsa.line = 'We inherited the escalation without the result.';
-      nsa.text = 'Israel struck on its own and Fordow is still under the mountain. We inherited the escalation without the result — expect Iranian salvos to go west as well as at us, and expect the Gulf states to start putting distance between themselves and our aircraft.';
+      nsa.line = 'We inherited the escalation, and they will go again.';
+      nsa.text = 'Israel struck on its own and Fordow is still under the mountain. We inherited the escalation without the result — and nothing about that arrangement is finished: they are still flying, still on their own timetable, and every salvo Tehran sends west shortens it. Expect the Gulf states to keep putting distance between themselves and our aircraft.';
     } else if (G.israelPosture === 'coordinated' && missileStrength() > 0) {
       nsa.line = 'Two enemies, one missile force — their fires are split.';
       nsa.text = 'With the Israelis in openly, Tehran is fighting two enemies with one missile force. That splits their fires — some of those launchers are now dying to the IAF instead of to us. It also means this war ends when both of our wars end, not just ours.';

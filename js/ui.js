@@ -715,6 +715,92 @@ const UI = (() => {
     status.style.color = 'var(--red)';
   }
 
+  // ---- Jerusalem ----
+  // Two orders and a gauge, rendered together because they are one decision. The
+  // gauge is the thing the player has to be able to read: it is the only clock in
+  // the game that another government owns, and it moves off the American target
+  // list, so the panel names the aimpoints driving it rather than showing a bare
+  // percentage and leaving the mechanism to be guessed at.
+  //
+  // The bar is drawn as a bar and not written as a number because that is how
+  // every other pressure in this game is shown, and because the whole point is
+  // that a president should be able to see it filling out of the corner of an eye.
+  function israelActions(G) {
+    const p = Math.round(G.israelPressure);
+    const drivers = Game.israelDrivers();
+    const rate = drivers.reduce((n, [amt]) => n + amt, 0);
+    const posture = G.israelPosture;
+    const tone = posture === 'coordinated' ? 'var(--blue)' : p >= 75 ? 'var(--red)' : 'var(--amber)';
+    // one phrasing of the clock, owned by game.js, so the panel and the base
+    // tooltip cannot describe the same ally differently
+    const clock = Game.israelClock();
+
+    const gauge =
+      `<div class="israel-gauge"><div class="israel-gauge-fill" style="width:${p}%;background:${tone}"></div></div>` +
+      `<div class="israel-gauge-meta">JERUSALEM ${p}% · ${signed(Math.round(rate))}/turn · ${clock}</div>`;
+
+    // What is actually moving it, biggest mover first — the same list the
+    // simulation just used, so the panel cannot describe a different war.
+    // Biggest mover first. A zero-amount driver is a note rather than a figure —
+    // the standing-down row — and gets no signed number, because signed(0) is
+    // "−0" and a minus sign on nothing reads as a mistake.
+    const why = drivers.slice().sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]))
+      .map(([amt, label]) => {
+        const n = Math.round(amt * 10) / 10;
+        return `<li>${n === 0 ? '' : `${signed(n)} — `}${label}</li>`;
+      }).join('');
+
+    const cost = Game.israelHoldCost();
+    const out = [];
+
+    out.push({
+      id: 'israel', name: 'Coordinate with Israel',
+      current: posture === 'coordinated'
+        ? (G.israelJointAvailable
+            ? 'Israel is in. Joint deep-strike package ON THE BOARD.'
+            : 'Israel is in. The joint slot returns when they next fly.')
+        : posture === 'unilateral'
+          ? 'Too late — Israel is running its own war now.'
+          : 'World opinion −8, and a standing price abroad.',
+      extra: gauge,
+      desc: posture === 'sidelined'
+        ? 'Brings the IAF in openly. Fighter capacity, +half a package a night on the tasking order from their ' +
+          'escort and SEAD, and a joint deep-strike package against Natanz or Fordow — the only path to the ' +
+          'buried halls that does not need a B-2. It also inverts the gauge above: instead of flying alone when ' +
+          'their patience runs out, they fly inside your plan, and the joint package comes back every time they do. ' +
+          'The bill is standing rather than one-off — this war stops recovering abroad past a lower ceiling, and ' +
+          'Iran starts shooting at Israel on our account.'
+        : posture === 'coordinated'
+          ? 'They are inside the tasking order. When the gauge fills they fly your corridor against their own ' +
+            'aimpoints, and the joint deep-strike slot re-arms. What follows is why it is filling:' +
+            `<ul class="israel-why">${why}</ul>`
+          : 'They went alone and they will go again, on their own timetable. Nothing recovers abroad while ' +
+            'that is true. What is driving the next one:' +
+            `<ul class="israel-why">${why}</ul>`,
+      disabled: posture !== 'sidelined',
+    });
+
+    // Only offered while they are sidelined. A coordinated Israel flying is a
+    // free package and there is nothing to restrain; a unilateral one has stopped
+    // taking the call. That asymmetry is the mechanic, not an oversight.
+    if (posture === 'sidelined') {
+      out.push({
+        id: 'restrain', name: 'Ask Jerusalem to hold',
+        current: cost.left <= 0
+          ? 'Jerusalem will not take the call again.'
+          : `Pressure −${cost.relief}, approval −${cost.approval}. ${plural(cost.left, 'ask')} left.`,
+        desc: cost.left <= 0
+          ? ''
+          : `Buys ${turns(3)} of Israeli restraint. The only lever on that gauge that is not a bomb, and the ` +
+            'only order in this panel billed at home instead of abroad: leaning on Jerusalem in public costs a ' +
+            'wartime president, and the Hill counts it when the authorization comes up. Each ask is worth less ' +
+            'than the last and costs more.',
+        disabled: cost.left <= 0,
+      });
+    }
+    return out;
+  }
+
   function renderDiplo(G) {
     const used = G.diploUsed;
     $('diplo-status').textContent = used ? '— USED THIS TURN' : '';
@@ -748,20 +834,7 @@ const UI = (() => {
         desc: G.coalition ? '' : 'Brings allied air into the operation and spreads the political weight of it.',
         disabled: G.coalition,
       },
-      {
-        id: 'israel', name: 'Coordinate with Israel',
-        current: G.israelPosture === 'coordinated'
-          ? 'Israel is in. Joint deep-strike package available.'
-          : G.israelPosture === 'unilateral'
-            ? 'Too late — Israel acted on its own.'
-            : `World opinion −8. They go alone in ${turns(G.israelPatience)} regardless.`,
-        desc: G.israelPosture === 'sidelined'
-          ? 'Brings the IAF in openly: fighter capacity, and ONE joint deep-strike package against Natanz ' +
-            'or Fordow — the only path to the buried halls that does not need a B-2. It also widens the war, ' +
-            'and Iran starts shooting at Israel on our account.'
-          : '',
-        disabled: G.israelPosture !== 'sidelined',
-      },
+      ...israelActions(G),
       {
         id: 'spr', name: 'Release the Strategic Reserve',
         current: G.sprReleases >= 2
@@ -821,9 +894,15 @@ const UI = (() => {
         `</button>` +
         (a.desc
           ? `<button type="button" class="action-why" aria-expanded="${open}" ` +
-            `aria-label="Why this order matters"><span class="why-caret">▾</span></button>` +
-            `<div class="action-desc">${a.desc}</div>`
+            `aria-label="Why this order matters"><span class="why-caret">▾</span></button>`
           : '') +
+        // `extra` is live state that is a SHAPE rather than a sentence — a gauge
+        // another government owns, filling. It sits outside the button for the
+        // same reason the disclosure does (a div inside a button is not markup),
+        // and above the fold for the opposite reason: it is the state, not the
+        // explanation, so it must never be the thing behind the caret.
+        (a.extra ? `<div class="action-extra">${a.extra}</div>` : '') +
+        (a.desc ? `<div class="action-desc">${a.desc}</div>` : '') +
         `</div>`;
     }).join('');
   }

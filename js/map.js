@@ -3005,6 +3005,91 @@ const MapView = (() => {
     }
   }
 
+  // ---- an allied package, flown on the strategic map ----
+  // American strikes are flown in the tactical scope, close up, because the
+  // player ordered them and is owed the theatre of watching one arrive. An
+  // Israeli package is the opposite kind of event: it is something the president
+  // is TOLD ABOUT, and the honest way to show it is the way CENTCOM saw it — as
+  // tracks appearing on the strategic plot, from the west, going somewhere the
+  // American plan was not going tonight.
+  //
+  // So this deliberately reuses the Iranian-salvo idiom (a curved track, a
+  // silhouette walking it, a burst) rather than the scope: it is a radar picture,
+  // not a targeting pod. It runs in amber, and it runs BEFORE the battle report,
+  // so the strike is on screen before the prose explaining it.
+  function alliedStrike(targetIds, done) {
+    const fx = document.getElementById('fx-layer');
+    const bases = US_ASSETS.filter(a => a.ally);
+    const tgts = (targetIds || []).map(id => TARGETS.find(t => t.id === id)).filter(Boolean);
+    if (ff || !tgts.length || !bases.length) { if (done) done(); return; }
+
+    let left = tgts.length, called = false;
+    // Everything this sequence puts on the plot, so the watchdog can take it back
+    // off. The flight loop removes its own marks on arrival, but it is driven by
+    // requestAnimationFrame — which does not run at all in a hidden tab. A player
+    // who switches away mid-ingress and comes back gets the turn handed on by the
+    // watchdog below and, without this, two amber tracks welded across Iran for
+    // the rest of the war. The turn surviving a throttled tab is not enough; the
+    // map has to survive it too.
+    const litter = new Set();
+    const finish = () => {
+      if (called) return;
+      called = true;
+      skipEnders.delete(finish);
+      for (const n of litter) n.remove();
+      litter.clear();
+      if (done) done();
+    };
+    skipEnders.add(finish);   // a skip mid-ingress hands the turn straight on
+
+    tgts.forEach((t, i) => {
+      setTimeout(() => {
+        if (ff) { if (--left === 0) finish(); return; }
+        const o = bases[i % bases.length];
+        // Bowed NORTH of the direct line. The straight track from the Negev to
+        // Natanz runs down the middle of Saudi Arabia and Jordan, which is the
+        // one route everyone involved insists is not being used; the northern
+        // bow reads as the Syria–Iraq corridor the aircraft would really fly.
+        const mx = (o.x + t.x) / 2, my = (o.y + t.y) / 2 - 120;
+        const path = el('path', { class: 'iaf-path', d: `M${o.x},${o.y} Q${mx},${my} ${t.x},${t.y}` });
+        fx.appendChild(path);
+        const jet = el('path', { class: 'iaf-jet', d: SIL.fighter });
+        fx.appendChild(jet);
+        litter.add(path).add(jet);
+        const total = path.getTotalLength();
+        const dur = 2200 + rand(0, 400);
+        const t0 = performance.now();
+        const end = () => {
+          jet.remove();
+          path.remove();
+          litter.delete(path);
+          litter.delete(jet);
+          if (--left === 0) setTimeout(finish, ff ? 0 : 400);
+        };
+        function step(now) {
+          if (ff) { end(); return; }   // skipped: the package comes off the plot
+          const p = Math.min(1, (now - t0) / dur);
+          const pt = path.getPointAtLength(total * p);
+          const pb = path.getPointAtLength(Math.min(total, total * p + 2));
+          const ang = Math.atan2(pb.y - pt.y, pb.x - pt.x) * 180 / Math.PI + 90;
+          // the silhouette is drawn for the scope's coordinate space, so it is
+          // scaled down to read as an aircraft-sized mark on the strategic plot
+          jet.setAttribute('transform', `translate(${pt.x},${pt.y}) rotate(${ang}) scale(0.85)`);
+          if (p < 1) { requestAnimationFrame(step); return; }
+          // the target's own hit cue, but NOT targetPulse() — that one fires a
+          // blue impact-flash, and the whole point of this sequence is that these
+          // are not American aircraft
+          burst(t.x, t.y, 'impact-flash-ally', 14);
+          const g = document.getElementById(`tgt-${t.id}`);
+          if (g) { g.classList.add('struck'); setTimeout(() => g.classList.remove('struck'), 500); }
+          end();
+        }
+        requestAnimationFrame(step);
+      }, i * 500);
+    });
+    setTimeout(finish, 9000);   // watchdog: a throttled tab must never stall the war
+  }
+
   // Called from the end-of-turn flow: animates every event carrying an
   // `attack` spec, then hands control back so the battle report can land.
   function animateIranianAttacks(events, done) {
@@ -3046,7 +3131,8 @@ const MapView = (() => {
   }
 
   return { render, updateTarget, setHormuz, flashAsset, animateStrike, playStrikeHit,
-    whenFootageDone, updateTransit, animateIranianAttacks, setTargetClickHandler, setFastForward,
+    whenFootageDone, updateTransit, animateIranianAttacks, alliedStrike,
+    setTargetClickHandler, setFastForward,
     setCarrierPosture, setCarrierIngress, setAssetActive, raidOpen,
     csarOpen, setSurvivor };
 })();

@@ -421,6 +421,30 @@ button { font-family: var(--mono); }
 /* the live state — what changed, and what the order costs — never folds */
 .action .il-current { color: var(--amber); display: block; margin-top: 3px; font-size: 10.5px; }
 .action.off .action-desc, .action.off .il-current { opacity: 0.6; }
+/* `extra`: live state drawn rather than written. Spans both columns on its own
+   row and, unlike .action-desc, is never hidden behind the caret. */
+.action-extra { grid-column: 1 / 3; padding: 5px 10px 6px; border: 1px solid var(--line); border-top: 0; }
+
+/* ---- Jerusalem's clock ----
+   The only pressure in this game another government owns. Deliberately built
+   from the same parts as the rest of the HUD's meters rather than a new visual
+   language: a track, a fill whose COLOUR carries the posture (amber sidelined,
+   red about to launch, blue flying with us), and one mono line of figures under
+   it. The fill is transitioned because the player should be able to catch it
+   moving on a turn roll out of the corner of an eye. */
+.israel-gauge {
+  height: 6px; background: var(--bg-panel2); border: 1px solid var(--line);
+  overflow: hidden;
+}
+.israel-gauge-fill { height: 100%; transition: width 0.5s ease-out, background 0.5s; }
+.israel-gauge-meta {
+  margin-top: 4px; font-family: var(--mono); font-size: 9.5px;
+  letter-spacing: 0.5px; color: var(--dim);
+}
+/* why it is filling — the driver list, inside the folded explainer */
+.israel-why { margin: 5px 0 0; padding-left: 15px; }
+.israel-why li { margin: 1px 0; }
+.action.off .action-extra { opacity: 0.6; }
 
 #fleet-status { font-size: 10px; letter-spacing: 1px; }
 
@@ -885,6 +909,17 @@ button { font-family: var(--mono); }
 .iran-drone-path { fill: none; stroke: none; }
 .intercept-flash { fill: var(--blue); }
 .impact-flash-iran { fill: var(--red); }
+
+/* ---- an allied strike package ----
+   Amber, because that is already the map's word for "allied, not under US
+   command" (see the Israeli bases, drawn ally: true). It has to be legible as
+   NOT ours at a glance on a screen where every American package is blue — a
+   president watching this needs to know instantly whose aircraft those are. The
+   ingress track is solid rather than dashed, unlike the Iranian missile trace:
+   these are aircraft flying a route, not a ballistic arc. */
+.iaf-path { stroke: var(--amber); stroke-width: 1; fill: none; opacity: 0.45; }
+.iaf-jet { fill: var(--amber); }
+.impact-flash-ally { fill: var(--amber); }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; } 50% { opacity: 0.35; }

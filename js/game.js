@@ -107,11 +107,15 @@ const Game = (() => {
     leaderCalls: [],
     negotiationsAccepted: false, negotiationMomentum: 0,
     diploUsed: false, intelUsed: false, over: false,
-    // Israel: a semi-autonomous actor, not an American asset. Sidelined by
-    // default; coordinate with them and the war widens, ignore them and they
-    // eventually go alone on a timetable you do not control.
-    israelPosture: 'sidelined', israelPatience: 4,
-    israelStrikesUsed: false, israelJointAvailable: false,
+    // Israel: a semi-autonomous actor, not an American asset, live for all 30
+    // turns. `israelPressure` is Jerusalem's patience as a gauge rather than a
+    // countdown — see ISRAEL in data.js for what moves it and why the posture
+    // decides whether a full gauge is a disaster or a free package.
+    // `israelHolds` is how many times the president has asked them to wait;
+    // `israelHold` is how many turns of that promise are left to run.
+    israelPosture: 'sidelined', israelPressure: 20,
+    israelSorties: 0, israelHolds: 0, israelHold: 0,
+    israelJointAvailable: false,
     // special operations (see specops.js)
     raid: 'none', raidThisTurn: false, isrPrep: 0,
     regimeChaosTurns: 0, regimeErratic: false, hostageCrisis: false,
@@ -250,6 +254,12 @@ const Game = (() => {
     // v5: downed aircrew and their recovery counters became state. A v4 save has
     // no `downed` field and a stats block missing three counters — retired
     // rather than migrated, the same as every version before it.
+    // v15: Israel stopped being a switch. The one-shot `israelPatience` counter
+    // and `israelStrikesUsed` flag became a pressure gauge that runs all 30 turns
+    // (`israelPressure`), a sortie count, and the standing promise-to-hold state
+    // the president can spend approval on. A v14 save holds a countdown whose
+    // meaning is gone and no gauge to derive one from — and it was saved from a
+    // war where the IAF flew at most once.
     const KEY = 'cic-save-v10';  // bump the version to invalidate old saves
     // v14: a package acquired a price. `strikesThisTurn` had been saved since v8
     // and read by nothing at all; it is now the night's position against a
@@ -257,7 +267,7 @@ const Game = (() => {
     // against. A v13 save holds a count that meant nothing and no debt, so it
     // would resume as a war with a free surge — a different game than the one it
     // was saved from.
-    const VERSION = 14;   // v1.28: packages are tasked against an ATO; crew-rest debt
+    const VERSION = 15;   // v1.31: Jerusalem runs a pressure gauge, not a countdown
     const FIELDS = [
       'turn', 'maxTurns', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -265,7 +275,8 @@ const Game = (() => {
       'missions', 'sanctions', 'coalition', 'leaderCalls',
       'addressCooldown', 'sprReleases', 'negotiationsAccepted', 'negotiationMomentum',
       'diploUsed', 'intelUsed', 'over', 'raid', 'raidThisTurn', 'isrPrep', 'downed',
-      'israelPosture', 'israelPatience', 'israelStrikesUsed', 'israelJointAvailable',
+      'israelPosture', 'israelPressure', 'israelSorties', 'israelHolds', 'israelHold',
+      'israelJointAvailable',
       'regimeChaosTurns', 'regimeErratic', 'hostageCrisis', 'stats',
       'carriers', 'secondCarrierOrdered', 'secondCarrierEta', 'alliedFighters',
       'bombersOrdered', 'bomberEta', 'bombersArrived', 'deployTurn',
@@ -1297,10 +1308,16 @@ const Game = (() => {
   }
 
   // ---- Israel: the joint deep-strike option ----
-  // Coordinating with Israel buys exactly one combined package against a buried
-  // site — IAF F-35I escort and SEAD opening the corridor for US penetrators.
-  // It is the only path to Fordow that isn't a B-2, and it costs more abroad
-  // than an American strike does: everyone reads it as the war widening.
+  // Coordinating with Israel buys one combined package against a buried site —
+  // IAF F-35I escort and SEAD opening the corridor for US penetrators. It is the
+  // only path to Fordow that isn't a B-2, and it costs more abroad than an
+  // American strike does: everyone reads it as the war widening.
+  //
+  // It is no longer once per war. Every time Jerusalem's gauge fills while they
+  // are coordinated, the IAF flies its own night AND the joint option comes back
+  // on the board (see israelTurn). That is the payoff that makes letting pressure
+  // build a strategy rather than a mistake: an ally you keep inside the tasking
+  // order regenerates the deep-strike capability a B-2 otherwise monopolizes.
   // Flown as 5th-gen on both sides — Israeli F-35I Adirs with an American
   // package alongside them. That matters mechanically as well as narratively:
   // the joint option is Israel's alternative to a B-2 and it has to stay
@@ -1327,11 +1344,119 @@ const Game = (() => {
     }
   }
 
+  // ---- Jerusalem's clock ----
+  // The aimpoints Israel came for. A live one left alone tonight is what pushes
+  // the gauge; one CENTCOM serviced is what pulls it down. Everything here reads
+  // the flag off TARGETS rather than a hardcoded id list, so adding an aimpoint
+  // to Israel's war is a one-word edit in data.js.
+  const israelPriorities = () => TARGETS.filter(t => t.israelPriority);
+
+  // Tonight's movement on the gauge, as a list of [amount, why] so the panel and
+  // the report can both explain a number the player is being judged on rather
+  // than just showing it climb. Pressure is only ever changed through this.
+  // `hold` defaults to the promise actually in force. israelEta passes an
+  // explicit 0 to ask what the climb looks like once that promise has run out —
+  // the projection has to know both rates, and there is no second copy of this
+  // arithmetic anywhere for them to disagree across.
+  function israelDrivers(hold) {
+    const d = [];
+    const k = diff().israel;
+    const held = hold === undefined ? G.israelHold : hold;
+    const live = israelPriorities().filter(t => t.hp > 0);
+    const hit = israelPriorities().filter(t => G.struckThisTurn.includes(t.id));
+
+    // A gutted program is the one argument that actually works in Jerusalem. It
+    // outranks everything else on the list — including their own target list,
+    // because a hall that is already rubble is not an aimpoint any more.
+    if (G.nukeDegraded() >= ISRAEL.standDown) {
+      d.push([ISRAEL.cooling, 'enrichment program assessed gutted']);
+      return d;
+    }
+
+    d.push([ISRAEL.ambient * k, 'Israeli readiness cycle']);
+    const brk = Math.min(1, G.breakout.progress / G.breakout.need);
+    if (brk > 0.15) d.push([ISRAEL.breakout * brk * k, 'their read on the breakout clock']);
+    const unserviced = live.filter(t => !G.struckThisTurn.includes(t.id));
+    if (unserviced.length) {
+      d.push([ISRAEL.ignored * unserviced.length * k,
+        `${Txt.plural(unserviced.length, 'priority aimpoint')} left standing`]);
+    }
+
+    // A promise to hold damps EVERY impatience driver, not just the ambient one.
+    // The first version scaled only `ambient`, which made the whole order very
+    // nearly decorative: ambient is ~3.5 of a ~16-point climb, so a president who
+    // spent approval on the call watched the gauge slow from 18 a turn to 16 and
+    // correctly concluded the lever did nothing. Standing down means standing down
+    // — for as long as it lasts, Jerusalem is not acting on its target list either.
+    // What it cannot damp is `serviced` below (a promise should never make an
+    // American strike on their list count for less) or a salvo landing on Israeli
+    // cities, which arrives through applyEvent and outruns any assurance.
+    if (held > 0) {
+      for (const row of d) row[0] *= ISRAEL.holdFactor;
+      d.push([0, `standing down on your assurance — ${Txt.turns(held)} left`]);
+    }
+
+    for (const t of hit) d.push([ISRAEL.serviced, `${t.short} serviced by CENTCOM`]);
+    return d;
+  }
+
+  // How many turns until they fly. Estimated rather than stored: the gauge is the
+  // state and the ETA is a reading off it, so the number the advisors quote can
+  // never disagree with the number driving the sim. Null when the gauge is not
+  // rising — there is no honest countdown on a cooling ally.
+  //
+  // PROJECTED FORWARD, not divided. A promise to hold damps the climb by two
+  // thirds but only lasts three turns, and a single division by tonight's damped
+  // rate reported "airborne in ~18 turns" on a war that had eight — the panel
+  // sold the player a reprieve three times longer than the one they bought. So
+  // the hold is walked down turn by turn and the undamped rate takes over when it
+  // expires. Everything else is assumed to hold still, which is the honest
+  // meaning of an estimate: it is what happens if the president changes nothing.
+  const rateOf = (hold) => israelDrivers(hold).reduce((n, [amt]) => n + amt, 0);
+
+  function israelEta() {
+    const after = rateOf(0);
+    let p = G.israelPressure, hold = G.israelHold;
+    for (let n = 1; n <= G.maxTurns; n++) {
+      const rate = hold > 0 ? rateOf(hold) : after;
+      if (rate <= 0 && after <= 0) return null;   // cooling, and nothing ahead changes that
+      p += rate;
+      if (hold > 0) hold--;
+      if (p >= ISRAEL.fly) return n;
+    }
+    return null;   // not inside this campaign
+  }
+
+  // How the clock reads in one phrase. A null ETA has two completely different
+  // meanings and they must not share a sentence: the gauge FALLING (their list is
+  // rubble, or the program is gutted) is a war where Israel has stood down, while
+  // a gauge still creeping up too slowly to launch inside 30 turns is a war where
+  // the president is holding them off by servicing the list — an achievement, and
+  // a reversible one. Both used to print "standing down", which told a player who
+  // had earned the second that they had earned the first.
+  function israelClock() {
+    const eta = israelEta();
+    if (eta !== null) return `airborne in ~${Txt.turns(eta)}`;
+    return rateOf() > 0 ? 'held short of launch at this tempo' : 'standing down — the gauge is falling';
+  }
+
   // one-line posture summary used by map tooltips and the diplomacy panel
   function israelStatus() {
-    if (G.israelPosture === 'coordinated') return 'COORDINATED WITH CENTCOM';
-    if (G.israelPosture === 'unilateral') return 'ACTING UNILATERALLY';
-    return `SIDELINED — patience ${G.israelPatience}`;
+    const p = Math.round(G.israelPressure);
+    const clock = israelClock();
+    if (G.israelPosture === 'coordinated') return `COORDINATED WITH CENTCOM — pressure ${p}%, ${clock}`;
+    if (G.israelPosture === 'unilateral') return `ACTING UNILATERALLY — pressure ${p}%, ${clock}`;
+    return `SIDELINED — pressure ${p}%, ${clock}`;
+  }
+
+  // what the president is spending, and what it buys, on the NEXT ask
+  function israelHoldCost() {
+    const n = G.israelHolds;
+    return {
+      approval: Math.round(ISRAEL.holdApproval * Math.pow(ISRAEL.holdRamp, n)),
+      relief: Math.round(-ISRAEL.holdRelief * Math.pow(ISRAEL.holdDecay, n)),
+      left: Math.max(0, ISRAEL.holdMax - n),
+    };
   }
 
   const resKey = (asset) => asset === 'fighter' ? 'fighters' : asset;
@@ -1379,9 +1504,15 @@ const Game = (() => {
   // multiplier that is wrong by the time they authorize the next one. The bill
   // for a late frag lands on TOMORROW's plan. That is the whole mechanic.
   // ============================================================
+  // An Israel inside the tasking order is worth half a package a night: IAF
+  // escort and SEAD flying the corridor is work the CAOC otherwise has to frag
+  // American aircraft for. It is the only ally contribution that touches the
+  // plan rather than the magazine, which is why coordinating is a decision about
+  // tempo and not just about capability.
   function planSize(fatigue) {
     const flown = G.forceFlow.landed.length;
-    return Math.max(1, Math.floor(ATO.base + flown * ATO.perFlow - (fatigue || 0)));
+    const ally = G.israelPosture === 'coordinated' ? ISRAEL.coordSlots : 0;
+    return Math.max(1, Math.floor(ATO.base + flown * ATO.perFlow + ally - (fatigue || 0)));
   }
 
   // Tonight's plan as written. The fallback covers the opening turn, before any
@@ -2165,7 +2296,6 @@ const Game = (() => {
       case 'israel': {
         if (G.israelPosture !== 'sidelined') return;
         G.israelPosture = 'coordinated';
-        G.israelPatience = 0;      // they are in the war now; nothing left to wait for
         G.israelJointAvailable = true;
         syncJointPackages();
         G.world = clamp(G.world - 8, 0, 100);
@@ -2175,8 +2305,35 @@ const Game = (() => {
         G.res.fighters = Math.min(G.res.fighters + 2, G.caps.fighters);
         events.push({
           cls: 'world', title: 'Israel brought into the operation',
-          text: 'Jerusalem folds its strike planning into CENTCOM\'s. IAF squadrons add sortie capacity, and one combined deep-strike package is now available against Natanz or Fordow — the first path to the buried halls that does not require a B-2. The price is paid abroad: Arab partners who were quietly helping now have to be publicly seen not to, and Tehran has been handed the war it wants to fight — Israel is now a legitimate target in every Iranian broadcast.',
+          text: 'Jerusalem folds its strike planning into CENTCOM\'s. IAF squadrons add sortie capacity, the tasking order grows by half a package a night on their escort and SEAD, and a combined deep-strike package is available against Natanz or Fordow — the first path to the buried halls that does not require a B-2. From here their impatience works FOR you: every time Jerusalem reaches the end of it they fly inside your plan and the joint option comes back on the board. The price is paid abroad, nightly. Arab partners who were quietly helping now have to be publicly seen not to, standing abroad will not recover as far as it did, and Tehran has been handed the war it wants to fight — Israel is a legitimate target in every Iranian broadcast from tonight.',
           dWorld: -8, dOil: 5,
+        });
+        break;
+      }
+      // Asking Jerusalem to wait. The only lever on the gauge that does not
+      // involve flying, and the only diplomatic action in the game billed to
+      // approval instead of standing abroad: restraining Israel in public is a
+      // domestic cost for a wartime president, and it lands on the Hill's
+      // arithmetic when the authorization comes up. It is deliberately a
+      // depreciating asset — the third promise buys a third of the first one at
+      // three times the price, and there is no fourth.
+      case 'restrain': {
+        if (G.israelPosture !== 'sidelined' || G.israelHolds >= ISRAEL.holdMax) return;
+        const cost = israelHoldCost();
+        G.israelHolds++;
+        G.israelHold = ISRAEL.holdTurns;
+        G.israelPressure = clamp(G.israelPressure - cost.relief, 0, ISRAEL.fly);
+        G.approval = clamp(G.approval - cost.approval, 0, 100);
+        events.push({
+          cls: 'friendly', title: 'Jerusalem agrees to hold',
+          text: `You call the Prime Minister and ask for time. You get it — ${Txt.turns(ISRAEL.holdTurns)} of it, ` +
+            `on your word that the program will be dealt with. Israeli readiness comes off the boil and the ` +
+            `pressure for a unilateral strike falls ${cost.relief} points. ` +
+            (cost.left - 1 <= 0
+              ? 'It is also the last time this call works. Jerusalem has extended the last of its credit; there is no further extension to ask for.'
+              : `The call leaked before you hung up, and the coverage at home is that the President was told no and asked twice. ` +
+                `${Txt.plural(cost.left - 1, 'further request')} would be entertained, each worth less than this one.`),
+          dApproval: -cost.approval,
         });
         break;
       }
@@ -2355,41 +2512,82 @@ const Game = (() => {
   }
 
   // ---- Israel's own clock ----
-  // Israel is not waiting on American permission indefinitely. While they are
-  // sidelined and the program is still substantially intact, their patience
-  // runs down; at zero they fly the mission themselves. It is a worse strike
-  // than one you would have run — no penetrators, partial results — and you
-  // own the escalation without having chosen it.
+  // Runs every turn for the whole campaign. The gauge moves first, then it is
+  // tested — so a night that services Jerusalem's list can pull them back off a
+  // launch they were one turn from, which is the entire point of giving the
+  // player a target list they can read.
+  //
+  // The promise to hold is paid down here rather than in the diplomacy handler,
+  // for the same reason crew-rest debt is: a countdown that only ticks on turns
+  // the player did something is not a countdown, it is a trap.
   function israelTurn() {
-    if (G.israelStrikesUsed || G.israelPosture !== 'sidelined') return null;
-    if (G.nukeDegraded() >= 50) return null; // program already gutted: they stand down
-    if (--G.israelPatience > 0) return null;
+    if (G.israelHold > 0) G.israelHold--;
 
-    G.israelPosture = 'unilateral';
-    G.israelStrikesUsed = true;
+    for (const [amt] of israelDrivers()) G.israelPressure += amt;
+    G.israelPressure = clamp(G.israelPressure, 0, ISRAEL.fly);
 
-    // what they actually achieve: real damage at Natanz, little at Fordow,
-    // which is buried under rock only a GBU-57 reaches
+    if (G.israelPressure < ISRAEL.fly) return null;
+
+    // They are going. Posture decides whose war it is — and a sidelined Israel
+    // that reaches this point is a sidelined Israel no longer: the first
+    // unilateral sortie moves them there permanently, and the world never gets
+    // over it (see the news-cycle drift, which stops recovering entirely).
+    if (G.israelPosture === 'sidelined') G.israelPosture = 'unilateral';
+    const coordinated = G.israelPosture === 'coordinated';
+    const E = ISRAEL.effect[coordinated ? 'coordinated' : 'unilateral'];
+    G.israelPressure = ISRAEL.after;
+    G.israelSorties++;
+    G.israelHold = 0;   // whatever was promised is moot; they flew
+
+    // What they hit: their own list, worst-condition-first among what is still
+    // standing, because a half-wrecked hall is where an air force with one night
+    // and no penetrators can actually finish something. Nothing here consults the
+    // American target list — that is the difference between an ally and an asset.
+    const avail = israelPriorities().filter(t => t.hp > 0)
+      .sort((a, b) => a.hp - b.hp).slice(0, ISRAEL.aimpoints);
     const hits = [];
-    for (const [id, killP, dmgP] of [['natanz', 0.30, 0.75], ['fordow', 0, 0.40]]) {
-      const t = TARGETS.find(x => x.id === id);
-      if (t.hp <= 0) continue;
+    for (const t of avail) {
+      const kill = t.hardened ? E.hardKill : E.kill;
+      const dmg = t.hardened ? E.hardDamage : E.damage;
       const roll = Math.random();
-      if (roll < killP) damageTarget(t, 100);
-      else if (roll < dmgP) damageTarget(t, 50);
+      if (roll < kill) damageTarget(t, 100);
+      else if (roll < dmg) damageTarget(t, wearsDown(t) ? PKG_DAMAGE : 50);
       else continue;
       hits.push(`${t.name} ${t.status}`);
+      // CENTCOM watched this happen — an ally's BDA is not an estimate
+      G.intel[t.id] = { hp: t.hp, turn: G.turn, sharp: true };
     }
 
     const bda = hits.length
       ? `Assessed effects: ${hits.join('; ')}.`
-      : 'Assessed effects: negligible. They spent the surprise and bought nothing.';
+      : 'Assessed effects: negligible. They spent the sortie and bought nothing.';
+    const nth = G.israelSorties > 1 ? ` — ${Txt.ordinal(G.israelSorties).toUpperCase()} ISRAELI NIGHT` : '';
 
-    return {
-      cls: 'world', title: 'ISRAEL STRIKES IRAN UNILATERALLY',
-      text: `Without notifying Washington, the Israeli Air Force flew a long-range package against the enrichment sites overnight. The first CENTCOM knew of it was the radar picture. ${bda} Jerusalem's statement thanks the United States for its support. Every capital in the region now believes you authorized this, and Tehran has said so on every frequency it owns. You no longer control the escalation — you only answer for it.`,
-      dWorld: -14, dOil: 16, dApproval: -3,
+    // Coordinated, the night also puts the joint deep-strike option back on the
+    // board. This is the payoff for keeping them inside the plan and it is
+    // deliberately generous: it is the only renewable path into Fordow.
+    let rearmed = false;
+    if (coordinated && !G.israelJointAvailable) {
+      G.israelJointAvailable = true;
+      syncJointPackages();
+      rearmed = true;
+    }
+
+    const ev = coordinated ? {
+      cls: 'friendly', title: `IAF DEEP-STRIKE PACKAGE FLOWN UNDER CENTCOM TASKING${nth}`,
+      sum: 'Israel flew the plan', outcome: hits.length ? 'damaged' : 'miss',
+      text: `The IAF flew a long-range package overnight against aimpoints on Jerusalem's list, fragged into the tasking order and refuelled off American tankers. ${bda} It is a night of effects CENTCOM did not spend a package to buy — and the region has watched Israeli aircraft transit Arab airspace with American permission, which is the part that gets read out in every capital tomorrow.` +
+        (rearmed ? ' The combined planning cell is warm again: one joint US–Israeli deep-strike package is back on the board.' : ''),
+      dWorld: E.world, dOil: E.oil, israelSortie: true, alliedStrike: hits.length > 0,
+    } : {
+      cls: 'world', title: `ISRAEL STRIKES IRAN UNILATERALLY${nth}`,
+      sum: 'Israel flew alone', outcome: hits.length ? 'damaged' : 'miss',
+      text: `Without notifying Washington, the Israeli Air Force flew a long-range package against ${G.israelSorties > 1 ? 'the target set again' : 'the enrichment sites'} overnight. The first CENTCOM knew of it was the radar picture. ${bda} Jerusalem's statement thanks the United States for its support. Every capital in the region believes you authorized this, and Tehran has said so on every frequency it owns. You no longer control the escalation — you only answer for it.`,
+      dWorld: E.world, dOil: E.oil, dApproval: E.approval, israelSortie: true, alliedStrike: hits.length > 0,
     };
+    // the aimpoints the strike actually reached, so the map can fly it
+    ev.alliedTargets = avail.map(t => t.id);
+    return ev;
   }
 
   // ---- Iranian phase / end turn ----
@@ -2404,6 +2602,12 @@ const Game = (() => {
     if (ev.dApproval) G.approval = clamp(G.approval + ev.dApproval, 0, 100);
     if (ev.dOil) G.oil = Math.max(60, G.oil + ev.dOil);
     if (ev.dWorld) G.world = clamp(G.world + ev.dWorld, 0, 100);
+    // An Iranian salvo that landed on Israel is an argument in Jerusalem, and
+    // the events that carry one say so rather than the gauge trying to infer it.
+    // Applied here so it lands whether the salvo was written by the AI or by a
+    // set piece, and after the night's own climb — Tehran's answer moves TOMORROW
+    // night's launch decision, not the one that already flew.
+    if (ev.dPressure) G.israelPressure = clamp(G.israelPressure + ev.dPressure, 0, ISRAEL.fly);
     if (ev.hormuz) { G.hormuz = ev.hormuz; MapView.setHormuz(G.hormuz); }
     if (ev.flashAsset) MapView.flashAsset(ev.flashAsset);
   }
@@ -2540,9 +2744,17 @@ const Game = (() => {
         ...repairs, ...phase, ...objectives, ...fleet];
 
       MapView.whenFootageDone(() => {
-        if (!ours.length) { iranianResponse(); return; }
-        AudioSys.play('bdaReport');   // the watch floor reads the night back to you
-        UI.showReport(`BATTLE DAMAGE ASSESSMENT — DAY ${day}, TURN ${G.turn}`, ours, iranianResponse);
+        // An ally's package flies on the strategic plot before the report that
+        // explains it, in the same order the watch floor got it: tracks inbound
+        // from the west first, prose afterwards. Nothing here can change an
+        // outcome — israelTurn already resolved the damage — so a player who
+        // skips the animation loses only the picture.
+        const allied = israeli && israeli.alliedStrike ? israeli.alliedTargets : null;
+        MapView.alliedStrike(allied, () => {
+          if (!ours.length) { iranianResponse(); return; }
+          AudioSys.play('bdaReport');   // the watch floor reads the night back to you
+          UI.showReport(`BATTLE DAMAGE ASSESSMENT — DAY ${day}, TURN ${G.turn}`, ours, iranianResponse);
+        });
       });
 
       // ---- half two: Tehran answers ----
@@ -2605,8 +2817,17 @@ const Game = (() => {
           // schedule. Recovery is real but slow, it pulls toward a baseline rather
           // than toward full, and it stops entirely while Israel is in the war on
           // its own account — that is the one thing the world does not get over.
+          //
+          // A COORDINATED Israel does not stop the recovery; it lowers the ceiling
+          // the recovery pulls toward. That is the standing rent on the bargain,
+          // and it is charged as a ceiling rather than a nightly tick because a
+          // ceiling is something a player can plan against: it says "this is as
+          // popular as this war gets while they are flying with us", and it is
+          // what eventually costs a basing tier. A drip would be the same
+          // arithmetic and unreadable on the bar.
           if (G.israelPosture !== 'unilateral') {
-            const baseline = G.coalition ? 58 : 50;
+            const baseline = (G.coalition ? 58 : 50) -
+              (G.israelPosture === 'coordinated' ? ISRAEL.coordWorldFloor : 0);
             if (G.world < baseline) G.world = Math.min(baseline, G.world + 2.5);
           }
 
@@ -3036,8 +3257,17 @@ const Game = (() => {
       conf: 'low', assessed: -99,
     };
 
-    // Jerusalem's patience is not a constant either
-    G.israelPatience = rand(3, 6);
+    // Jerusalem's temper is not a constant either. What is rolled is where the
+    // gauge STARTS, not how long it takes — the rate comes off the target list
+    // and the breakout clock, so an impatient Israel is a war that opens with
+    // less room rather than a war on a shorter fuse.
+    G.israelPosture = 'sidelined';
+    G.israelPressure = rand(ISRAEL.startMin, ISRAEL.startMax);
+    G.israelSorties = 0;
+    G.israelHolds = 0;
+    G.israelHold = 0;
+    G.israelJointAvailable = false;
+    syncJointPackages();   // TARGETS outlives the war; the joint option must not
 
     // The coastal SAM belt is not always found at full strength — sometimes an
     // opening-night sweep has already been flown, sometimes it hasn't. When it
@@ -3137,7 +3367,10 @@ const Game = (() => {
 
   // airDefenseWeight is exported read-only for the tactical scope's threat ring —
   // the scope dramatizes the number, it never feeds back into the strike math.
-  return { computeStrike, executeStrike, doDiplo, endTurn, afterAction, israelStatus,
+  return { computeStrike, executeStrike, doDiplo, endTurn, afterAction,
+    // Jerusalem: the gauge is state, the ETA and the drivers are readings off it,
+    // so the panel, the advisors and the sim can never quote different numbers.
+    israelStatus, israelEta, israelClock, israelDrivers, israelHoldCost, israelPriorities,
     airDefenseWeight, orderCarrier, toggleCarrierPosture, carrierFactor, carrierExposure, navalForward,
     orderBombers, orderHeavies, transitCommitted, wearsDown,
     // the air-superiority ladder: what the sky is worth tonight, and what that

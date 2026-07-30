@@ -60,7 +60,7 @@ const TARGETS = [
   },
   {
     id: 'natanz', name: 'Natanz Enrichment Facility', short: 'NATANZ',
-    type: 'nuclear', x: 441, y: 218, depth: 2,
+    type: 'nuclear', x: 441, y: 218, depth: 2, israelPriority: true,
     desc: 'Primary enrichment site. Partially buried — cruise missiles can damage surface halls but only penetrators guarantee destruction. PRIMARY OBJECTIVE.',
     // The enrichment program is the stated reason the country went to war and
     // the one thing no capital will defend out loud. Hitting it costs nothing
@@ -73,7 +73,7 @@ const TARGETS = [
   },
   {
     id: 'fordow', name: 'Fordow Enrichment Plant', short: 'FORDOW',
-    type: 'nuclear', x: 416, y: 174, depth: 2, hardened: true,
+    type: 'nuclear', x: 416, y: 174, depth: 2, hardened: true, israelPriority: true,
     desc: 'Enrichment halls buried under 80m of rock. ONLY a B-2 with GBU-57 penetrators has any chance. PRIMARY OBJECTIVE.',
     world: 0,
     packages: [
@@ -96,7 +96,8 @@ const TARGETS = [
     id: 'msl-kermanshah', name: 'Kermanshah Missile Base', short: 'MSL KERMANSHAH',
     // stays below, but pulled left so the long label clears Khorramabad's icon
     // down-right of it; above would put it into Nojeh AB
-    type: 'missile', x: 285, y: 196, depth: 2, label: { dx: 8, dy: 20, anchor: 'end' },
+    type: 'missile', x: 285, y: 196, depth: 2, israelPriority: true,
+    label: { dx: 8, dy: 20, anchor: 'end' },
     desc: 'Ballistic missile brigade in range of US bases in Iraq. Destroying it reduces the weight of Iranian missile retaliation.',
     world: -2,
     packages: [
@@ -211,7 +212,7 @@ const TARGETS = [
   },
   {
     id: 'arak', name: 'Arak Heavy-Water Reactor', short: 'ARAK IR-40',
-    type: 'nuclear', x: 363, y: 199, depth: 2, hardened: true,
+    type: 'nuclear', x: 363, y: 199, depth: 2, hardened: true, israelPriority: true,
     desc: 'The plutonium road to a bomb — a heavy-water research reactor that breeds weapons-grade material a uranium centrifuge never touches. The reactor hall is a hardened concrete shell; cruise missiles scar it, but only a penetrator reaches the core. Killing it closes the second path to a weapon.',
     // Unfuelled and unambiguously weapons-related — the same free pass as the
     // enrichment halls. Bushehr NPP below is the exception that proves it.
@@ -263,7 +264,7 @@ const TARGETS = [
   },
   {
     id: 'msl-khorramabad', name: 'Khorramabad Missile Base', short: 'MSL KHORRAMABAD',
-    type: 'missile', x: 321, y: 221, depth: 2,
+    type: 'missile', x: 321, y: 221, depth: 2, israelPriority: true,
     desc: 'An underground "missile city" tunnelled into the Zagros — launch cells and reload magazines behind blast doors deep in the rock, ranging every US base in Iraq and the northern Gulf. The tunnel portals are the only thing to hit, and hitting them buries launchers rather than destroying them. Reduces the weight of Iranian missile retaliation.',
     world: -2,
     packages: [
@@ -581,6 +582,85 @@ const ATO = {
 };
 
 // ============================================================
+// JERUSALEM'S CLOCK
+// ------------------------------------------------------------
+// Israel is a second actor with its own war aims, not an American asset — and
+// until v1.31 it was a switch. One diplomatic action bought one joint package,
+// one hidden counter ran down to one unilateral strike, and by turn 5 of 30
+// Israel was spent and spent the remaining 25 turns as advisor flavour text.
+//
+// What replaces the counter is a pressure gauge that runs the whole campaign. It
+// climbs off what Jerusalem is actually watching: the centrifuges turning,
+// Iranian salvos landing on Israeli cities, and above all the aimpoints on THEIR
+// list that CENTCOM keeps not servicing (`israelPriority` on TARGETS — the
+// enrichment halls, Arak, and the two western missile bases that range Israel).
+// At `fly` they go, and what that means depends entirely on posture:
+//
+//   SIDELINED    they go alone. Poor BDA, ruinous abroad, and you answer for it
+//                anyway. Pressure here is a fuse you can only slow.
+//   COORDINATED  they go inside the tasking order. Real damage on a target you
+//                did not spend a package to reach, and it RE-ARMS the joint
+//                deep-strike option — the only path into the buried halls that
+//                is not a B-2. Pressure here is a tempo you profit from, priced
+//                abroad rather than in the magazine.
+//
+// That inversion is the design. Coordinating stops being a turn-2 checkbox and
+// becomes a standing bargain: more war tonight, fewer friends by Friday. And a
+// president who ignores Jerusalem's target list has chosen to be surprised by it.
+//
+// Firing does not stop the clock. It discharges to `after` and starts climbing
+// again — the campaign is 30 turns and Israel should be live in all of them.
+const ISRAEL = {
+  fly: 100,                     // pressure at which the IAF goes, posture regardless
+  startMin: 12, startMax: 30,   // rolled per war: Jerusalem's temper is not a constant
+  after: 34,                    // discharged, not reset — the next one is already building
+
+  // ---- what makes the gauge climb, per turn ----
+  ambient: 3.5,        // the program exists and they are watching it
+  breakout: 7,         // × how far along Iran's device actually is
+  ignored: 2.6,        // per LIVE israelPriority target left unserviced tonight
+  serviced: -13,       // per priority target CENTCOM actually put ordnance on
+  westward: 8,         // an Iranian salvo that landed on Israel
+  holdFactor: 0.35,    // what the ambient climb is worth while a promise is in force
+
+  // The one thing that genuinely cools Jerusalem: what they are impatient about
+  // is the enrichment, not the war. Past this much damage across the nuclear
+  // target set the gauge falls instead of climbing. This is both the honest
+  // answer to "why would they ever stand down" and the reason finishing the
+  // halls early is a diplomatic win and not only a military one.
+  standDown: 65,
+  cooling: -7,
+
+  // ---- asking them to wait ----
+  // The president's only lever, and it is paid at home rather than abroad:
+  // leaning on Jerusalem in public costs a wartime president with the Hill
+  // already counting votes. It gets dearer and weaker every time, because the
+  // second promise is worth less than the first and both capitals know it.
+  holdTurns: 3,
+  holdApproval: 4,     // × the ramp, per ask
+  holdRamp: 1.7,
+  holdRelief: -26,     // × the decay
+  holdDecay: 0.6,
+  holdMax: 3,          // after the third, Jerusalem stops taking the call
+
+  // ---- coordinated: the standing bargain ----
+  coordSlots: 0.5,      // IAF escort and SEAD freeing American packages off the ATO
+  coordWorldFloor: 8,   // how much lower standing abroad recovers to while they fly with us
+
+  // What an Israeli package achieves, by posture. Coordinated, they fly inside
+  // an American plan with American tankers, American SEAD and — against the
+  // buried halls — American penetrators, so the numbers approach a package the
+  // player would have paid for. Alone, they are at the end of their range with
+  // what they can carry: real damage to surface plant, nothing whatever under
+  // the rock at Fordow. `hard*` applies to `hardened` sites.
+  effect: {
+    coordinated: { kill: 0.30, damage: 0.85, hardKill: 0.10, hardDamage: 0.45, world: -5, oil: 6, approval: 0 },
+    unilateral:  { kill: 0.18, damage: 0.60, hardKill: 0,    hardDamage: 0.30, world: -13, oil: 15, approval: -3 },
+  },
+  aimpoints: 2,        // how many of their priorities one Israeli night services
+};
+
+// ============================================================
 // THE HEAVY BOMBER FORCE
 // ------------------------------------------------------------
 // B-1Bs and B-52s off the RAF Fairford ramp — a different field from the 509th
@@ -699,13 +779,17 @@ const BREAKOUT = {
 // and the player learns the doctrine by reading why. On hard the staff will
 // write any plan the President signs: the packages are always available, and
 // flying them early is priced in dead aircrew instead of refused outright.
+// `israel` scales how fast Jerusalem's pressure gauge climbs (see ISRAEL). It is
+// a difficulty knob rather than a flat rate because an impatient ally is exactly
+// the kind of pressure a harder war should apply: on hard the IAF is airborne
+// while the president is still deciding, on easy there is room to work the list.
 const DIFFICULTY = {
-  easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25, softGate: false,
-    desc: 'A forgiving war. The country absorbs more, Iran reconstitutes slower, and the enrichment clock runs long.' },
-  normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1, softGate: false,
+  easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25, israel: 0.75, softGate: false,
+    desc: 'A forgiving war. The country absorbs more, Iran reconstitutes slower, the enrichment clock runs long, and Jerusalem is willing to wait.' },
+  normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1, israel: 1, softGate: false,
     desc: 'The war as designed. Everything above and below is scaled from here.' },
-  hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85, softGate: true,
-    desc: 'The country has less patience, Iran repairs faster and fights better coordinated, the centrifuges are further along than you would like — and the staff will fly any package you order, into any threat, and hand you the casualty list afterwards.' },
+  hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85, israel: 1.3, softGate: true,
+    desc: 'The country has less patience, Iran repairs faster and fights better coordinated, the centrifuges are further along than you would like, Jerusalem has almost none — and the staff will fly any package you order, into any threat, and hand you the casualty list afterwards.' },
 };
 
 // These levels were once named for the chair you were sitting in. A save
