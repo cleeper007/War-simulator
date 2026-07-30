@@ -1531,7 +1531,7 @@ const Game = (() => {
   // Iran nothing (see executeStrike). The CAOC does not frag her, so the CAOC's
   // plan does not bind her — and her torpedo room is its own hard limit anyway.
   function atoOver(pkg) {
-    if (pkg && pkg.sub) return 0;
+    if (pkg && (pkg.sub || pkg.asset === 'cruise')) return 0;
     return Math.max(0, G.strikesThisTurn - atoSlots() + 1);
   }
 
@@ -1566,7 +1566,7 @@ const Game = (() => {
     // down and whether the 509th is on the ramp or in Missouri. It is also the
     // only one of these that fixes itself by ending the turn, which is exactly
     // what the player should do about it.
-    if (!pkg.sub) {
+    if (!pkg.sub && pkg.asset !== 'cruise') {
       const wall = atoWall();
       if (wall) return wall;
     }
@@ -1761,7 +1761,7 @@ const Game = (() => {
     if (atoOver(pkg) > 0) {
       G.fatigue = Math.min(ATO.maxFatigue, (G.fatigue || 0) + ATO.fatiguePerSurge);
     }
-    G.strikesThisTurn++;
+    if (pkg.asset !== 'cruise') G.strikesThisTurn++;
     G.stats.strikes++;
     G.missions.push({ targetId: target.id, pkg: { ...pkg }, eta: pkg.eta || MISSION_ETA[pkg.asset] });
     AudioSys.play('targetMarked');
