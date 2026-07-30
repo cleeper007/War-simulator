@@ -964,9 +964,15 @@ const FIGHTER_TYPES = [
   { type: 'F-15E', cs: 'MUDHEN', from: 'land' },
   { type: 'F/A-18F', cs: 'GUNSLINGER', from: 'carrier' },
 ];
+// `sil` names the scope silhouette in map.js. The heavies are the one tier
+// where the airframe is picked per sortie and then announced by name in the
+// scope header — so the shape on the glass has to match the name above it. A
+// B-1 and a B-52 share nothing but a ramp: one is a swing-wing dagger, the
+// other is a plank with eight engines. Drawing both as the same generic
+// bomber made the header read as flavour text.
 const HEAVY_TYPES = [
-  { type: 'B-1B', cs: 'BONE', from: 'land' },
-  { type: 'B-52H', cs: 'BUFF', from: 'land' },
+  { type: 'B-1B', cs: 'BONE', from: 'land', sil: 'b1' },
+  { type: 'B-52H', cs: 'BUFF', from: 'land', sil: 'b52' },
 ];
 
 // Every in-flight status / problem message lives here — edit freely.

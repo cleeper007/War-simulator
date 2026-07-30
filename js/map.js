@@ -1073,10 +1073,43 @@ const MapView = (() => {
     stealth: 'M0,-6.5 L9,4.2 L5.2,3.4 L2.8,6.4 L0,4.8 L-2.8,6.4 L-5.2,3.4 L-9,4.2 Z',
     // heavy bomber — long fuselage, high-aspect swept wings, big tailplane.
     // Reads as "large and slow" next to the fighter, which is the whole point
-    // of putting one on the scope.
+    // of putting one on the scope. Kept as the fallback for any HEAVY_TYPES
+    // entry without a `sil`; the two airframes that actually fly are below.
     heavy: 'M0,-9 L1.3,-5.2 L1.3,-1.4 L9.5,3.2 L9.5,4.6 L1.3,2.4 L1.3,5.6 ' +
            'L4.2,8 L4.2,9 L0,7.8 L-4.2,9 L-4.2,8 L-1.3,5.6 L-1.3,2.4 ' +
            'L-9.5,4.6 L-9.5,3.2 L-1.3,-1.4 L-1.3,-5.2 Z',
+    // B-52H — the plank. The only airframe on this scope whose span exceeds
+    // its length (56m across, 48m long), so it is drawn WIDER than it is tall
+    // and the proportion alone separates it from everything else in the air.
+    // The four notches biting forward off the leading edge are the twin-engine
+    // pods, which on a BUFF hang ahead of the wing rather than behind it —
+    // that overbite is the one feature a top-down BUFF has that nothing else
+    // does, and it survives being shrunk to sixteen pixels. Blunt nose, blunt
+    // tail (the gun turret bay), 35° sweep, taper down to a thin tip.
+    b52: 'M0,-9.4 C0.8,-9.3 1.15,-8.4 1.15,-7.2 L1.15,-1.9 ' +
+         'L3.85,0.05 L4.7,-1.2 L5.9,-0.35 L5,0.85 ' +
+         'L6.95,2.25 L7.8,1 L9,1.85 L8.1,3.05 ' +
+         'L10.8,5 L10.4,6.2 L1.15,3.6 L1.15,6.4 L4.6,8.3 L4.4,9.2 L0.9,9.6 ' +
+         'L-0.9,9.6 L-4.4,9.2 L-4.6,8.3 L-1.15,6.4 L-1.15,3.6 L-10.4,6.2 ' +
+         'L-10.8,5 L-8.1,3.05 L-9,1.85 L-7.8,1 L-6.95,2.25 ' +
+         'L-5,0.85 L-5.9,-0.35 L-4.7,-1.2 L-3.85,0.05 ' +
+         'L-1.15,-1.9 L-1.15,-7.2 C-1.15,-8.4 -0.8,-9.3 0,-9.4 Z',
+    // B-1B — the dagger. Everything the BUFF is not: long, narrow, and with no
+    // wing root at all. The leading edge is a CURVE out of the forward
+    // fuselage because a Bone is a blended body — there is no joint to draw,
+    // which is exactly what makes it unmistakable from above. Wings are shown
+    // mid-sweep rather than the 67.5° of a real low-level run-in: full aft the
+    // span collapses to barely wider than the fuselage and the shape stops
+    // reading at scope size. The step in the trailing edge is the pair of
+    // engine boxes, four nozzles between them, and the spike past the
+    // stabilators is the tail cone the fin sits on.
+    b1: 'M0,-8.75 C0.46,-8.58 0.8,-7.82 0.85,-6.72 L0.97,-5.35 L1.27,-3.32 ' +
+        'C1.7,-1.9 3.1,0.4 5.33,3.24 L4.99,4.15 L2.75,5.3 ' +
+        'L2.5,6.5 L1.25,6.6 L0.95,6.9 L3.9,8.05 L3.7,8.7 L0.75,8.2 ' +
+        'L0.45,8.95 L0,9.15 L-0.45,8.95 L-0.75,8.2 L-3.7,8.7 L-3.9,8.05 ' +
+        'L-0.95,6.9 L-1.25,6.6 L-2.5,6.5 L-2.75,5.3 L-4.99,4.15 L-5.33,3.24 ' +
+        'C-3.1,0.4 -1.7,-1.9 -1.27,-3.32 L-0.97,-5.35 L-0.85,-6.72 ' +
+        'C-0.8,-7.82 -0.46,-8.58 0,-8.75 Z',
     // TLAM: a body and two stub fins, deliberately not a jet
     cruise: 'M0,-7 L1.2,-3.5 L1.2,3.2 L2.9,6.2 L1.2,5.6 L1.2,7 L-1.2,7 L-1.2,5.6 ' +
             'L-2.9,6.2 L-1.2,3.2 L-1.2,-3.5 Z',
@@ -1104,7 +1137,23 @@ const MapView = (() => {
             'L-0.8,6.6 L-4.8,9 L-4.8,8.2 L-0.9,4.6 L-1,-0.2 L-12,0.5 L-12,-0.7 ' +
             'L-1,-2.2 L-1.5,-5 C-1.6,-6.4 -1.3,-7.8 0,-8 Z',
   };
-  const BURNER = 'M-1.5,7 L1.5,7 L0.9,12.5 L-0.9,12.5 Z';
+  // Exhaust plumes, keyed the same way. The default sits behind a tail because
+  // that is where a fighter's engines are; on the heavies it is not, and a
+  // plume coming off the wrong part of the airframe undoes the silhouette it
+  // is lighting.
+  const BURNER = {
+    jet: 'M-1.5,7 L1.5,7 L0.9,12.5 L-0.9,12.5 Z',
+    // four plumes trailing the four wing pods — a BUFF's engines are out on
+    // the wing, and watching them light up out there is half the read
+    b52: 'M4.75,2.6 L5.9,2.6 L5.55,7.2 L5.1,7.2 Z ' +
+         'M7.85,4.6 L9,4.6 L8.65,9 L8.2,9 Z ' +
+         'M-5.9,2.6 L-4.75,2.6 L-5.1,7.2 L-5.55,7.2 Z ' +
+         'M-9,4.6 L-7.85,4.6 L-8.2,9 L-8.65,9 Z',
+    // two wide plumes hard against the fuselage — four nozzles in two boxes,
+    // tucked under the wing gloves where a Bone actually carries them
+    b1: 'M1.35,6.2 L2.45,6.2 L2.3,11.6 L1.65,11.6 Z ' +
+        'M-2.45,6.2 L-1.35,6.2 L-1.65,11.6 L-2.3,11.6 Z',
+  };
 
   // ---- scope-local burst (the map's burst() draws in world coords) ----
   function scopeBurst(root, x, y, cls, maxR) {
@@ -1254,6 +1303,12 @@ const MapView = (() => {
     // one silhouette per aircraft/missile in the run — capped so a fat package
     // doesn't overflow the tiny scope
     const N = Math.max(1, Math.min(6, count | 0 || 1));
+    // Which shape flies. Every tier but `heavy` has exactly one airframe, so
+    // the tier name IS the silhouette; the heavies pick a type per sortie and
+    // carry their own `sil` so the B-1 and the B-52 are told apart on the
+    // glass the same way the header tells them apart in text.
+    const silKey = heavy ? (ft.sil || 'heavy')
+      : cruise ? 'cruise' : stealth ? 'stealth' : 'fighter';
 
     // live SAM coverage over this target — the same number computeStrike() used
     const adw = (typeof Game !== 'undefined' && Game.airDefenseWeight) ? Game.airDefenseWeight() : 0;
@@ -1293,11 +1348,10 @@ const MapView = (() => {
       const g = el('g', { class: 'scope-ac' });
       let burner = null;
       if (!cruise) {
-        burner = el('path', { class: 'scope-burner', d: BURNER, opacity: 0 });
+        burner = el('path', { class: 'scope-burner', d: BURNER[silKey] || BURNER.jet, opacity: 0 });
         g.appendChild(burner);
       }
-      g.appendChild(el('path', { class: 'scope-jet',
-        d: cruise ? SIL.cruise : stealth ? SIL.stealth : heavy ? SIL.heavy : SIL.fighter }));
+      g.appendChild(el('path', { class: 'scope-jet', d: SIL[silKey] }));
       view.fx.appendChild(g);
       acs.push({ g, burner, perpOff, alongOff, pos: { x: 0, y: 0 } });
     }
