@@ -229,7 +229,7 @@ button { font-family: var(--mono); }
   display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
   width: 100%; min-height: 44px; padding: 6px 10px;
   background: none; border: 0; border-bottom: 1px solid var(--line);
-  color: var(--fg); font: inherit; text-align: left; cursor: pointer;
+  color: var(--text); font: inherit; text-align: left; cursor: pointer;
 }
 #target-pick .pick-row:last-child { border-bottom: 0; }
 #target-pick .pick-row:hover,
@@ -297,10 +297,7 @@ button { font-family: var(--mono); }
 #objectives-list li.done::before { content: "[✓] "; }
 #objectives-list li.pending::before { content: "[ ] "; color: var(--dim); }
 
-#resources-list .res-row {
-  display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px;
-}
-#resources-list .res-count { color: var(--amber); }
+/* the assets panel's own styles all live in the "strike assets" block below */
 
 /* The situation room is summary-first: the name and the tasking are always
    visible, the argument for it is one click down. Four paragraphs here used to
@@ -1190,7 +1187,7 @@ button { font-family: var(--mono); }
 }
 .diff-option:hover { border-color: var(--blue); background: rgba(90,150,220,.06); }
 .diff-option input { margin-right: 7px; accent-color: var(--blue); }
-.diff-name { font-size: 11.5px; letter-spacing: .8px; color: var(--fg); }
+.diff-name { font-size: 11.5px; letter-spacing: .8px; color: var(--text); }
 .diff-desc { display: block; font-size: 10.5px; color: var(--dim); margin: 3px 0 0 20px; }
 .diff-option:has(input:checked) { border-color: var(--blue); background: rgba(90,150,220,.1); }
 
@@ -1203,7 +1200,7 @@ button { font-family: var(--mono); }
   align-items: baseline;
 }
 .breakout .bo-label { font-size: 9.5px; letter-spacing: 1.1px; color: var(--dim); }
-.breakout .bo-value { font-size: 13px; color: var(--fg); font-weight: 600; }
+.breakout .bo-value { font-size: 13px; color: var(--text); font-weight: 600; }
 .breakout .bo-conf { font-size: 10px; color: var(--dim); font-style: italic; }
 #breakout-line.warn { border-left-color: var(--amber); }
 #breakout-line.warn .bo-value { color: var(--amber); }
@@ -1212,36 +1209,141 @@ button { font-family: var(--mono); }
 #breakout-line.halted { border-left-color: var(--green); }
 #breakout-line.halted .bo-value { color: var(--green); font-size: 11.5px; }
 
-/* ============ tanker tracks ============ */
-.res-row.tanker-row,
-.res-row.plan-row { margin-top: 5px; border-top: 1px solid var(--line); padding-top: 5px; }
-.res-note { font-size: 10px; line-height: 1.45; margin-top: 3px; }
-.res-count.warn { color: var(--amber); }
-.res-count.crit { color: var(--red); }
-.res-note .warn { color: var(--amber); }
-.res-note .crit { color: var(--red); }
+/* ============ strike assets ============ */
+/* Three answers in the order the questions get asked — see the comment block
+   above renderResources in ui.js for why the flat eleven-row list went. */
+
+/* ---- what gates tonight ---- */
+/* The box is bordered because it is the one thing in the panel a player has to
+   read before clicking a target: the phase decides what may fly, and the two
+   gauges under it decide how much of it flies tonight. */
+.res-tonight {
+  border: 1px solid var(--line); background: var(--bg-panel2); padding: 8px 9px;
+}
+/* the ladder loses its own card inside the box — one border is the box's */
+.res-tonight .airsup { background: none; padding: 0 0 0 8px; margin-bottom: 9px; }
+
+.ton-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  font-size: 9.5px; letter-spacing: 1.2px; color: var(--dim); margin-top: 9px;
+}
+.ton-val {
+  font-size: 12px; letter-spacing: 0; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ton-val.warn { color: var(--amber); }
+.ton-val.crit { color: var(--red); }
+
+/* A gauge, not a fraction. Segments flex so a plan that has grown to six
+   packages or a tanker cap in the mid-teens still fits 300px — the exact
+   figure is always on the row above, so the boxes only have to carry shape. */
+.gauge { display: flex; gap: 3px; margin-top: 4px; }
+.gauge .seg { flex: 1 1 0; min-width: 0; height: 9px; border: 1px solid var(--amber); }
+.gauge .seg.on { background: var(--amber); }
+.gauge .seg.off { opacity: .4; }
+/* Past the plan: still flyable, and drawn as the exception it is. Held back at
+   half opacity until one is actually spent — on a night inside the plan these
+   are four red boxes describing something that has not happened, and at full
+   strength they pulled the eye off the three that had. */
+.gauge .seg.late { border-color: var(--red); border-style: dashed; opacity: .45; }
+.gauge .seg.late.on { background: var(--red); border-style: solid; opacity: 1; }
+.gauge .split { flex: 0 0 5px; }
+.gauge.tk .seg { height: 6px; border-color: var(--blue); }
+.gauge.tk .seg.on { background: var(--blue); }
+
+.ton-alert { font-size: 10px; line-height: 1.45; margin-top: 7px; color: var(--amber); }
+.ton-alert.crit { color: var(--red); }
+
+/* The standing rules — tanker charges, what a late frag costs, which rung is
+   next. Same shape as the advisors' and the orders' explainers: a caret, a
+   label, and the paragraph one click down. */
+.ton-why {
+  display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 8px;
+  padding: 3px 0; background: none; border: none; color: var(--blue);
+  font: inherit; font-size: 10px; letter-spacing: .8px; text-align: left; cursor: pointer;
+}
+.ton-why:hover { color: var(--text); }
+.ton-why:focus-visible { outline: 1px solid var(--blue); outline-offset: 2px; }
+.ton-why .why-caret {
+  font-size: 8px; line-height: 1; display: inline-block;
+  transform: rotate(-90deg); transition: transform 0.18s ease;
+}
+.res-tonight.open .ton-why .why-caret { transform: none; }
+.ton-text { display: none; font-size: 10px; line-height: 1.5; color: var(--dim); }
+.res-tonight.open .ton-text { display: block; }
+.ton-text p + p { margin-top: 6px; }
+
+/* ---- what can fly ---- */
+.res-group { margin-top: 11px; }
+.res-legend {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 9px; letter-spacing: 1.6px; color: var(--dim); margin-bottom: 3px;
+}
+.res-legend::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.res-legend.held { color: var(--red); }
+
+/* `tick` (the left rule) is availability; the bar underneath is stock. A held
+   heavy wing with a full magazine is a red row with an untouched bar, and that
+   pair is the whole of what the player needs to know about it. */
+.asset {
+  display: grid; grid-template-columns: 1fr auto; column-gap: 8px; align-items: baseline;
+  padding: 4px 0 5px 7px; border-left: 2px solid transparent;
+}
+.asset.warn { border-left-color: var(--amber); }
+.asset.crit { border-left-color: var(--red); }
+.a-name { font-size: 11.5px; }
+.a-sub {
+  display: block; font-size: 9px; letter-spacing: .7px; color: var(--dim); margin-top: 1px;
+}
+.a-sub.warn { color: var(--amber); }
+.a-sub.crit { color: var(--red); }
+.a-val {
+  font-size: 12px; color: var(--amber); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.a-val.off { color: var(--dim); }
+.a-val.crit { color: var(--red); }
+.a-mag {
+  grid-column: 1 / 3; height: 3px; margin-top: 5px; background: rgba(255,255,255,.08);
+}
+/* held under the row's own weight: at full strength a magazine that happens to
+   be full is an unbroken amber rule the width of the panel, and seven of them
+   read as dividers between the rows rather than as a reading of each */
+.a-mag i { display: block; height: 100%; background: var(--amber); opacity: .6; }
+.a-mag.off i { background: var(--dim); }
+.a-mag.crit i { background: var(--red); }
+
+/* ---- what is already out ---- */
+.res-flight {
+  display: flex; justify-content: space-between; gap: 8px; font-size: 11px; padding: 3px 0;
+}
+.res-flight .tgt { color: var(--dim); }
+.res-flight .eta { color: var(--amber); font-variant-numeric: tabular-nums; }
 
 /* ============ air superiority ============ */
 /* The ladder the whole force structure hangs off. The two ticks are the
    release thresholds, so the bar reads as "how much further" rather than as a
-   percentage nobody can interpret. */
+   percentage nobody can interpret. The ticks were invisible until v1.33: they
+   were painted with `var(--fg)`, a token nothing ever defined, so the
+   declaration was invalid at computed-value time and the background fell back
+   to transparent. The bar has been running without its thresholds on it. */
 .airsup {
   border-left: 3px solid var(--dim); padding: 6px 8px; margin-bottom: 8px;
   background: rgba(255,255,255,.02);
 }
 .airsup .as-head { display: flex; justify-content: space-between; align-items: baseline; }
 .airsup .as-label { font-size: 9.5px; letter-spacing: 1.1px; color: var(--dim); }
-.airsup .as-value { font-size: 13px; font-weight: 600; color: var(--fg); }
+.airsup .as-value { font-size: 13px; font-weight: 600; color: var(--text); }
 .airsup .as-bar {
   position: relative; height: 5px; margin: 5px 0 4px;
   background: rgba(255,255,255,.08); overflow: hidden;
 }
 .airsup .as-fill { position: absolute; inset: 0 auto 0 0; background: var(--dim); }
+/* the bar clips its own overflow, so a tick that reaches past it is wasted */
 .airsup .as-tick {
-  position: absolute; top: -2px; bottom: -2px; width: 1px;
-  background: var(--fg); opacity: .55;
+  position: absolute; top: 0; bottom: 0; width: 1px;
+  background: var(--text); opacity: .7;
 }
-.airsup .as-note { font-size: 10px; line-height: 1.45; }
 .airsup.ap-con { border-left-color: var(--red); }
 .airsup.ap-con .as-value, .airsup.ap-con .as-label { color: var(--red); }
 .airsup.ap-con .as-fill { background: var(--red); }
@@ -1251,11 +1353,6 @@ button { font-family: var(--mono); }
 .airsup.ap-sup { border-left-color: var(--green); }
 .airsup.ap-sup .as-value, .airsup.ap-sup .as-label { color: var(--green); }
 .airsup.ap-sup .as-fill { background: var(--green); }
-
-/* a tier that is present but not released — the label has to say so */
-.res-gate { font-size: 8.5px; letter-spacing: .8px; margin-left: 4px; }
-.res-gate.warn { color: var(--amber); }
-.res-gate.crit { color: var(--red); }
 
 /* ============ a target that cannot be struck ============ */
 .pkg-blocked {
@@ -1293,7 +1390,7 @@ button { font-family: var(--mono); }
 }
 .timeline-table td { padding: 3px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
 .timeline-table td:not(.tl-text) { color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.timeline-table .tl-text { color: var(--fg); width: 100%; }
+.timeline-table .tl-text { color: var(--text); width: 100%; }
 
 /* ============================================================
    ALLIED HEAD-OF-GOVERNMENT CALL

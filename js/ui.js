@@ -278,139 +278,272 @@ const UI = (() => {
   // as a bar with the two release thresholds marked on it, so the player can
   // see how much more of the SAM belt has to come down — and can watch it slide
   // back the other way on the nights nobody goes back.
-  function renderAirPhase(G) {
+  //
+  // Split in two as of v1.33. The BAR is the first line of the tonight box. The
+  // sentence saying which rung comes next moved into that box's disclosure: it
+  // is the same sentence for every turn spent on a rung — a reference card that
+  // was being reprinted above seven magazine rows on all thirty of them.
+  function airPhaseBar(G) {
     const s = Game.airSuperiority();
     const phase = Game.airPhase();
     const cls = phase === 'superiority' ? 'ap-sup' : phase === 'degraded' ? 'ap-deg' : 'ap-con';
-    const gated = !Game.difficulty().softGate;
-    const next = phase === 'contested'
-      ? (gated ? 'Fourth-generation squadrons release at 40%.'
-               : 'Fourth-generation squadrons release at 40% — until then they fly into an intact belt.')
-      : phase === 'degraded'
-        ? 'Heavy bombers release at 80%. Air defense repairs overnight — this number falls if you look away.'
-        : 'The heavy force is released. Every night the SAM belt is left alone, this number falls.';
     return `<div class="airsup ${cls}">` +
       `<div class="as-head"><span class="as-label">${Game.PHASE_LABEL[phase]}</span>` +
       `<span class="as-value">${Math.round(s * 100)}%</span></div>` +
       `<div class="as-bar"><span class="as-fill" style="width:${Math.round(s * 100)}%"></span>` +
       `<span class="as-tick" style="left:${AIR_PHASE.degraded * 100}%"></span>` +
-      `<span class="as-tick" style="left:${AIR_PHASE.superiority * 100}%"></span></div>` +
-      `<div class="as-note dim">${next}</div></div>`;
+      `<span class="as-tick" style="left:${AIR_PHASE.superiority * 100}%"></span></div></div>`;
+  }
+
+  function airPhaseNote(G) {
+    const phase = Game.airPhase();
+    const gated = !Game.difficulty().softGate;
+    return phase === 'contested'
+      ? (gated ? 'Fourth-generation squadrons release at 40%.'
+               : 'Fourth-generation squadrons release at 40% — until then they fly into an intact belt.')
+      : phase === 'degraded'
+        ? 'Heavy bombers release at 80%. Air defense repairs overnight — this number falls if you look away.'
+        : 'The heavy force is released. Every night the SAM belt is left alone, this number falls.';
+  }
+
+  // ============================================================
+  // STRIKE ASSETS
+  // ------------------------------------------------------------
+  // The panel was eleven rows and two paragraphs at one weight, in a 300px
+  // column. Everything in it was true and nothing in it was ranked: a torpedo
+  // count spent twice a war was set in the same type as the package plan spent
+  // every turn, and the two figures that actually gate a night — packages left
+  // and tanker tracks — sat ninth and tenth, each under three lines of prose.
+  //
+  // So it is now three answers in the order the questions get asked. What gates
+  // tonight (the box: phase, packages, tankers). What can fly, grouped by
+  // whether it is released rather than by tier. What is already airborne.
+  //
+  // Nothing was removed. The reference prose — which rung comes next, what a
+  // late frag costs, what each package charges the tanker plan — is one click
+  // down, because it says the same thing every turn and the numbers above it
+  // do not.
+  // ============================================================
+
+  // Whether the tonight box's explainer is open. Like `actOpen` and unlike
+  // `advOpen` this is NOT cleared on the turn roll: "a deep fighter package
+  // books two tracks" is the same sentence on turn 1 and turn 30, so a player
+  // who opened it is learning the game and keeps it open until they close it.
+  let resWhyOpen = false;
+
+  // A magazine drawn as well as counted. "4 / 8" and "6 / 8" read identically
+  // at 12px in a column this narrow; the bar is the only thing in the row that
+  // says how close to dry it is without being read.
+  function magBar(have, cap, cls) {
+    const pct = cap > 0 ? Math.max(0, Math.min(100, Math.round(have / cap * 100))) : 0;
+    return `<span class="a-mag${cls ? ' ' + cls : ''}"><i style="width:${pct}%"></i></span>`;
+  }
+
+  // The tasking order as boxes rather than a fraction: solid for the plan,
+  // dashed for the late frags past it, filled for what has already flown, and
+  // the wall is where the boxes stop. The whole of ATO reads at a glance and
+  // without a sentence — which matters, because the sentence is the thing a
+  // player stops reading around turn five.
+  function slotGauge(flown, slots, ceiling) {
+    let s = '';
+    for (let i = 0; i < slots; i++) s += `<span class="seg${i < flown ? ' on' : ' off'}"></span>`;
+    s += '<span class="split"></span>';
+    for (let i = 0; i < ceiling; i++) s += `<span class="seg late${slots + i < flown ? ' on' : ''}"></span>`;
+    return `<span class="gauge">${s}</span>`;
+  }
+
+  function trackGauge(have, cap) {
+    let s = '';
+    for (let i = 0; i < cap; i++) s += `<span class="seg${i < have ? ' on' : ' off'}"></span>`;
+    return `<span class="gauge tk">${s}</span>`;
+  }
+
+  // Every magazine, sorted by the only question a player asks of one: can I use
+  // this tonight. `group` is that answer — cleared, present but not released,
+  // not in theater — and it is a HEADING now rather than the 8.5px suffix it
+  // used to be, because a tier that will not fly must not read like one that
+  // will. `tick` is the coloured rule down the left of the row; `low` is the
+  // magazine itself being the problem, which is a different fact from the
+  // ladder holding the tier back and gets a different colour on the bar.
+  function assetRows(G) {
+    const softGate = Game.difficulty().softGate;
+    const rows = [];
+    const add = (o) => rows.push(Object.assign({ group: 'go', tick: '', low: false }, o));
+
+    // Present, but the ladder has not released it. On the difficulties that
+    // only soften the gate the tier DOES fly — into an intact belt — so it
+    // belongs in CLEARED with a warning, not behind a heading saying grounded.
+    const gate = (need) => {
+      if (Game.phaseAtLeast(need)) return null;
+      return softGate
+        ? { tick: 'warn', sub: 'Belt unsuppressed — they fly into it' }
+        : { group: 'held', tick: 'crit', sub: `Held until ${Math.round(AIR_PHASE[need] * 100)}%` };
+    };
+    // A count is not an answer. What the player needs to know is whether the
+    // magazine holds a PACKAGE, because that is the unit the strike modal
+    // spends — "1 / 2" reads like something you can use and buys nothing. Only
+    // when the count is non-zero: an empty magazine already reads as empty, and
+    // it is the leftover sortie that lies.
+    const short = (asset) => {
+      const have = G.res[Game.resKey(asset)], min = Game.minPackage(asset);
+      return min && have > 0 && have < min
+        ? { tick: 'crit', low: true, sub: `Short of a package — ${min} needed` } : null;
+    };
+
+    const f5 = short('f35');
+    add({ name: '5th-gen sorties', sub: f5 ? f5.sub : 'F-35 / F-22',
+      tick: f5 ? f5.tick : '', low: !!f5, have: G.res.f35, cap: G.caps.f35 });
+
+    const f4 = gate('degraded') || short('fighter');
+    add({ name: '4th-gen sorties', sub: f4 ? f4.sub : 'F-15E / F-16',
+      tick: f4 ? f4.tick : '', low: !!(f4 && f4.low), group: (f4 && f4.group) || 'go',
+      have: G.res.fighters, cap: G.caps.fighters });
+
+    // The Tomahawk reservoir is finite for the whole war (Lincoln 20, Ford +10).
+    // What is left behind the ready launchers rides in the row's second line and
+    // escalates as it runs down — the point of the number is that it is rationed.
+    const pool = G.tlamPool ?? 0;
+    const tl = short('cruise');
+    add({ name: 'Cruise missiles', sub: `${tl ? tl.sub : 'TLAM'} · ${pool} in theater`,
+      tick: tl ? 'crit' : pool <= 4 ? 'crit' : pool <= 10 ? 'warn' : '',
+      low: !!tl || pool <= 4, have: G.res.cruise, cap: G.caps.cruise });
+
+    // The boat's own load — not a theater magazine, and it never refills.
+    const torps = G.torpedoes ?? 0;
+    add({ name: 'Mk-48 torpedoes', sub: torps === 0 ? 'Tubes dry' : 'Toledo · never refills',
+      tick: torps === 0 ? 'crit' : '', low: torps === 0, have: torps, cap: TORPEDO_LOAD });
+
+    if (G.bombersArrived) {
+      const b2 = short('stealth');
+      add({ name: 'B-2 missions', sub: b2 ? b2.sub : 'GBU-57 · Diego Garcia',
+        tick: b2 ? b2.tick : '', low: !!b2, have: G.res.stealth, cap: G.caps.stealth });
+    } else {
+      add({ name: 'B-2 missions', group: 'away', sub: 'GBU-57 · 509th, Whiteman AFB',
+        val: G.bombersOrdered ? `EN ROUTE ${G.bomberEta}T` : 'NOT DEPLOYED' });
+    }
+
+    if (G.heaviesArrived) {
+      const hv = gate('superiority') || short('heavy');
+      add({ name: 'Heavy bombers', sub: hv ? hv.sub : 'B-1 / B-52 · RAF Fairford',
+        tick: hv ? hv.tick : '', low: !!(hv && hv.low), group: (hv && hv.group) || 'go',
+        have: G.res.heavy, cap: G.caps.heavy });
+    } else {
+      add({ name: 'Heavy bombers', group: 'away', sub: 'B-1 Dyess · B-52 Barksdale',
+        val: G.heaviesOrdered ? `EN ROUTE ${G.heavyEta}T` : 'NOT DEPLOYED' });
+    }
+
+    add({ name: 'SOF task force', sub: 'Tier 1', have: G.res.specops, cap: G.caps.specops });
+    return rows;
+  }
+
+  const RES_GROUPS = [
+    ['go', 'CLEARED TO FLY', ''],
+    ['held', 'NOT RELEASED', 'held'],
+    ['away', 'NOT IN THEATER', 'away'],
+  ];
+
+  function assetHtml(r) {
+    const off = r.group !== 'go';
+    const val = r.val ?? `${r.have} / ${r.cap}`;
+    const vCls = r.val ? ' off' : r.low ? ' crit' : off ? ' off' : '';
+    return `<div class="asset${r.tick ? ' ' + r.tick : ''}">` +
+      `<span class="a-name">${r.name}<span class="a-sub${r.tick ? ' ' + r.tick : ''}">${r.sub}</span></span>` +
+      `<span class="a-val${vCls}">${val}</span>` +
+      (r.val ? '' : magBar(r.have, r.cap, off ? 'off' : r.low ? 'crit' : '')) +
+      `</div>`;
   }
 
   function renderResources(G) {
-    // the bomber lines read as a deployment status until there is a force to count
-    const b2 = G.bombersArrived ? `${G.res.stealth} / ${G.caps.stealth}`
-      : G.bombersOrdered ? `EN ROUTE ${G.bomberEta}T` : 'NOT DEPLOYED';
-    const hv = G.heaviesArrived ? `${G.res.heavy} / ${G.caps.heavy}`
-      : G.heaviesOrdered ? `EN ROUTE ${G.heavyEta}T` : 'NOT DEPLOYED';
-    // A tier that is present but not released is not the same as a tier that is
-    // empty, and the panel has to say which — the whole early campaign is a
-    // player looking at fifteen Strike Eagles they are not allowed to use.
-    // A force that isn't in theater at all needs no badge: the count says it.
-    const held = (need, present) => !present || Game.phaseAtLeast(need) ? ''
-      : Game.difficulty().softGate ? ' <span class="res-gate warn">UNSUPPRESSED</span>'
-      : ' <span class="res-gate crit">HELD</span>';
-    // A count is not an answer. What the player needs to know is whether the
-    // magazine holds a PACKAGE, because that is the unit the strike modal
-    // spends — "1 / 2" reads like something you can use and buys nothing.
-    // Only when the count is non-zero: an empty magazine already reads as
-    // empty, and it is the leftover sortie that lies.
-    const short = (asset, present) => {
-      if (!present) return '';
-      const have = G.res[Game.resKey(asset)], min = Game.minPackage(asset);
-      return min && have > 0 && have < min
-        ? ` <span class="res-gate crit">SHORT OF A PACKAGE (${min} NEEDED)</span>` : '';
-    };
-    // The Tomahawk reservoir is finite for the whole war (Lincoln 20, Ford +10).
-    // Show what is left in theater behind the ready launchers, and escalate the
-    // styling as it runs down — the point of the number is that it must be rationed.
-    const tlamReserve = () => {
-      const n = G.tlamPool ?? 0;
-      const cls = n <= 4 ? 'res-gate crit' : n <= 10 ? 'res-gate warn' : 'res-gate';
-      return ` <span class="${cls}">${n} IN THEATER</span>`;
-    };
-    const rows = [
-      ['5th-gen sorties (F-35/F-22)', `${G.res.f35} / ${G.caps.f35}`, short('f35', true)],
-      ['4th-gen sorties (F-15E/F-16)', `${G.res.fighters} / ${G.caps.fighters}`,
-        held('degraded', true) || short('fighter', true)],
-      ['Cruise missiles (TLAM)', `${G.res.cruise} / ${G.caps.cruise}`, short('cruise', true) + tlamReserve()],
-      // The boat's own load — it is not a theater magazine and it never refills,
-      // so it is counted here rather than hidden inside the strike modal.
-      ['Mk-48 torpedoes (Toledo)', `${G.torpedoes ?? 0} / ${TORPEDO_LOAD}`,
-        (G.torpedoes ?? 0) === 0 ? ' <span class="res-gate crit">TUBES DRY</span>' : ''],
-      ['B-2 missions (GBU-57)', b2, short('stealth', G.bombersArrived)],
-      ['Heavy bombers (B-1/B-52)', hv,
-        held('superiority', G.heaviesArrived) || short('heavy', G.heaviesArrived)],
-      ['SOF task force (Tier 1)', `${G.res.specops} / ${G.caps.specops}`, ''],
-    ];
-    let html = renderAirPhase(G);
-    html += rows.map(([n, v, gate]) =>
-      `<div class="res-row"><span>${n}${gate}</span>` +
-      `<span class="res-count${gate.includes('crit') ? ' crit' : ''}">${v}</span></div>`).join('');
-    // Tanker tracks are the other magazine. Shown with the reach it buys,
-    // because "3 tracks" means nothing on its own and "3 tracks — a heavy on the
-    // interior, or three deep fighter packages" means everything. Thresholds
-    // moved with the v1.19 charge rescale: crit is the point where nothing but
-    // fighters and Tomahawks will fly, warn is losing the deep heavy option.
-    // ---- tonight's tasking order ----
-    // The magazine that runs out first now (see ATO in data.js), so it sits
-    // above the tanker plan. It has to be readable BEFORE a target is clicked:
-    // the whole decision this constant exists to create is "what is the third
-    // package worth, and is there a fourth", and a player who only learns the
-    // plan is spent from a refusal in the strike modal is being asked to
-    // sequence a night they cannot see.
+    // ---- what gates tonight ----
+    // Read BEFORE a target is clicked: the whole decision the ATO constant
+    // exists to create is "what is the third package worth, and is there a
+    // fourth", and a player who only learns the plan is spent from a refusal in
+    // the strike modal is being asked to sequence a night they cannot see.
     const slots = Game.atoSlots();
     const flown = G.strikesThisTurn;
     const over = Math.max(0, flown - slots);
-    const atoCls = flown >= slots + ATO.ceiling ? 'crit' : flown >= slots ? 'warn' : '';
-    html += `<div class="res-row plan-row"><span>Packages tasked tonight</span>` +
-      `<span class="res-count ${atoCls}">${flown} / ${slots}</span></div>`;
-    html += `<div class="res-note dim">` +
-      (flown >= slots + ATO.ceiling
-        ? `<span class="crit">The order is closed — nothing else flies tonight.</span>`
-        : over > 0
-          ? `<span class="crit">${plural(over, 'late frag')} outside the plan.</span> Each flies degraded, ` +
-            `costs aircrew, and takes a package off tomorrow.`
-        : flown >= slots
-          ? `<span class="warn">The plan is spent.</span> More can still be flown as late frags — worse ` +
-            `effects, more risk, and a shorter plan tomorrow.`
-          : `Packages past the plan still fly, and are charged against tomorrow's.`) +
-      (G.fatigue ? ` <span class="warn">${plural(G.fatigue, 'package')} held back for crew rest.</span>` : '') +
-      `</div>`;
-
+    const left = Math.max(0, slots - flown);
+    const closed = flown >= slots + ATO.ceiling;
     const tk = G.tankers, cap = G.tankerCap || Game.tankerCapacity();
-    const tkCls = tk <= 1 ? 'crit' : tk <= 3 ? 'warn' : '';
-    html += `<div class="res-row tanker-row"><span>Tanker tracks tonight</span>` +
-      `<span class="res-count ${tkCls}">${tk} / ${cap}</span></div>`;
-    html += `<div class="res-note dim">Fighters: littoral unrefuelled · interior 1 · deep 2. ` +
-      `Bombers tank at every depth — B-1/B-52 littoral 2 · interior 3 · deep 4 · ` +
-      `B-2 mission 4 · Tomahawks fly unrefuelled.` +
-      (!G.basing.gulf ? ' <span class="crit">Gulf ramps closed — nothing deep is reachable.</span>'
-        : !G.basing.nato ? ' <span class="warn">NATO and Saudi tracks withdrawn.</span>' : '') +
-      `</div>`;
-    if (G.missions.length) {
-      html += `<div class="res-row" style="margin-top:6px"><span style="color:var(--amber)">MISSIONS IN FLIGHT</span></div>`;
-      html += G.missions.map(m => {
-        const t = TARGETS.find(x => x.id === m.targetId);
-        return `<div class="res-row"><span class="dim">→ ${t.short}</span>` +
-          `<span class="res-count">${m.eta > 1 ? `TOT ${m.eta} turns` : 'TOT this turn'}</span></div>`;
-      }).join('');
+
+    // Live state stays on the face of the box. Only the things that are true
+    // tonight and would change how the player spends the next order — never the
+    // standing rules, which are what the disclosure is for.
+    const alerts = [];
+    if (closed) alerts.push(['crit', 'The order is closed — nothing else flies tonight.']);
+    else if (over > 0) alerts.push(['crit', `${plural(over, 'late frag')} outside the plan — ` +
+      'degraded, costing aircrew, one package off tomorrow each.']);
+    else if (left === 0) alerts.push(['warn', 'The plan is spent. More can still be flown as late frags.']);
+    if (G.fatigue) alerts.push(['warn', `${plural(G.fatigue, 'package')} held back for crew rest.`]);
+    if (!G.basing.gulf) alerts.push(['crit', 'Gulf ramps closed — nothing deep is reachable.']);
+    else if (!G.basing.nato) alerts.push(['warn', 'NATO and Saudi tanker tracks withdrawn.']);
+
+    const whyText =
+      `<p>${airPhaseNote(G)}</p>` +
+      `<p>Tonight's order holds ${plural(slots, 'package')}. Past it a package still flies as a ` +
+      `late frag — worse effects, a heavier aircrew roll, and one package charged against ` +
+      `tomorrow's plan — until the order closes after the ${Txt.ordinal(slots + ATO.ceiling)}. ` +
+      `The boat is not on the ` +
+      `order: a torpedo attack is planned aboard the submarine.</p>` +
+      `<p>Tanker charges — fighters: littoral unrefuelled · interior 1 · deep 2. Bombers tank at ` +
+      `every depth: B-1/B-52 littoral 2 · interior 3 · deep 4 · B-2 mission 4. Tomahawks fly ` +
+      `unrefuelled.</p>`;
+
+    const atoCls = closed ? ' crit' : flown >= slots ? ' warn' : '';
+    const tkCls = tk <= 1 ? ' crit' : tk <= 3 ? ' warn' : '';
+    let html = `<div class="res-tonight${resWhyOpen ? ' open' : ''}">` +
+      airPhaseBar(G) +
+      `<div class="ton-row"><span>PACKAGES</span>` +
+      `<span class="ton-val${atoCls}">${flown} / ${slots}</span></div>` +
+      slotGauge(flown, slots, ATO.ceiling) +
+      `<div class="ton-row"><span>TANKER TRACKS</span>` +
+      `<span class="ton-val${tkCls}">${tk} / ${cap}</span></div>` +
+      trackGauge(tk, cap) +
+      alerts.map(([c, t]) => `<div class="ton-alert ${c}">${t}</div>`).join('') +
+      `<button type="button" class="ton-why" aria-expanded="${resWhyOpen}">` +
+      `<span class="why-caret" aria-hidden="true">▾</span>what this costs</button>` +
+      `<div class="ton-text">${whyText}</div></div>`;
+
+    // ---- what can fly ----
+    const rows = assetRows(G);
+    for (const [key, legend, cls] of RES_GROUPS) {
+      const inGroup = rows.filter(r => r.group === key);
+      if (!inGroup.length) continue;
+      html += `<div class="res-group"><div class="res-legend ${cls}">${legend}</div>` +
+        inGroup.map(assetHtml).join('') + `</div>`;
     }
+
+    // ---- what is already out ----
+    if (G.missions.length) {
+      html += `<div class="res-group"><div class="res-legend">AIRBORNE NOW</div>` +
+        G.missions.map(m => {
+          const t = TARGETS.find(x => x.id === m.targetId);
+          return `<div class="res-flight"><span class="tgt">→ ${t.short}</span>` +
+            `<span class="eta">${m.eta > 1 ? `TOT ${m.eta}T` : 'TOT THIS TURN'}</span></div>`;
+        }).join('') + `</div>`;
+    }
+
     $('resources-list').innerHTML = html;
+
+    const why = $('resources-list').querySelector('.ton-why');
+    if (why) why.addEventListener('click', () => {
+      resWhyOpen = !resWhyOpen;
+      why.closest('.res-tonight').classList.toggle('open', resWhyOpen);
+      why.setAttribute('aria-expanded', String(resWhyOpen));
+    });
+
     // Shut, the assets panel shows the magazine that actually runs out first —
     // which as of v1.28 is the tasking order and not the tanker plan. Tankers
     // were the binding constraint until v1.19 deliberately took them out of that
     // role; leaving the badge on them was the panel still reporting the old war.
     // Spelled out: PKG is ramp shorthand, and this badge is one of five words a
     // player sees before they have opened anything at all.
-    const left = Math.max(0, slots - flown);
     setBadge('resources',
-      flown >= slots + ATO.ceiling ? 'ORDER CLOSED'
+      closed ? 'ORDER CLOSED'
         : left === 0 ? 'PLAN SPENT'
         : `${left} PACKAGE${left === 1 ? '' : 'S'}`,
       left === 0 ? '' : 'badge-none');
-    // The ladder itself, on the shut panel. renderAirPhase draws the full bar
+    // The ladder itself, on the shut panel. The tonight box draws the full bar
     // with both release thresholds marked on it, but that lives inside the body
     // — and the phase is what decides whether the fourth-gen squadrons and the
     // heavies fly at all. A player who never opens this panel still has to know
