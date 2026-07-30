@@ -1533,8 +1533,12 @@ const MapView = (() => {
     }
     // Front-loaded launch clip (plays in full before the run, gating the flight
     // so it never eats into radar time): TLAMs get the vertical-launch clip;
-    // fighters coming off a carrier deck get the catapult-launch clip.
+    // fighters coming off a carrier deck get the catapult-launch clip; a heavy
+    // package flying the BUFF gets the long roll off the ramp. The clip is keyed
+    // on the airframe rather than the tier, so a Bone sortie gets no launch clip
+    // rather than eight engines of footage over the wrong jet.
     const launchClip = cruise ? 'video/tlam-launch.mp4'
+      : heavy && ft.sil === 'b52' ? 'video/b52-launch.mp4'
       : origin.kind === 'carrier' ? 'video/carrier-launch.mp4'
       : null;
     if (launchClip) {
@@ -1724,15 +1728,24 @@ const MapView = (() => {
   // The weapon can outrank the target: a torpedo hit is a column of water going
   // up under a hull, and no aimpoint footage says that.
   const TORPEDO_CLIP = 'video/torpedo-hit.mp4';
-  // A hit on a field can catch what is parked on it. Half the time it does, so
-  // the airbases keep a second clip and the coin decides which one you get —
-  // the same base struck twice should not look like the same footage twice.
-  const F14_CLIP = 'video/f14-hit.mp4';
+  // A hit on a field can catch what is parked on it, so the airbases draw from a
+  // pool rather than a single clip — the same base struck twice should not look
+  // like the same footage twice. Tabriz's own aimpoint clip joins the draw as one
+  // more entry, so every clip a given base can show is equally likely.
+  const AIRBASE_CLIPS = [
+    'video/f14-hit.mp4',
+    'video/airbase-hit-a.mp4',
+    'video/airbase-hit-b.mp4',
+  ];
 
   function hitClip(target, pkg) {
     if (pkg && pkg.sub) return TORPEDO_CLIP;
-    if (target.type === 'airbase' && Math.random() < 0.5) return F14_CLIP;
-    return HIT_CLIPS[target.id] || 'video/strike-hit.mp4';
+    const own = HIT_CLIPS[target.id];
+    if (target.type === 'airbase') {
+      const pool = own ? [...AIRBASE_CLIPS, own] : AIRBASE_CLIPS;
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+    return own || 'video/strike-hit.mp4';
   }
 
   // Called by game.js only when BDA confirms a successful hit (destroyed/damaged).
