@@ -479,7 +479,7 @@ const IranAI = (() => {
     } else if (!G.bombersOrdered && !G.secondCarrierOrdered && G.turn <= 3 && nukeDeg < 100) {
       // a choice that stops being available quietly, which is why it is flagged
       secdef.urgent = true;
-      secdef.line = 'The Ford or the 509th — one moves tonight.';
+      secdef.line = 'The Ford or the B-2 fleet — bring one to theater.';
       secdef.text = 'Fifth Fleet runs one transit a night. The Ford is five turns out — worth double one deck; the 509th arrives in one and is the only thing that opens Fordow. One goes tonight, the other tomorrow. Decide which before the week decides for you.';
     } else if (nukeDeg >= 100 && warStr <= 1.5) {
       secdef.line = 'They are beaten. End it on our terms.';
