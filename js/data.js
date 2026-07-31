@@ -772,6 +772,19 @@ const IRAN_POSTURES = {
   },
 };
 
+// The first turn on which Tehran's own naval arm can move the Strait. Mining a
+// channel is not a switch: the boats have to sail and the fields have to be
+// laid, and until they are, the naval arm looks the same from Washington
+// whatever plan Tehran is running. Without this window STRAIT STRANGLER
+// announced itself on the opening night — its `hormuz` and `naval` weights are
+// roughly twice the other two plans', so a first-turn mine scare was very
+// nearly a free read of the war plan the player is otherwise meant to buy with
+// an action slot or earn off several nights of pattern. The strait can still
+// move on turn one, but only as revenge for the player's own strike on the oil
+// terminals, which fires at the same rate under all three plans and therefore
+// tells them nothing.
+const NAVAL_SPINUP = 3;
+
 // ============================================================
 // THE BREAKOUT CLOCK
 // ------------------------------------------------------------

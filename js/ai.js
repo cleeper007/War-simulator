@@ -344,8 +344,9 @@ const IranAI = (() => {
       if (chance(0.35 * w * P.proxy)) events.push(EV.proxyAttack());
       // hitting the nuclear program draws a dedicated reprisal salvo
       if (struckNuclear && mStr > 0 && chance(0.5)) events.push(EV.missileBase(mStr));
-      // the naval arm contests the strait
-      if (nStr > 0) {
+      // the naval arm contests the strait — but not before the minelayers have
+      // had time to sail, or the plan reads itself out on night one (NAVAL_SPINUP)
+      if (nStr > 0 && G.turn >= NAVAL_SPINUP) {
         if (G.hormuz === 'OPEN' && nStr >= 1.5 && chance(0.2 * w * P.hormuz * hormuzGuard)) events.push(EV.hormuzClose());
         else if (G.hormuz === 'OPEN' && chance(0.3 * w * P.naval)) events.push(EV.mineScare());
         else if (G.hormuz === 'CONTESTED' && chance(0.35 * w * P.hormuz * hormuzGuard)) events.push(EV.hormuzClose());

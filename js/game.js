@@ -202,9 +202,6 @@ const Game = (() => {
     // hidden until the analysts are asked for it.
     difficulty: 'normal',
     iranPosture: 'attrition', postureKnown: false,
-    // whether the opening-night sweep against Bandar Abbas was already flown
-    // before the war started — see newWar, and targetDesc for where it is said
-    openerSwept: false,
 
     // ---- the enrichment race ----
     // The reason the war exists. `progress` climbs every turn the halls are
@@ -360,7 +357,6 @@ const Game = (() => {
       'milestones', 'difficulty', 'iranPosture', 'postureKnown', 'breakout', 'intel',
       'tankers', 'tankerCap', 'basing', 'basingDebt', 'warPowers', 'addresses', 'threat',
       'timeline', 'adapt', 'adaptSeen', 'turnStartHp', 'tlamPool', 'torpedoes',
-      'openerSwept',
     ];
 
     function write() {
@@ -485,13 +481,13 @@ const Game = (() => {
   }
 
   // The target blurb, plus anything true of this particular war rather than of
-  // the target in general. Bandar Abbas is the only case so far: half of all
-  // wars open with it already worked over, and a site sitting at 70% on turn
-  // one — before the player has ordered a single package — reads as a bug
-  // unless something says whose ordnance did it. The opening brief has already
-  // told them Tehran is retaliating for "a covert action"; this is that action.
+  // the target in general. Bandar Abbas is the only case so far: every war
+  // opens with it already worked over, and a site sitting at 70% on turn one —
+  // before the player has ordered a single package — reads as a bug unless
+  // something says whose ordnance did it. The opening brief has already told
+  // them Tehran is retaliating for "a covert action"; this is that action.
   function targetDesc(t) {
-    if (t.id === 'ad-bandar' && G.openerSwept) {
+    if (t.id === 'ad-bandar') {
       return t.desc + ' Already worked over: the covert sweep Tehran is calling ' +
         'its casus belli went in against this belt before the shooting started, and the ' +
         'crews have been repairing it ever since.';
@@ -3509,19 +3505,19 @@ const Game = (() => {
     G.israelJointAvailable = false;
     syncJointPackages();   // TARGETS outlives the war; the joint option must not
 
-    // The coastal SAM belt is not always found at full strength — sometimes an
-    // opening-night sweep has already been flown, sometimes it hasn't. When it
-    // has, that sweep IS the "covert action" Tehran is retaliating for in the
-    // opening brief, and the flag says so wherever Bandar Abbas is read: a site
+    // The coastal SAM belt is never found at full strength. The sweep that put
+    // it there IS the "covert action" Tehran is retaliating for in the opening
+    // brief, and targetDesc says so wherever Bandar Abbas is read: a site
     // sitting at 70% on turn one, before the player has ordered anything, is
-    // otherwise just an unexplained amber ring.
+    // otherwise just an unexplained amber ring. This used to be a coin flip,
+    // which meant half of all wars opened with an intact belt contradicting the
+    // brief the player had just finished reading. How hard it was hit is still
+    // rolled — the opening state of the strait approaches is worth reading off
+    // the map, the existence of the raid is not.
     const opener = TARGETS.find(t => t.id === 'ad-bandar');
-    G.openerSwept = Math.random() < 0.5;
-    if (G.openerSwept) {
-      opener.hp = rand(55, 85);
-      syncStatus(opener);
-      G.intel[opener.id] = { hp: opener.hp, turn: 1, sharp: true };
-    }
+    opener.hp = rand(55, 85);
+    syncStatus(opener);
+    G.intel[opener.id] = { hp: opener.hp, turn: 1, sharp: true };
 
     // and the Strait does not always open quiet
     if (Math.random() < 0.25) G.hormuz = 'CONTESTED';
