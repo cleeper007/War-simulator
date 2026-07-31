@@ -823,11 +823,15 @@ const DIFFICULTY_ALIAS = { advisor: 'easy', general: 'normal', president: 'hard'
 // (ATACMS/PrSM) — reported in the base's tooltip;
 // forward: lives on the forward-basing layer (shown by default, BASES hides it)
 const US_ASSETS = [
-  { id: 'csg-lincoln', name: 'USS Abraham Lincoln', short: 'LINCOLN', x: 800, y: 668, kind: 'carrier', sortie: true,
-    desc: 'The only carrier strike group in theater, on station in the North Arabian Sea some 250 nm southeast of Ra\'s al Hadd — out of the Gulf of Oman entirely, and still inside the anti-ship weapons Iran shoots the farthest. Full sortie generation, flown in over Oman on tankers.' },
-  // labelAbove keeps her name clear of neighbouring labels on the way in
-  { id: 'csg-ford', name: 'USS Gerald R. Ford', short: 'FORD', x: 1120, y: 790, kind: 'carrier', sortie: true, active: false, labelAbove: true,
-    desc: 'Second carrier strike group. Not in theater — she has to be sent for, and she has an ocean to cross.' },
+  // The war opens with the Lincoln FORWARD, so the coordinates here are her
+  // forward station and not a third position (see CARRIER_STATIONS). labelAbove
+  // on both decks: LINCOLN forward sits 48 units northeast of the Shahid
+  // Mahdavi and FORD sits hard against the Saudi coast, and a name hung below
+  // either hull runs into something.
+  { id: 'csg-lincoln', name: 'USS Abraham Lincoln', short: 'LINCOLN', x: 750, y: 578, kind: 'carrier', sortie: true, labelAbove: true,
+    desc: 'The only carrier strike group in theater, on station in the Gulf of Oman inside the Ra\'s al Hadd–Gwadar line, roughly a hundred miles off the Makran coast. Everything Iran owns that shoots at ships reaches her here, and the air wing crosses the beach on one tanker cycle.' },
+  { id: 'csg-ford', name: 'USS Gerald R. Ford', short: 'FORD', x: -48, y: 604, kind: 'carrier', sortie: true, active: false, labelAbove: true,
+    desc: 'Second carrier strike group — Sixth Fleet\'s deck, not Fifth Fleet\'s. She is in the eastern Mediterranean when the war opens and has to be sent for, and the only road from there to this war is the Suez Canal.' },
   { id: 'udeid', name: 'Al Udeid AB — Qatar', short: 'AL UDEID', x: 427, y: 543, kind: 'airbase', sortie: true,
     desc: 'Forward headquarters, tankers and strike aircraft. Within Iranian ballistic missile range.' },
   { id: 'dhafra', name: 'Al Dhafra AB — UAE', short: 'AL DHAFRA', x: 535, y: 576, kind: 'airbase', sortie: true,
@@ -907,25 +911,47 @@ const CARRIER_INFO = {
   'csg-ford':    { name: 'USS Gerald R. Ford',  short: 'FORD' },
 };
 
-// Nobody parks a supercarrier in the Gulf of Oman. Both stations below are out
-// in the Arabian Sea, east of the easternmost point of Oman and on the water
-// between Oman and India — FORWARD is the North Arabian Sea box at roughly
-// 22N 63E, close enough for the air wing to reach Iran on tankers and still
-// inside the outer edge of Iran's anti-ship reach. BACK is 200-odd miles
-// further southeast, down toward the Indian Ocean approaches at roughly 20N
-// 65E: untouchable, and half the sortie rate for the tanker distance.
-// Repositioning between them takes a turn, and that turn is spent at reduced
-// capability while still exposed. Every station sits in open water clear of
-// both coasts; check any change against the coastline.
+// The Lincoln works two stations. The Ford works one and cannot leave it.
+//
+// FORWARD for the Lincoln is the Gulf of Oman itself, roughly 24N 61E — inside
+// the Ra's al Hadd–Gwadar line and a hundred miles off the Makran coast. That
+// is deliberately the most exposed water on the chart: everything Iran owns
+// that shoots at ships reaches her there, and it is the station that buys Aegis
+// over the Gulf bases, weight on the strait and a lid on the oil premium. BACK
+// is the open Arabian Sea at roughly 12N 55E — completely south of Yemen, five
+// hundred miles from the nearest coast, and below the bottom of the opening
+// frame. Being off the chart is what "out of reach" looks like; zoom out to
+// follow her. Repositioning between them takes a turn, and that turn is spent
+// exposed without the forward effects yet.
+//
+// The Ford comes through Suez and works the Red Sea abeam the middle of Saudi
+// Arabia. That is the wrong ocean for Iranian anti-ship fires and equally the
+// wrong ocean for forward presence: she flies her air wing, which is the whole
+// of what she contributes, and nothing about where she sits is a decision.
+// `fixed` is what the posture order, the sidebar and the map all read to know
+// she does not move.
+//
+// Every station sits in open water clear of both coasts; check any change
+// against the coastline.
 const CARRIER_STATIONS = {
-  'csg-lincoln': { forward: { x: 800, y: 668 }, back: { x: 880, y: 736 } },
-  'csg-ford':    { forward: { x: 846, y: 646 }, back: { x: 940, y: 718 } },
+  'csg-lincoln': { forward: { x: 750, y: 578 }, back: { x: 567, y: 1046 } },
+  'csg-ford':    { back: { x: -48, y: 604 }, fixed: true },
 };
 
-// Where the Ford begins her run-in: off the western coast of India, visible on
-// the strategic plot from the moment she's called forward. She tracks northwest
-// through the Arabian Sea, closing one leg per turn until she's on station.
-const FORD_INGRESS = { x: 1015, y: 752 };
+// The Ford's run-in: one waypoint per turn of the five-turn transit, out of the
+// eastern Mediterranean, down onto Port Said, through the canal, down the Gulf
+// of Suez and into the Red Sea. It is a polyline and not a bearing because a
+// straight line from the Med to the Red Sea crosses Egypt corner to corner —
+// the reason the transit is worth watching is that there is exactly one way
+// through and it is a ditch. She does cross land between Port Said and Suez.
+// That is the canal. map.js appends her station as the last vertex.
+const FORD_INGRESS = [
+  { x: -283, y: 227 },   // eastern Mediterranean, south of Crete
+  { x: -233, y: 264 },   // closing the Egyptian coast
+  { x: -207, y: 302 },   // Port Said — north entrance to the canal
+  { x: -183, y: 404 },   // Gulf of Suez, out the south end
+  { x: -113, y: 498 },   // northern Red Sea
+];
 
 // map from asset type to launch origin on the map. `sub` is not an asset type —
 // it is the cruise magazine fired from a different hull (see the `sub` flag on

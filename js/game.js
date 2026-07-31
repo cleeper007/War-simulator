@@ -878,13 +878,17 @@ const Game = (() => {
   // ------------------------------------------------------------
   // Every fighter sortie and every Tomahawk in this war comes off a deck, so
   // where the decks sit is the standing decision underneath all the others.
-  // FORWARD is the North Arabian Sea box east of Oman: a hull inside the
-  // longest-legged anti-ship weapons Iran has left, but Aegis on the Gulf
-  // approaches, weight on the strait, and a lid on the oil premium. BACK is the
-  // deep Arabian Sea, down toward the Indian Ocean approaches: untouchable at
-  // that range, and none of those forward effects. The air wing flies at full
-  // rate from either station — the move between them takes a turn, and buys the
+  // FORWARD is the Gulf of Oman: a hull inside everything Iran shoots at ships,
+  // but Aegis on the Gulf approaches, weight on the strait, and a lid on the oil
+  // premium. BACK is the open Arabian Sea south of Yemen: untouchable at that
+  // range, and none of those forward effects. The air wing flies at full rate
+  // from either station — the move between them takes a turn, and buys the
   // worst of both: exposed on the way, without the presence effects yet.
+  //
+  // This is a two-station decision for the Lincoln and not one at all for the
+  // Ford, who works the Red Sea and stays there (CARRIER_STATIONS `fixed`).
+  // She is out of Iran's reach and out of the forward-presence business at the
+  // same time: what the second deck buys is sorties, full stop.
   //
   // Nothing here mutates G.caps directly. Capacity is recomputed from the
   // fleet's disposition (see fleetCapacity), so a posture change can never
@@ -927,6 +931,8 @@ const Game = (() => {
   }
 
   const carrierById = (id) => G.carriers.find(c => c.id === id);
+  // a deck with one station and no posture order — the Ford in the Red Sea
+  const cvFixed = (cv) => !!(CARRIER_STATIONS[cv.id] || {}).fixed;
   const cvName = (cv) => CARRIER_INFO[cv.id].name;    // "USS Abraham Lincoln"
   const cvShort = (cv) => CARRIER_INFO[cv.id].short;  // "LINCOLN"
 
@@ -950,19 +956,24 @@ const Game = (() => {
   // ============================================================
   // FORWARD PRESENCE
   // ------------------------------------------------------------
-  // The strategic weight of a deck sitting forward in the North Arabian Sea,
-  // over and above the sorties it flies. A CSG that far up is a wall of Aegis
-  // escorts on the Gulf approaches and a standing threat to anything Iran sails
-  // at the strait — which reassures the oil market, makes the strait harder to
-  // close, and shoots down some of the ballistic salvo aimed at the Gulf-state
-  // bases. Zero when both decks are back, in transit, or gone; up to 2 with the
-  // whole fleet on station. A damaged deck counts half — she is still there,
-  // she is just fighting her own fires. Read by the economy (game.js oil model)
-  // and by Tehran's naval and missile decisions (ai.js).
+  // The strategic weight of a deck sitting forward in the Gulf of Oman, over and
+  // above the sorties it flies. A CSG that far up is a wall of Aegis escorts on
+  // the Gulf approaches and a standing threat to anything Iran sails at the
+  // strait — which reassures the oil market, makes the strait harder to close,
+  // and shoots down some of the ballistic salvo aimed at the Gulf-state bases.
+  // A damaged deck counts half — she is still there, she is just fighting her
+  // own fires. Read by the economy (game.js oil model) and by Tehran's naval and
+  // missile decisions (ai.js).
+  //
+  // The ceiling is one, not two, because only one deck can earn this: the Ford
+  // is in the Red Sea with the Sinai between her and the Gulf, and an escort
+  // screen behind Suez covers nothing here. She is skipped explicitly rather
+  // than left to fall out of the posture test, so that a future deck given a
+  // real forward station reads as the exception and not the rule.
   function navalForward() {
     let n = 0;
     for (const cv of G.carriers) {
-      if (cv.lost || !cv.arrived || cv.moving) continue;
+      if (cv.lost || !cv.arrived || cv.moving || cvFixed(cv)) continue;
       if (cv.posture !== 'forward') continue;
       n += cv.damaged ? 0.5 : 1;
     }
@@ -1182,9 +1193,10 @@ const Game = (() => {
 
   // ---- the two fleet commands ----
 
-  // Surging a second deck is a five-turn decision. She is somewhere in the
-  // Indian Ocean when the order goes out and no amount of wanting moves her
-  // faster — the cost of the second carrier is paid in the turns before it.
+  // Surging a second deck is a five-turn decision. She is in the eastern
+  // Mediterranean when the order goes out, with the canal in the middle of the
+  // trip, and no amount of wanting moves her faster — the cost of the second
+  // carrier is paid in the turns before it.
   function orderCarrier() {
     if (G.over || G.secondCarrierOrdered || transitCommitted() || busy()) return;
     G.secondCarrierOrdered = true;
@@ -1197,11 +1209,14 @@ const Game = (() => {
   }
 
   // Order a deck between stations. Takes effect at the end of the turn — the
-  // order is given now, the ship is somewhere in between until then.
+  // order is given now, the ship is somewhere in between until then. A fixed
+  // deck has nowhere to be ordered to; the sidebar does not offer the order, and
+  // this refuses it anyway so no caller can put the Ford in a posture her
+  // station table has no coordinates for.
   function toggleCarrierPosture(id) {
     if (G.over || busy()) return;
     const cv = carrierById(id);
-    if (!cv || !cv.arrived || cv.lost || cv.moving) return;
+    if (!cv || !cv.arrived || cv.lost || cv.moving || cvFixed(cv)) return;
     cv.moving = cv.posture === 'forward' ? 'back' : 'forward';
     syncFleetCaps();
     MapView.setCarrierPosture(cv);
@@ -1221,11 +1236,11 @@ const Game = (() => {
       cv.moving = null;
       MapView.setCarrierPosture(cv);
       events.push(cv.posture === 'forward' ? {
-        cls: 'friendly', title: `${cvShort(cv)} ON STATION — NORTH ARABIAN SEA`,
-        text: `${cvName(cv)} has closed northwest into the North Arabian Sea box. Her air wing was flying full from standoff and flies full here — what she adds on station is her Aegis escorts over the Gulf bases, her weight on the strait, and a lid on the oil premium. And she is now inside everything Iran can range that far out.`,
+        cls: 'friendly', title: `${cvShort(cv)} ON STATION — GULF OF OMAN`,
+        text: `${cvName(cv)} has come north through the Ra's al Hadd line and taken station in the Gulf of Oman, a hundred miles off the Makran coast. Her air wing was flying full from standoff and flies full here — what she adds on station is her Aegis escorts over the Gulf bases, her weight on the strait, and a lid on the oil premium. She is also, from tonight, inside every anti-ship weapon Iran owns, and inside most of them by a wide margin.`,
       } : {
-        cls: 'friendly', title: `${cvShort(cv)} WITHDRAWN TO THE DEEP ARABIAN SEA`,
-        text: `${cvName(cv)} has steamed southeast into the deep Arabian Sea, clear of the anti-ship envelope and out toward the Indian Ocean approaches. She keeps her full sortie rate from out here — what she gives up is the forward presence: no Aegis over the Gulf bases, no pressure on the strait, no lid on the oil premium.`,
+        cls: 'friendly', title: `${cvShort(cv)} WITHDRAWN TO THE OPEN ARABIAN SEA`,
+        text: `${cvName(cv)} has cleared the Gulf of Oman and run south into open water below Yemen — five hundred miles of nothing in every direction, and off the plot unless you go looking for her. She keeps her full sortie rate from out there on the tankers. What she gives up is the forward presence: no Aegis over the Gulf bases, no pressure on the strait, no lid on the oil premium.`,
       });
     }
     if (events.length) syncFleetCaps();
@@ -1253,15 +1268,15 @@ const Game = (() => {
     MapView.setCarrierPosture(ford);
     arrivalCalls.push('fordArrival');   // read out once the night's reports are closed
     return {
-      cls: 'friendly', title: 'FORD ON STATION — DEEP ARABIAN SEA',
-      text: 'The USS Gerald R. Ford Carrier Strike Group has come up out of the Indian Ocean into the deep Arabian Sea and checked in with Fifth Fleet. Her full air wing is available from standoff — bring her northwest into the North Arabian Sea box and she flies the same sorties, now with her Aegis escorts over the Gulf bases, weight on the strait, and a lid on the oil premium, on the same terms as every other hull that far forward.',
+      cls: 'friendly', title: 'FORD ON STATION — RED SEA',
+      text: 'The USS Gerald R. Ford Carrier Strike Group cleared the Suez Canal southbound overnight and is on station in the Red Sea abeam Yanbu, checked in with Fifth Fleet. Her full air wing is available from there and it is the whole of what she brings: the Sinai is between her and the Gulf, so her escorts are not shooting down anything aimed at Al Udeid and her presence is not being priced into a barrel of Brent. She stays where she is — there is no station forward for her, and the sortie rate is the point.',
     };
   }
 
   // ============================================================
   // IRANIAN ANTI-SHIP FIRES — TELEGRAPHED, THEN ROLLED
   // ------------------------------------------------------------
-  // The reason a carrier forward in the North Arabian Sea is a decision and not
+  // The reason a carrier forward in the Gulf of Oman is a decision and not
   // scenery. It used to be a silent tax on the correct posture, which made the
   // posture not a decision at all: the expected cost of standing forward was
   // always smaller than the sorties it bought, so nobody ever pulled back.
@@ -1377,7 +1392,7 @@ const Game = (() => {
     MapView.setCarrierPosture(cv);
     return {
       cls: 'iran', title: `${cvShort(cv)} STRUCK — WITHDRAWING TO STANDOFF`,
-      text: `An Iranian anti-ship missile got through the screen and hit ${cvName(cv)} above the waterline, starting fires on the hangar deck. Damage control has the ship, but her flight deck is fouled and her catapults are down. She is retiring southeast into the deep Arabian Sea and will fly at a fraction of her rate for the rest of this war. Fifth Fleet did not order the withdrawal — the damage did.`,
+      text: `An Iranian anti-ship missile got through the screen and hit ${cvName(cv)} above the waterline, starting fires on the hangar deck. Damage control has the ship, but her flight deck is fouled and her catapults are down. She is retiring south out of the Gulf of Oman into open water and will fly at a fraction of her rate for the rest of this war. Fifth Fleet did not order the withdrawal — the damage did.`,
       casualties: rand(8, 25), dApproval: -7, dOil: 6,
       flashAsset: cv.id, attack: { kind: 'missile', base: cv.id, count: 4 },
     };
@@ -2981,8 +2996,9 @@ const Game = (() => {
           const warPremium = 3 + warStr * 2.5; // ~3 when Iran is finished, ~13 at full strength
           // A carrier group forward on the Gulf approaches is the market's
           // reassurance that the shipping lanes are held and escorted — it shaves
-          // the crisis premium off the barrel, ~3 a deck, up to ~6 with the whole
-          // fleet on station. It does not fight the strait-closure premium below,
+          // ~3 off the barrel, and only the Lincoln can shave it: the Ford is
+          // behind Suez and the market prices what is in the Gulf of Oman, not
+          // what is in the Red Sea. It does not fight the strait-closure premium below,
           // which is a separate, larger shock; it just keeps the ambient fear down.
           const carrierReassurance = navalForward() * 3;
           const oilTarget = 88 + Math.max(0, warPremium - carrierReassurance) +
@@ -3596,6 +3612,7 @@ const Game = (() => {
     // so the panel, the advisors and the sim can never quote different numbers.
     israelStatus, israelEta, israelClock, israelDrivers, israelHoldCost, israelPriorities,
     airDefenseWeight, orderCarrier, toggleCarrierPosture, carrierFactor, carrierExposure, navalForward,
+    carrierFixed: cvFixed,
     orderBombers, orderHeavies, transitCommitted, wearsDown,
     // the air-superiority ladder: what the sky is worth tonight, and what that
     // releases. pkgBlock is the single answer to "why can't I fly this".

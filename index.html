@@ -20,10 +20,10 @@
      these with cache-control: max-age=600 and no other revalidation hint, so a
      browser that has the game open holds the OLD script for ten minutes after a
      deploy and a returning player can hold it far longer — a shipped change then
-     looks like a change that never shipped. Bumping the badge at line 36 renames
+     looks like a change that never shipped. Bumping the badge at line 43 renames
      every asset URL, which is the only thing that reliably forces the fetch.
      Bump the stamps and the badge together. -->
-<link rel="stylesheet" href="css/style.css?v=1.52">
+<link rel="stylesheet" href="css/style.css?v=1.53">
 </head>
 <body>
 
@@ -40,7 +40,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.52<span class="beta-tag">BETA</span></div>
+  <div class="version-badge">v1.53<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -90,8 +90,14 @@
         </div>
       </div>
       <div id="map-container">
-        <!-- the frame runs south to ~19.4N so the carrier operating areas out in
-             the Arabian Sea, well east of Oman, are on the chart -->
+        <!-- The frame runs 36.8E-70.2E and south to ~19.4N: Iran, the Gulf, and
+             the Gulf of Oman box the Lincoln works forward. Two stations sit
+             outside it on purpose and stay that way — her deep station is open
+             water south of Yemen at ~12N, and the Ford holds the Red Sea at
+             ~37E. Both are inside the pannable world (see WORLD in map.js);
+             zoom out and they are there. Widening the frame to hold them would
+             cost about 30% off everything else on the chart, which is the whole
+             board. Being off the picture is what "out of reach" looks like. -->
         <svg id="map" viewBox="0 0 1000 760" preserveAspectRatio="xMidYMid meet">
           <g id="world"></g>
         </svg>
@@ -436,18 +442,18 @@
   </div>
 </div>
 
-<script src="js/text.js?v=1.52"></script>
-<script src="js/geodata.js?v=1.52"></script>
-<script src="js/data.js?v=1.52"></script>
-<script src="js/map.js?v=1.52"></script>
-<script src="js/ai.js?v=1.52"></script>
-<script src="js/audio.js?v=1.52"></script>
-<script src="js/ui.js?v=1.52"></script>
+<script src="js/text.js?v=1.53"></script>
+<script src="js/geodata.js?v=1.53"></script>
+<script src="js/data.js?v=1.53"></script>
+<script src="js/map.js?v=1.53"></script>
+<script src="js/ai.js?v=1.53"></script>
+<script src="js/audio.js?v=1.53"></script>
+<script src="js/ui.js?v=1.53"></script>
 <!-- after ui.js: the walkthrough drives the room through UI's exported openPanel
      / openStrikeModal, and ui.js reaches back for Tour.start() at click time -->
-<script src="js/tour.js?v=1.52"></script>
-<script src="js/specops.js?v=1.52"></script>
-<script src="js/csar.js?v=1.52"></script>
-<script src="js/game.js?v=1.52"></script>
+<script src="js/tour.js?v=1.53"></script>
+<script src="js/specops.js?v=1.53"></script>
+<script src="js/csar.js?v=1.53"></script>
+<script src="js/game.js?v=1.53"></script>
 </body>
 </html>

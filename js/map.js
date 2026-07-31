@@ -1003,16 +1003,24 @@ const MapView = (() => {
     }
   }
 
-  // The second carrier's run-in: progress 0 is off India's western coast, 1 is
-  // on station. Visible on the plot for the entire transit so the president can
-  // watch her track northwest through the Arabian Sea.
+  // The second carrier's run-in: progress 0 is the eastern Mediterranean, 1 is
+  // on station in the Red Sea. FORD_INGRESS is a polyline through the canal and
+  // not a bearing (see the note on it in data.js), so this walks the legs
+  // instead of lerping a pair of points — the vertices are spaced one per turn,
+  // so each tick lands on one. She is on the plot for the whole transit, but
+  // all of it happens west of the opening frame: pan or zoom out to watch her
+  // come down the Red Sea.
   function setCarrierIngress(id, progress) {
     const st = CARRIER_STATIONS[id];
     if (!st) return;
     if (progress < 0) { setAssetActive(id, false); return; }   // not yet ordered
-    const x = FORD_INGRESS.x + (st.back.x - FORD_INGRESS.x) * progress;
-    const y = FORD_INGRESS.y + (st.back.y - FORD_INGRESS.y) * progress;
-    moveAsset(id, x, y, true);
+    const route = FORD_INGRESS.concat([st.back]);
+    const legs = route.length - 1;
+    const t = Math.max(0, Math.min(1, progress)) * legs;
+    const i = Math.min(legs - 1, Math.floor(t));   // the last leg owns progress 1
+    const f = t - i;
+    const a = route[i], b = route[i + 1];
+    moveAsset(id, a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, true);
     setAssetActive(id, true);
   }
 

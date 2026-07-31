@@ -595,28 +595,52 @@ const UI = (() => {
   // the oil lid only for the button below it to list them again as the price.
   // State here, consequence there.
   function carrierLine(cv) {
-    if (cv.lost) return { label: 'LOST', cls: 'cv-lost', note: 'Sunk in the North Arabian Sea.' };
+    if (cv.lost) return { label: 'LOST', cls: 'cv-lost', note: 'Sunk in the Gulf of Oman.' };
     if (!cv.arrived) return null;   // handled by the order/ETA button below
+    // A deck with one station reports the station and nothing else — there is no
+    // "what it would cost to change that", so the note carries the trade she is
+    // permanently on instead: no exposure, and no presence either.
+    if (Game.carrierFixed(cv)) {
+      return {
+        label: 'ON STATION — RED SEA', cls: 'cv-back',
+        note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
+          'Behind Suez: out of Iranian reach, and out of the Gulf presence entirely. Her air wing is what she brings.',
+      };
+    }
     if (cv.moving) {
       return {
-        label: cv.moving === 'forward' ? 'CLOSING NORTHWEST' : 'WITHDRAWING',
+        label: cv.moving === 'forward' ? 'CLOSING NORTH' : 'WITHDRAWING SOUTH',
         cls: 'cv-moving',
         note: 'Repositioning — full strike either way, but still inside the envelope until she is clear.',
       };
     }
     if (cv.posture === 'forward') {
       return {
-        label: 'ON STATION — N. ARABIAN SEA', cls: 'cv-forward',
+        label: 'ON STATION — GULF OF OMAN', cls: 'cv-forward',
         note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
           'Full sortie generation — and a hull inside Iranian anti-ship fires.',
       };
     }
     return {
-      label: 'DEEP ARABIAN SEA', cls: 'cv-back',
+      label: 'OPEN ARABIAN SEA — SOUTH OF YEMEN', cls: 'cv-back',
       note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
         'Out of reach, and flying her full air wing.',
     };
   }
+
+  // Where the Ford is tonight, leg by leg. An ETA alone does not say that the
+  // middle of this transit is a ditch someone else schedules, and the plot she
+  // is drawn on is west of the opening frame — so the only place most players
+  // will ever read the canal is right here. Keyed by ETA, which ticks 5 down to
+  // 1 across the five vertices of FORD_INGRESS (data.js); the two must stay in
+  // step, and there is no third place that knows the route.
+  const FORD_LEG = {
+    5: 'Under way from the eastern Mediterranean',
+    4: 'Closing the Egyptian coast',
+    3: 'Holding off Port Said for a southbound convoy slot',
+    2: 'In the canal — southbound through the Bitter Lakes',
+    1: 'Out of Suez and into the northern Red Sea',
+  };
 
   // ---- the bomber force ----
   // The 509th is a third piece of the deployment picture, and it competes with
@@ -684,7 +708,7 @@ const UI = (() => {
       // a deck that is not here yet has its whole story in the order row below
       const note = st ? st.note
         : G.secondCarrierOrdered
-          ? `Under way from the Indian Ocean — ${turns(G.secondCarrierEta)} out.`
+          ? `${FORD_LEG[G.secondCarrierEta] || 'Under way'} — ${turns(G.secondCarrierEta)} out.`
           : '';
       return `<div class="cv-row"><div class="cv-name dim">${info.name}</div>${head}` +
         `<div class="cv-note dim">${note}</div></div>`;
@@ -732,17 +756,28 @@ const UI = (() => {
           acts.push({ id: `cv-surge-${cv.id}`, name: `SURGE ${info.short} TO THE THEATER`,
             attrs: 'data-carrier-order="1"',
             current: `${turns(Game.FORD_TRANSIT_TURNS)} out. Costs tonight's naval transit.`,
-            desc: `Orders ${info.name} into theater; she arrives at standoff in the deep Arabian Sea. ` +
-              'Costs no money and no lives — but the B-2s cannot be moved until next turn.' });
+            desc: `Orders ${info.name} out of the Mediterranean and down through the Suez Canal; she takes ` +
+              'station in the Red Sea and stays there. What you are buying is a second air wing — she is ' +
+              'too far west to put Aegis over the Gulf bases or weight on the strait. Costs no money and ' +
+              'no lives, but the B-2s cannot be moved until next turn.' });
         }
+        return;
+      }
+      // one station, no order: say where she is and why there is no button
+      if (Game.carrierFixed(cv)) {
+        acts.push({ id: `cv-post-${cv.id}`, attrs: '', name: `${info.short} HOLDS THE RED SEA`,
+          current: 'No station forward for her.',
+          desc: 'Fifth Fleet keeps the second deck west of Suez. She flies her full air wing from there, ' +
+            'and nothing Iran has reaches her.',
+          disabled: true });
         return;
       }
       const fwd = cv.posture === 'forward';
       acts.push({
         id: `cv-post-${cv.id}`,
         name: cv.moving ? `${info.short} REPOSITIONING`
-          : fwd ? `PULL ${info.short} BACK TO THE DEEP ARABIAN SEA`
-          : `SEND ${info.short} FORWARD TO THE NORTH ARABIAN SEA`,
+          : fwd ? `PULL ${info.short} BACK TO THE OPEN ARABIAN SEA`
+          : `SEND ${info.short} FORWARD INTO THE GULF OF OMAN`,
         attrs: `data-carrier-toggle="${cv.id}"`,
         current: cv.moving ? 'Between stations until the end of the turn.'
           : fwd ? 'One turn, exposed until clear. Aegis, strait pressure and the oil lid come off with her.'

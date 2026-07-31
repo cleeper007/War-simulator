@@ -315,11 +315,12 @@ const IranAI = (() => {
     // regime has left, more of it gets thrown, and some of it goes west
     const israelInPlay = G.israelPosture !== 'sidelined';
     const w = Math.min(1.3, coord * spool * (israelInPlay ? 1.2 : 1));
-    // Carrier presence forward in the North Arabian Sea: a wall of Aegis on the
-    // Gulf approaches and a standing threat to anything Iran sails at the strait.
-    // hormuzGuard scales down every attempt to close Hormuz — 1.0 with the decks
-    // back, ~0.65 with one forward, floored at 0.3 with the whole fleet on
-    // station, so the strait is never made unclosable, only expensive to close.
+    // Carrier presence forward in the Gulf of Oman: a wall of Aegis on the Gulf
+    // approaches and a standing threat to anything Iran sails at the strait.
+    // hormuzGuard scales down every attempt to close Hormuz — 1.0 with the deck
+    // back, ~0.65 with her forward. The 0.3 floor is dead code now and left
+    // standing on purpose: only the Lincoln can earn this, so the term tops out
+    // at one deck, and the strait stays closable even with her on station.
     const fwd = Game.navalForward();
     const hormuzGuard = Math.max(0.3, 1 - 0.35 * fwd);
     // Tehran's war plan, which the player cannot see until they buy it: the
