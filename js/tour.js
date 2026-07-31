@@ -101,7 +101,9 @@ const Tour = (() => {
   let ownsModal = false;   // the strike dialog is the walkthrough's to close
   let hadOpen = [];        // sidebar sections the player had expanded before we started
   let pin = 0;             // frames left holding a freshly-opened section at the top
-  let keyHandler = null;
+  let settle = 0;          // frames left in which the card may still reposition
+  let lastBox = '';        // the anchor geometry the card was last placed against
+  let keyHandler = null, resizeHandler = null;
 
   function build() {
     root = document.createElement('div');
@@ -199,6 +201,29 @@ const Tour = (() => {
     ring.style.width = Math.max(0, right - left) + 'px';
     ring.style.height = Math.max(0, bottom - top) + 'px';
 
+    // THE RING TRACKS; THE CARD SETTLES AND THEN HOLDS STILL. Both used to be
+    // rewritten every frame, which is right for the outline — it has to stay on
+    // the thing it is outlining — and wrong for the card, because the thing it
+    // is outlining changes size under the player. Picking a package on step two
+    // opens the estimate box, the dialog grows, the roomiest side is suddenly a
+    // different side, and the card the player is mid-sentence in jumps across
+    // the screen and lands on the estimate it just told them to read.
+    //
+    // So the card follows only while the anchor is genuinely moving, and locks
+    // the frame it stops — the same two-equal-frames test openPanel uses to know
+    // a section has finished animating open. Not a fixed delay: a delay is a
+    // guess that is either too short for a slow panel or long enough to still be
+    // live when a quick player clicks something. The count is only a backstop
+    // against something that animates forever. A reader is owed a stationary
+    // paragraph more than a perfectly-adjacent one.
+    if (settle <= 0) return;
+    // rounded, or a subpixel jitter somewhere upstream reads as "still moving"
+    // forever and the window never closes
+    const box = [top, left, bottom, right].map(Math.round).join(',');
+    if (box === lastBox) { settle = 0; return; }
+    lastBox = box;
+    settle--;
+
     // Put the card wherever there is the most room. Below is the habit, but on a
     // landscape phone the map panel is the whole window and nothing is below
     // anything, so fall back to the roomiest side and clamp into the window.
@@ -256,6 +281,7 @@ const Tour = (() => {
     // for as long as the section is still animating open — half a second, after
     // which the player's own scrolling is left alone.
     if (st.panel) { UI.openPanel(st.panel); pin = 30; } else { pin = 0; }
+    settle = 40; lastBox = '';
 
     // The card rides inside the dialog it is talking about. ui.js traps Tab
     // within the top .overlay, so a card left on the body would be visible and
@@ -281,6 +307,10 @@ const Tour = (() => {
     ownsModal = false;
     root.classList.remove('hidden');
     document.addEventListener('keydown', keyHandler, true);
+    // A rotate or a resize is the one thing that genuinely invalidates a settled
+    // card: the side it chose may no longer exist. Reopen the window rather than
+    // repositioning here, so it still lands after the layout has finished moving.
+    window.addEventListener('resize', resizeHandler);
     go(0);
     // after the report modal that launched this has finished handing focus back
     // — syncStack restores it on a microtask, so claiming it synchronously here
@@ -299,6 +329,8 @@ const Tour = (() => {
   // the dialog before this one gets a look — and this one then sees no dialog
   // open and ends the walkthrough off the same keystroke. Capture asks the
   // question before anybody has changed the answer.
+  resizeHandler = () => { settle = 40; lastBox = ''; };
+
   keyHandler = (e) => {
     if (i < 0 || e.key !== 'Escape' || anyModalOpen()) return;
     e.preventDefault();
@@ -315,6 +347,7 @@ const Tour = (() => {
     if (ownsModal && strikeOpen()) closeStrike();
     ownsModal = false;
     document.removeEventListener('keydown', keyHandler, true);
+    window.removeEventListener('resize', resizeHandler);
     root.classList.add('hidden');
     document.body.appendChild(root);
     // the sidebar back the way the player had it: the walkthrough opened four
