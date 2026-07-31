@@ -2646,6 +2646,121 @@ const Game = (() => {
     AudioSys.cut('strikeForce');
   }
 
+  // ---- the error boundary ----
+  // The lock above has exactly ONE release site: setResolving(false) inside
+  // close(), at the bottom of a callback chain five hops deep —
+  //
+  //   endTurn → playThen('strikeForce') → resolveTurn → resolveMissions
+  //     → whenFootageDone → alliedStrike → [BDA report] → iranianResponse
+  //     → animateIranianAttacks → [retaliation report] → close
+  //
+  // — and until this boundary existed there was not a single try in any of it.
+  // So one throw anywhere in the night left `resolving` true forever: END TURN
+  // hidden, the board inert under .turn-resolving, SKIP TO RESULTS useless
+  // (it only cuts audio and fast-forwards, then leans on the same broken chain
+  // to finish), and — because saving is gated on busy() — no way to even write
+  // the save and reload out of it. One exception cost a 30-turn campaign, and
+  // took away the one thing that would have salvaged it. That was the worst
+  // single failure mode in the game.
+  //
+  // Every hop is wrapped in guard(). It has to be every hop, not one try/catch
+  // around resolveTurn(): each of those arrows is a setTimeout, a rAF or a
+  // click handler, so the callback unwinds into the browser's event loop, not
+  // into its caller. A try around the outside would catch essentially nothing.
+  let resolveGuard = false;    // a turn is inside the boundary right now
+  let resolveWatchdog = 0;
+  // Deliberately NOT on G and NOT in FIELDS: both are true only between END TURN
+  // and close(), and busy() makes writing a save in that window impossible by
+  // construction. A save can never observe them set.
+
+  // A throw is not the only way this chain fails to reach close() — a callback
+  // that simply never fires strands the lock in exactly the same way, and there
+  // is nothing to catch. map.js already carries its own 9s and 12s watchdogs on
+  // the two animation hops for the throttled-tab case; this one covers the legs
+  // between them, and anything they miss.
+  //
+  // It cannot be one flat timeout from END TURN, because two hops wait on the
+  // PLAYER: both reports sit open until dismissed, and a president who reads
+  // slowly is not a stall. So it re-arms while any dialog is on screen, and
+  // guard() re-arms it on every hop — each leg gets the full budget rather than
+  // the whole night sharing one.
+  const RESOLVE_TIMEOUT = 45000;
+
+  function armWatchdog() {
+    clearTimeout(resolveWatchdog);
+    resolveWatchdog = setTimeout(() => {
+      if (!resolveGuard) return;
+      // a modal is up: the turn is waiting on a person, not stuck
+      if (document.querySelector('.overlay:not(.hidden) .modal')) { armWatchdog(); return; }
+      recoverFromResolution(new Error(`turn resolution stalled for ${RESOLVE_TIMEOUT}ms`));
+    }, RESOLVE_TIMEOUT);
+  }
+
+  // Turns "campaign destroyed" into "strange turn, keep playing."
+  function recoverFromResolution(err) {
+    if (!resolveGuard) return;   // already recovered, or the turn handed on cleanly
+    resolveGuard = false;
+    clearTimeout(resolveWatchdog);
+    console.error('CIC: turn resolution failed, recovering', err);
+
+    // The map first, and through the teardown that already exists for this
+    // rather than a second one written here. Raising fast-forward runs every
+    // clipEnder and skipEnder in map.js — which is what sweeps alliedStrike's
+    // `litter` set and closes any live scope or sonar card — and lowering it
+    // takes the frozen salvo sprites back off the plot. It is the exact path
+    // SKIP TO RESULTS uses, so it cannot drift out of step with map.js the way
+    // a bespoke sweep here would.
+    try { MapView.setFastForward(true); } catch (e) { console.error(e); }
+    try { MapView.setFastForward(false); } catch (e) { console.error(e); }
+
+    // the lock, unconditionally, before anything below can throw again — this
+    // is the whole point of the boundary
+    setResolving(false);
+
+    // The turn ADVANCES; it is not retried. Every event the player has already
+    // been shown tonight was spent against G before it was rendered — applyEvent
+    // runs before the retaliation report is built, and strike effects land back
+    // inside resolveMissions — so re-resolving would double-apply everything
+    // that got as far as landing: damage, casualties, approval, the oil shock.
+    // A turn that resolved strangely once is a bad night. A turn whose effects
+    // are applied twice is a corrupted campaign that looks fine.
+    try { nextTurn(); }
+    catch (e) { console.error('CIC: turn advance failed after resolution error', e); }
+
+    // Told plainly, in the register of the rest of the game, and named as what
+    // it is: a fault in the software. Dressing a JavaScript exception up as a
+    // comms failure over Iran would teach the player something false about the
+    // simulation they are spending fifteen days trying to read.
+    if (!G.over) {
+      try {
+        UI.showReport('TURN RESOLUTION FAULT', [{
+          title: 'The turn did not resolve cleanly',
+          cls: 'mil',
+          text: 'A fault in the game itself interrupted resolution partway through ' +
+            'this turn. Some of tonight’s results may be missing from the assessments ' +
+            'you were shown; everything that did resolve has been applied, and the campaign has ' +
+            'moved on to the next turn rather than replay a night that was already ' +
+            'half spent. The board is yours again — and you can save. If this ' +
+            'keeps happening, the browser console has the details worth reporting.',
+        }], null, { prose: true });
+      } catch (e) { console.error('CIC: could not show the fault report', e); }
+    }
+  }
+
+  // One hop of the resolution chain. `label` names the hop so a console trace
+  // says where the night came apart.
+  const guard = (label, fn) => function () {
+    if (resolveGuard) armWatchdog();   // this leg started; give it a fresh budget
+    try { return fn.apply(this, arguments); }
+    catch (err) {
+      // Surfaced, never swallowed. A recovered freeze that leaves no stack is a
+      // frozen game traded for an invisible one — and a bug report that says
+      // "it printed the fault card" is worth far less than one with the throw in it.
+      console.error(`CIC: throw during turn resolution (${label})`, err);
+      recoverFromResolution(err);
+    }
+  };
+
   // Pressing END TURN opens with the watch floor's call, and nothing flies
   // until it has finished. Resolution below fills the map with launch clips,
   // missile runs and impacts within the first second; stacked underneath the
@@ -2659,7 +2774,9 @@ const Game = (() => {
     // and the turn breaks
     if (G.over || busy()) return;
     setResolving(true);
-    AudioSys.playThen('strikeForce', resolveTurn);   // the night steps off
+    resolveGuard = true;      // from here to close(), the boundary is live
+    armWatchdog();
+    AudioSys.playThen('strikeForce', guard('resolveTurn', resolveTurn));   // the night steps off
   }
 
   function resolveTurn() {
@@ -2683,7 +2800,7 @@ const Game = (() => {
     // force flow depends on, and the Hill's count of the dead — is deliberately
     // still resolved in the second half, after the salvo lands. Iran hitting
     // Haifa tonight has to be able to cost you Incirlik tonight, not next turn.
-    resolveMissions((bda) => {
+    resolveMissions(guard('bda', (bda) => {
       // Israel moves between the BDA and Iran's answer — if they went tonight,
       // Tehran is responding to their strike as much as to yours
       const israeli = israelTurn();
@@ -2743,19 +2860,20 @@ const Game = (() => {
       const ours = [...bda, ...(israeli ? [israeli] : []), ...dispersals,
         ...repairs, ...phase, ...objectives, ...fleet];
 
-      MapView.whenFootageDone(() => {
+      MapView.whenFootageDone(guard('footage', () => {
         // An ally's package flies on the strategic plot before the report that
         // explains it, in the same order the watch floor got it: tracks inbound
         // from the west first, prose afterwards. Nothing here can change an
         // outcome — israelTurn already resolved the damage — so a player who
         // skips the animation loses only the picture.
         const allied = israeli && israeli.alliedStrike ? israeli.alliedTargets : null;
-        MapView.alliedStrike(allied, () => {
+        MapView.alliedStrike(allied, guard('alliedStrike', () => {
           if (!ours.length) { iranianResponse(); return; }
           AudioSys.play('bdaReport');   // the watch floor reads the night back to you
-          UI.showReport(`BATTLE DAMAGE ASSESSMENT — DAY ${day}, TURN ${G.turn}`, ours, iranianResponse);
-        });
-      });
+          UI.showReport(`BATTLE DAMAGE ASSESSMENT — DAY ${day}, TURN ${G.turn}`, ours,
+            guard('iranianResponse', iranianResponse));
+        }));
+      }));
 
       // ---- half two: Tehran answers ----
       function iranianResponse() {
@@ -2765,7 +2883,7 @@ const Game = (() => {
 
         // Iran's salvos fly on the map — missiles, drone swarms, intercepts —
         // before the damage assessment lands and covers the screen
-        MapView.animateIranianAttacks(events, () => {
+        MapView.animateIranianAttacks(events, guard('retaliation', () => {
           for (const ev of events) applyEvent(ev);
 
           // economy: oil carries a war premium set by Iran's remaining ability
@@ -2856,27 +2974,34 @@ const Game = (() => {
           recordTurn(all);
           const result = cutoff ? buildResult('defeat', 'cutoff') : checkEnd();
 
-          const close = () => {
+          const close = guard('close', () => {
             // the turn is over: the map animates at speed again and the button
             // goes back to END TURN for the next one
             MapView.setFastForward(false);
             setResolving(false);
             // a war that ended tonight has its own music: the arrival calls are
             // dropped rather than played under the endgame screen
-            if (result) { arrivalCalls = []; finish(result); return; }
+            if (result) { arrivalCalls = []; resolveGuard = false; clearTimeout(resolveWatchdog); finish(result); return; }
             nextTurn();
+            // The turn is safely handed on, so the boundary stands down HERE and
+            // not at the top of close(): a throw between setResolving(false) and
+            // nextTurn() must still be recovered, or the lock is released onto a
+            // turn that never advanced. Anything that throws below this line has
+            // already cost the player nothing but a leader call.
+            resolveGuard = false;
+            clearTimeout(resolveWatchdog);
             // This is the quiet the arrival calls were held for — the reports are
             // closed and nothing else is talking (see arrivalCalls). Paris was
             // always going to be a night behind London, so the second coalition
             // call queues up behind them rather than over them: a beat after the
             // president has finished reading what Tehran did overnight.
             flushArrivalCalls(() => { if (!G.over) maybeLeaderCall(null); });
-          };
+          });
           if (!theirs.length) { close(); return; }
           UI.showReport(`IRANIAN RETALIATION — DAY ${day}, TURN ${G.turn}`, theirs, close);
-        });
+        }));
       }
-    });
+    }));
   }
 
   function nextTurn() {
