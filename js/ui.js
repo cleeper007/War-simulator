@@ -206,7 +206,11 @@ const UI = (() => {
     const day = Math.ceil(G.turn / 2);
     const hour = G.turn % 2 === 1 ? '06:00' : '18:00';
     $('map-clock').textContent = `DAY ${day} — ${hour} LOCAL`;
-    $('turn-value').textContent = `${G.turn}/${G.maxTurns}`;
+    // A bare count, no denominator. The war does not end on a known turn any
+    // more — it ends when the country stops paying for it — and "17/30" would
+    // promise a deadline the game no longer honours in either direction: it can
+    // run past thirty, and most campaigns are decided well before it.
+    $('turn-value').textContent = `${G.turn}`;
 
     // Iran war capacity meter: the enemy's remaining ability to fight.
     // Full and red at the start — the mission is draining it to zero.

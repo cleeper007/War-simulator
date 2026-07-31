@@ -18,6 +18,75 @@ const Game = (() => {
   // reads casualtyLimit() rather than baking a number in.
   const WEARINESS_TURN = 14;    // after this, a long war bleeds approval on its own
 
+  // The campaign is PLANNED for thirty turns. It is no longer STOPPED at thirty.
+  //
+  // The hard cap was the only thing standing between this game and a guaranteed
+  // win, because every other loss condition is one the player can switch off.
+  // Breakout stops dead the moment Natanz and Fordow are rubble — enrichRate is
+  // a function of their hp and nuclear sites never come back from zero. The
+  // casualty ceiling and the oil economy are avoided by not flying and leaving
+  // the strait alone. And the flat -0.5 weariness tick is outrun by the +1 a
+  // night that cheap oil pays back, so a quiet war's approval RISES. Kill the
+  // halls, hold the strait, and an uncapped campaign is an unlimited number of
+  // free nights against a target list that cannot reconstitute past 60%. The
+  // war becomes a patience test with a certain outcome.
+  //
+  // So the cap stays — as a curve instead of a wall. Past `softCap` the
+  // country's patience runs out on an accelerating schedule and the war ends
+  // politically, on a slope the president can read several nights ahead,
+  // instead of the screen going dark at the end of turn 30 with the last
+  // package still airborne. A war three turns from finishing the job gets those
+  // three turns and pays for them; a war going nowhere is dead inside a week
+  // either way.
+  //
+  // The drain is linear in turns over, so the approval it has SPENT is its
+  // integral — quadratic. That is what makes the bound real without needing a
+  // second wall behind it: roughly 25 points gone by eight turns over, 80 by
+  // fifteen. Nobody sees turn 46 no matter how popular the war was at thirty.
+  const OVERTIME_STEP = 0.75;
+
+  // What tonight costs in approval for no reason other than that the war is
+  // still on. Zero until the country notices, flat while the campaign is inside
+  // its plan, climbing every night after that.
+  function warWeariness() {
+    if (G.turn <= WEARINESS_TURN) return 0;
+    const over = G.turn - G.softCap;
+    return over > 0 ? 0.5 + OVERTIME_STEP * over : 0.5;
+  }
+
+  // The drain is the only cost in the game that is nobody's decision, so it is
+  // the one the player is most likely to miss on the bar — and it is the thing
+  // now ending most long campaigns. It gets a report line every night it is
+  // accelerating. The flat tick inside the plan stays silent: sixteen identical
+  // events would be noise a player learns to skip past, which is exactly the
+  // habit this one cannot afford. The poll number is in the headline so no two
+  // nights read the same on the ticker.
+  function wearinessEvent(cost) {
+    const over = G.turn - G.softCap;
+    if (over < 1) return null;
+    const text = over <= 3
+      ? 'The networks have started running a day count in the corner of the screen. The war ' +
+        'was sold as a fortnight and it is past a fortnight, and the coverage has quietly ' +
+        'changed tense — this is no longer an operation with an end date, it is a situation. ' +
+        'Nothing in particular happened today to cause any of it. That is the story.'
+      : over <= 8
+      ? 'Members of your own party are booking the Sunday shows to ask what winning looks like, ' +
+        'and the answer coming back from the podium has not changed in a week. The country has ' +
+        'stopped following the target list and started following the calendar. Every further ' +
+        'night of this costs more than the night before it did, and the slope is steepening.'
+      : 'There is no constituency left for this war. The coverage is wall to wall and uniformly ' +
+        'hostile, the leadership has stopped returning calls, and the numbers are falling faster ' +
+        'each night now on their own momentum. Whatever is going to be finished has to be ' +
+        'finished with what is already in theater, and it has to be finished immediately.';
+    return {
+      cls: 'world',
+      title: `POLL: APPROVAL AT ${Math.round(G.approval)}% AS THE WAR PASSES DAY ${Math.ceil(G.turn / 2)}`,
+      text,
+      sum: `Public patience: ${Txt.signed(-(Math.round(cost * 10) / 10))} approval`,
+      dApproval: -cost,
+    };
+  }
+
   const diff = () => DIFFICULTY[G.difficulty] || DIFFICULTY.normal;
   const casualtyLimit = () => diff().casualties;
 
@@ -34,7 +103,9 @@ const Game = (() => {
     // or three good packages apiece instead of one lucky roll, so the campaign
     // is a grind now and the clock is scaled to the grind — and so is what the
     // country will absorb while you run it (see CASUALTY_LIMIT).
-    turn: 1, maxTurns: 30,
+    // `softCap` is where the plan ends, not where the war does: past it the
+    // country's patience drains on an accelerating curve (see warWeariness).
+    turn: 1, softCap: 30,
     approval: 58,          // %
     oil: 84,               // $/bbl Brent
     world: 60,             // world opinion 0–100
@@ -267,9 +338,14 @@ const Game = (() => {
     // against. A v13 save holds a count that meant nothing and no debt, so it
     // would resume as a war with a free surge — a different game than the one it
     // was saved from.
-    const VERSION = 15;   // v1.31: Jerusalem runs a pressure gauge, not a countdown
+    // v16: the turn cap stopped being a wall. `maxTurns` was the turn the war
+    // was taken away at; `softCap` is the turn the country starts running out
+    // of patience, and the campaign continues past it on an accelerating
+    // approval drain. Same number, opposite meaning — a v15 save resumed under
+    // v16 would be a war whose ending it was never played against.
+    const VERSION = 16;   // v1.46: thirty turns is the plan, not the wall
     const FIELDS = [
-      'turn', 'maxTurns', 'approval', 'oil', 'world',
+      'turn', 'softCap', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
       'strikesThisTurn', 'struckThisTurn', 'fatigue', 'atoPlan',
       'missions', 'sanctions', 'coalition', 'leaderCalls',
@@ -1417,7 +1493,10 @@ const Game = (() => {
   function israelEta() {
     const after = rateOf(0);
     let p = G.israelPressure, hold = G.israelHold;
-    for (let n = 1; n <= G.maxTurns; n++) {
+    // Projected across the planned campaign rather than the war's true length,
+    // which no longer has one. Thirty turns out is already further than any
+    // estimate on this screen deserves to be trusted.
+    for (let n = 1; n <= G.softCap; n++) {
       const rate = hold > 0 ? rateOf(hold) : after;
       if (rate <= 0 && after <= 0) return null;   // cooling, and nothing ahead changes that
       p += rate;
@@ -2923,7 +3002,12 @@ const Game = (() => {
           if (G.oil >= 150) G.approval = clamp(G.approval - 2, 0, 100);
           else if (G.oil >= 125) G.approval = clamp(G.approval - 1, 0, 100);
           else if (G.oil <= 95) G.approval = clamp(G.approval + 1, 0, 100);
-          if (G.turn > WEARINESS_TURN) G.approval = clamp(G.approval - 0.5, 0, 100);
+          const weary = warWeariness();
+          if (weary) G.approval = clamp(G.approval - weary, 0, 100);
+          // built after the drain lands so the headline quotes tonight's number,
+          // and self-applied like the Hill's vote — it reports a cost already
+          // charged rather than carrying one, so it never reaches applyEvent
+          const wearyEv = wearinessEvent(weary);
 
           // the centrifuges ran again tonight, whatever else happened
           breakoutTick();
@@ -2966,7 +3050,8 @@ const Game = (() => {
           // to the aircrew still on the ground, and the political ground it took
           // out from under the campaign — the basing and the Hill are here
           // because they are reading the damage on this page.
-          const theirs = [...events, ...basing, ...flow, ...(vote && !cutoff ? [vote] : [])];
+          const theirs = [...events, ...basing, ...flow, ...(wearyEv ? [wearyEv] : []),
+            ...(vote && !cutoff ? [vote] : [])];
           // the ticker and the after-action record still see the whole night —
           // the split is only in how it is read back to the president
           const all = [...ours, ...theirs];
@@ -3006,14 +3091,10 @@ const Game = (() => {
 
   function nextTurn() {
     G.turn++;
-    if (G.turn > G.maxTurns) {
-      // the campaign has culminated: if the objectives are nowhere near met,
-      // the force is spent for nothing — that is a defeat, not a draw
-      finish(G.nukeDegraded() < 50
-        ? buildResult('defeat', 'exhaustion')
-        : buildResult('stalemate', 'time'));
-      return;
-    }
+    // Nothing ends here any more. The campaign culminates through the country
+    // rather than through the calendar — see warWeariness and checkEnd, which
+    // still hand back exhaustion and time, just some nights later and only once
+    // the president has watched the approval bar pay for them.
 
     // replenish — what the decks can turn around depends on where they are
     syncFleetCaps();
@@ -3134,7 +3215,18 @@ const Game = (() => {
     if (G.breakout.progress >= G.breakout.need) return buildResult('defeat', 'breakout');
     // the losses are military and political:
     if (G.casualties.us >= casualtyLimit()) return buildResult('defeat', 'casualties');
-    if (G.approval <= 20) return buildResult('defeat', 'impeachment');
+    // An approval collapse means two different things depending on when it
+    // happens, and they are not the same ending. Inside the plan the country
+    // turned on the president over how the war was being fought — impeachment.
+    // Past the plan it simply outlasted the country's patience, which is what
+    // the old turn-30 wall used to model, so the wall's two endings live here
+    // now: culminated for nothing, or frozen with the program mostly gone.
+    if (G.approval <= 20) {
+      if (G.turn <= G.softCap) return buildResult('defeat', 'impeachment');
+      return G.nukeDegraded() < 50
+        ? buildResult('defeat', 'exhaustion')
+        : buildResult('stalemate', 'time');
+    }
     if (G.hormuzClosedTurns >= 7 || G.oil >= 240) return buildResult('defeat', 'economy');
     return null;
   }
@@ -3174,8 +3266,8 @@ const Game = (() => {
       casualties: 'The casualty count crossed what the country would bear. Congress moved to cut off funding for the operation, and the campaign ends with its objectives unmet and its dead counted in the hundreds.',
       impeachment: 'With approval in ruins, your own party abandoned you. The House opened impeachment proceedings over the conduct of the war; the presidency is effectively over.',
       economy: 'The prolonged closure of Hormuz broke the global economy. Fuel rationing, a market crash, and allied governments falling — the war was lost at the gas pump.',
-      exhaustion: 'The force culminated with the objectives nowhere in sight. Magazines empty, crews exhausted, and Iran\'s program still standing — the campaign simply ran out of ammunition and time.',
-      time: 'Fifteen days of war ended in an armed standoff. Real damage was done, but Iran\'s capacity to fight survives; the problem is handed to the next news cycle, and perhaps the next president.',
+      exhaustion: 'The force culminated with the objectives nowhere in sight. Magazines empty, crews exhausted, Iran\'s program still standing, and a country that had stopped believing any of it was going anywhere. The campaign ran out of ammunition, and then it ran out of the public\'s patience.',
+      time: 'The war outlasted the country\'s willingness to fight it. Real damage was done — most of the program is gone — but Iran\'s capacity to fight survives, and the operation is being wound down with the last objectives still on the list. The problem is handed to the next news cycle, and perhaps the next president.',
       breakout: 'The war was fought to prevent exactly one thing, and it did not prevent it. Seismic sensors registered a test in the eastern desert while American aircraft were still flying. Every other number on this page is now a footnote.',
       cutoff: 'The authorization lapsed and the Hill declined to renew it. With funding cut off mid-campaign the force is being recovered rather than employed, and the war ends by act of Congress with its objectives unmet.',
     };
