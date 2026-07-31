@@ -785,15 +785,6 @@ button { font-family: var(--mono); }
 
 .impact-flash { fill: var(--amber); opacity: 0.9; }
 
-/* forward basing layer: ATACMS/PrSM range rings */
-.range-ring { fill: none; opacity: 0.55; pointer-events: none; }
-.range-ring.ring-atacms { stroke: var(--blue); stroke-width: 1; stroke-dasharray: 5 4; }
-.range-ring.ring-prsm { stroke: #2c6db3; stroke-width: 1; stroke-dasharray: 2 5; }
-.ring-label {
-  fill: #3d6da8; font-size: 7.5px; font-family: var(--mono);
-  text-anchor: middle; pointer-events: none;
-}
-
 /* brief pulse on a struck target — the map's only outbound-strike cue */
 .target.struck .tgt-ring { stroke-width: 3.5; opacity: 0.9; }
 

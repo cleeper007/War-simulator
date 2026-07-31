@@ -20,8 +20,10 @@
 //   - The dim is a box-shadow, which is not hit-testable, so every click still
 //     reaches the room underneath. A walkthrough that swallows clicks is one you
 //     can be stuck inside.
-//   - The one step that waits for the player to do something keeps its NEXT
-//     enabled, relabelled. The gate is a nicety, never a requirement.
+//   - No step waits on the player doing something. NEXT is the only thing that
+//     has to be pressed to get through the whole card stack; the first card asks
+//     for a target and then opens one itself off NEXT rather than standing there
+//     until the map is clicked.
 //   - The loop is a watchdog as much as a positioner: if the player closes the
 //     strike dialog out from under a step that lives inside it, the walkthrough
 //     moves on rather than pointing at a widget that is gone.
@@ -51,12 +53,13 @@ const Tour = (() => {
   // `panel` names a sidebar section to open first (the data-panel key).
   // `modal` marks the steps that live inside the strike dialog — what the
   // watchdog reads, and what moves the card into the dialog's focus trap.
-  // `gate` advances the step on its own when the player does the thing.
+  // `opens` marks the card whose NEXT has to have a strike dialog open behind it
+  // before the next card, which lives inside one, can point at anything.
   const STEPS = [
-    { sel: '#map-panel', gate: strikeOpen, next: 'SHOW ME INSTEAD',
+    { sel: '#map-panel', opens: true,
       title: 'THE MAP IS THE ORDER FORM',
-      text: 'Every marker is an Iranian target. Click one — an air defense site is the right ' +
-        'first move — and the strike dialog opens.' },
+      text: 'Every marker is an Iranian target, and clicking one opens the strike dialog. ' +
+        'NEXT opens it on an air defense site — the right first move.' },
     { sel: '#strike-packages', modal: true,
       title: 'PICK A PACKAGE',
       text: 'Each row is a way to hit it. Greyed rows are grounded: that aircraft has not been ' +
@@ -147,15 +150,22 @@ const Tour = (() => {
     go(Math.max(0, n));
   }
 
-  // NEXT off the first card is the way out of the one step that waits: rather
-  // than leaving a player who does not want to click the map with nothing that
-  // advances, the walkthrough opens the dialog itself, on a live air defense
-  // site — which is the strike it was about to recommend anyway.
+  // NEXT off the first card opens the strike dialog itself, on a live air
+  // defense site — the strike it was recommending anyway. It used to watch the
+  // map instead and advance when the player clicked a target, with NEXT as the
+  // escape hatch; one button doing the whole walkthrough is less to explain, and
+  // a card that advances on its own while you are reading it reads as a misfire.
+  // A player who clicks a target anyway gets the same dialog, and the
+  // walkthrough owns it either way — it presses ABORT on the way out, which
+  // spends nothing.
   function onNext() {
     const st = STEPS[i];
-    if (st && st.gate && !strikeOpen()) {
-      const t = demoTarget();
-      if (t && !Game.G.over) { UI.openStrikeModal(Game.G, t); ownsModal = true; }
+    if (st && st.opens) {
+      if (strikeOpen()) ownsModal = true;
+      else {
+        const t = demoTarget();
+        if (t && !Game.G.over) { UI.openStrikeModal(Game.G, t); ownsModal = true; }
+      }
     }
     go(i + 1);
   }
@@ -172,6 +182,15 @@ const Tour = (() => {
   };
 
   const resolve = (st) => (typeof st.sel === 'function' ? st.sel() : document.querySelector(st.sel));
+
+  // Moving a subtree drops focus to the body, and the card is routinely holding
+  // it — NEXT is focused the moment the walkthrough starts. Hand it back.
+  function reparent(host) {
+    if (root.parentNode === host) return;
+    const keep = root.contains(document.activeElement) ? document.activeElement : null;
+    host.appendChild(root);
+    if (keep) keep.focus();
+  }
 
   // ---- geometry ----
   // Re-run every frame rather than measured once per step. A sidebar section
@@ -266,11 +285,12 @@ const Tour = (() => {
     // the player closed the dialog out from under a step that lives inside it —
     // Escape, ABORT, or authorising the strike for real. All three are fine.
     if (st.modal && !strikeOpen()) { ownsModal = false; return go(afterModal()); }
-    // The player opened it because the card asked them to, which makes closing
-    // it the walkthrough's job just as much as if the fallback had opened it —
-    // otherwise the dialog sits over the sidebar for the remaining six steps.
-    // Closing it is an ABORT and spends nothing either way.
-    if (st.gate && st.gate()) { ownsModal = true; return go(i + 1); }
+    // A player who clicks a target on the first card rather than pressing NEXT
+    // gets the real dialog up over the map. The card stays anchored to the map —
+    // that is still what this step is about — but it has to ride inside the
+    // dialog to stay in ui.js's focus trap, or its own NEXT is on screen and
+    // unreachable from the keyboard.
+    if (st.opens) reparent(strikeOpen() ? $('strike-modal') : document.body);
     const el = resolve(st);
     if (!el) return go(i + 1);
     if (pin > 0) { pin--; pinPanel(el); }
@@ -306,8 +326,7 @@ const Tour = (() => {
     // unreachable from the keyboard for these two steps; parented to the overlay
     // its buttons join the trap for free. It is a plain div either way — never
     // an .overlay with a .modal in it — so it never enters the dialog stack.
-    const host = st.modal ? $('strike-modal') : document.body;
-    if (root.parentNode !== host) host.appendChild(root);
+    reparent(st.modal || (st.opens && strikeOpen()) ? $('strike-modal') : document.body);
 
     $('tour-count').textContent = `STEP ${i + 1} OF ${STEPS.length}`;
     $('tour-title').textContent = st.title;

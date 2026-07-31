@@ -6,7 +6,11 @@ const MapView = (() => {
   let svg, world, tooltip;
   let view = { x: 0, y: 0, k: 1 };
   let panning = false, panStart = null;
-  let forwardOn = false; // forward-basing layer starts hidden
+  // Forward basing starts SHOWN. Where the American bases are is the first
+  // thing a president needs off this map, and hiding it behind a button meant
+  // most players never saw Kuwait or Jordan at all. The BASES button is now a
+  // way to clear the clutter, not a way to find it.
+  let forwardOn = true;
 
   // FAST FORWARD — the player asked for the result, not the show. Everything
   // that animates on a clock checks this flag and collapses to its end state:
@@ -511,21 +515,17 @@ const MapView = (() => {
     hz.appendChild(hzLabel);
     world.appendChild(hz);
 
-    // forward basing & long-range fires layer (toggled off by default so the
-    // map isn't overcrowded — the BASES button in the map header shows it)
+    // forward basing layer (shown by default — the BASES button in the map
+    // header hides it when the plot gets busy)
+    //
+    // The two Kuwait camps used to carry ATACMS/PrSM range rings. Two pairs of
+    // 300/500 km circles centred a few map units apart drew four near-concentric
+    // arcs across the whole northern Gulf, over Bushehr and Kharg — the busiest
+    // corner of the target list — and the layer is on all the time now, so that
+    // clutter is permanent rather than opt-in. The fires themselves are still
+    // announced in each camp's tooltip, which is where the information belongs.
     const fwd = el('g', { id: 'forward-layer', class: forwardOn ? '' : 'hidden' });
     const forwardAssets = US_ASSETS.filter(a => a.forward);
-    for (const a of forwardAssets) {
-      if (!a.atacms) continue;
-      // rings first so every base icon draws above them
-      for (const r of MISSILE_RANGES) {
-        const px = r.km * KM_TO_MAP;
-        fwd.appendChild(el('circle', { class: `range-ring ${r.cls}`, cx: a.x, cy: a.y, r: px }));
-        const lbl = el('text', { class: 'ring-label', x: a.x, y: a.y - px + 9 });
-        lbl.textContent = r.name;
-        fwd.appendChild(lbl);
-      }
-    }
     for (const a of forwardAssets) {
       const g = assetIcon(a);
       attachTooltip(g, () => `<span class="tt-name">${a.name}</span><br>${a.desc}` +
@@ -860,8 +860,10 @@ const MapView = (() => {
     new ResizeObserver(() => applyView()).observe(svg);
     document.getElementById('toggle-bases').addEventListener('click', () => {
       forwardOn = !forwardOn;
+      const btn = document.getElementById('toggle-bases');
       document.getElementById('forward-layer').classList.toggle('hidden', !forwardOn);
-      document.getElementById('toggle-bases').classList.toggle('layer-on', forwardOn);
+      btn.classList.toggle('layer-on', forwardOn);
+      btn.title = forwardOn ? 'Hide forward basing layer' : 'Show forward basing layer';
     });
   }
 

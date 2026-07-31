@@ -820,8 +820,8 @@ const DIFFICULTY_ALIAS = { advisor: 'easy', general: 'normal', president: 'hard'
 // ---- US assets shown on the map ----
 // sortie: can generate fixed-wing strike sorties (flight animations launch
 // from the nearest sortie-capable base); atacms: hosts Army long-range fires
-// (ATACMS/PrSM) — drawn with range rings on the forward-basing layer;
-// forward: lives on the toggleable forward-basing layer (off by default)
+// (ATACMS/PrSM) — reported in the base's tooltip;
+// forward: lives on the forward-basing layer (shown by default, BASES hides it)
 const US_ASSETS = [
   { id: 'csg-lincoln', name: 'USS Abraham Lincoln', short: 'LINCOLN', x: 800, y: 668, kind: 'carrier', sortie: true,
     desc: 'The only carrier strike group in theater, on station in the North Arabian Sea some 250 nm southeast of Ra\'s al Hadd — out of the Gulf of Oman entirely, and still inside the anti-ship weapons Iran shoots the farthest. Full sortie generation, flown in over Oman on tankers.' },
@@ -954,12 +954,6 @@ const ASSET_NAMES = {
 // The map is equirectangular (standard parallel 28°N): ~33.4 px/°lon,
 // ~37.8 px/°lat, which works out to 0.34 projected units per km.
 const KM_TO_MAP = 0.34;
-
-// Range rings drawn around ATACMS-capable positions on the forward layer
-const MISSILE_RANGES = [
-  { name: 'ATACMS 300 KM', km: 300, cls: 'ring-atacms' },
-  { name: 'PrSM 500 KM', km: 500, cls: 'ring-prsm' },
-];
 
 // ---- flight animation config ----
 // Animation length (ms) for each strike asset's map animation
