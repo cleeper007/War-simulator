@@ -125,6 +125,28 @@ const UI = (() => {
     scroll.addEventListener('scroll', update, { passive: true });
     new ResizeObserver(update).observe(scroll);
     update();
+
+    // The status row is the same problem lying on its side: it overflows
+    // horizontally on a narrow landscape phone and a touch browser draws no
+    // resting scrollbar, so the readouts past the right edge were unreachable
+    // by anything except a swipe the player had no reason to try. Unlike the
+    // sidebar it also has to say when it DOESN'T overflow — on a desktop the
+    // whole row fits and a permanent fade would imply a ninth column that isn't
+    // there. Observed rather than measured once: the row is re-rendered every
+    // turn and the widths move with the numbers in it (a five-figure casualty
+    // count is wider than a one-figure one).
+    const status = $('status-row');
+    if (!status) return;
+    const statusUpdate = () => {
+      const overflows = status.scrollWidth > status.clientWidth + 2;
+      status.classList.toggle('no-overflow', !overflows);
+      status.classList.toggle('at-end',
+        status.scrollLeft + status.clientWidth >= status.scrollWidth - 2);
+    };
+    status.addEventListener('scroll', statusUpdate, { passive: true });
+    new ResizeObserver(statusUpdate).observe(status);
+    new MutationObserver(statusUpdate).observe(status, { childList: true, subtree: true, characterData: true });
+    statusUpdate();
   }
 
   // The same contract for every modal body. On a desktop window almost nothing

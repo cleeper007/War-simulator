@@ -23,7 +23,7 @@
      looks like a change that never shipped. Bumping the badge at line 36 renames
      every asset URL, which is the only thing that reliably forces the fetch.
      Bump the stamps and the badge together. -->
-<link rel="stylesheet" href="css/style.css?v=1.40">
+<link rel="stylesheet" href="css/style.css?v=1.41">
 </head>
 <body>
 
@@ -40,7 +40,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.40<span class="beta-tag">BETA</span></div>
+  <div class="version-badge">v1.41<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -80,6 +80,12 @@
           <button id="zoom-in" title="Zoom in">+</button>
           <button id="zoom-out" title="Zoom out">−</button>
           <button id="zoom-reset" title="Reset view">⌂</button>
+          <!-- Mute lives with the map controls, not in the status row. It is the
+               only CONTROL among eight readouts, and it was parked at the far
+               right of a row that overflows on a narrow landscape phone — so the
+               one thing in there a player needs to press was the first thing to
+               scroll off an edge nothing marked. -->
+          <button id="btn-mute" title="Toggle sound">🔊</button>
         </div>
       </div>
       <div id="map-container">
@@ -239,6 +245,14 @@
   <!-- Bottom status bar -->
   <div id="bottom-bar">
     <div id="status-row">
+      <!-- TURN leads the row. The row scrolls sideways on a narrow landscape
+           phone, and whatever sits last is what falls off the edge; the campaign
+           clock is the one readout that orients every other number in here, so
+           it is the one that must survive the cut without a swipe. -->
+      <div class="stat">
+        <div class="stat-label">TURN</div>
+        <div class="stat-value big" id="turn-value">1/20</div>
+      </div>
       <div class="stat" id="stat-capacity">
         <div class="stat-label">IRAN WAR CAPACITY</div>
         <div class="defcon-meter" id="capacity-meter"></div>
@@ -263,14 +277,6 @@
       <div class="stat">
         <div class="stat-label">US CASUALTIES</div>
         <div class="stat-value big" id="casualty-value">7</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">TURN</div>
-        <div class="stat-value big" id="turn-value">1/20</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">AUDIO</div>
-        <button id="btn-mute" title="Toggle sound">🔊</button>
       </div>
     </div>
     <div id="ticker-row"><div id="ticker"><span id="ticker-text"></span></div></div>
@@ -406,15 +412,15 @@
   </div>
 </div>
 
-<script src="js/text.js?v=1.40"></script>
-<script src="js/geodata.js?v=1.40"></script>
-<script src="js/data.js?v=1.40"></script>
-<script src="js/map.js?v=1.40"></script>
-<script src="js/ai.js?v=1.40"></script>
-<script src="js/audio.js?v=1.40"></script>
-<script src="js/ui.js?v=1.40"></script>
-<script src="js/specops.js?v=1.40"></script>
-<script src="js/csar.js?v=1.40"></script>
-<script src="js/game.js?v=1.40"></script>
+<script src="js/text.js?v=1.41"></script>
+<script src="js/geodata.js?v=1.41"></script>
+<script src="js/data.js?v=1.41"></script>
+<script src="js/map.js?v=1.41"></script>
+<script src="js/ai.js?v=1.41"></script>
+<script src="js/audio.js?v=1.41"></script>
+<script src="js/ui.js?v=1.41"></script>
+<script src="js/specops.js?v=1.41"></script>
+<script src="js/csar.js?v=1.41"></script>
+<script src="js/game.js?v=1.41"></script>
 </body>
 </html>

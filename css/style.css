@@ -490,6 +490,20 @@ button { font-family: var(--mono); }
 #status-row {
   display: flex; align-items: stretch; gap: 0; padding: 8px 14px;
 }
+/* The row scrolls sideways once it stops fitting (see the max-height rule near
+   the bottom of this file), and a touch browser paints no resting scrollbar —
+   so on a 667px landscape phone roughly 100px of readouts sat past the right
+   edge with nothing at all to say so. Same contract as #sidebar-scroll: fade
+   the edge while there is more to reach, lift it once the end is in view.
+   `no-overflow` is the desktop case and removes the mask entirely, so a row
+   that fits never looks like it is hiding a column. */
+#status-row {
+  mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
+}
+#status-row.at-end, #status-row.no-overflow {
+  mask-image: none; -webkit-mask-image: none;
+}
 .stat {
   padding: 0 18px; border-right: 1px solid var(--line);
   display: flex; flex-direction: column; justify-content: center; gap: 3px;
@@ -931,9 +945,11 @@ button { font-family: var(--mono); }
 #session-buttons button { flex: 1; padding: 7px; font-size: 10.5px; }
 
 /* ============ audio ============ */
+/* Sits in #map-zoom-controls, so it inherits that row's 26px box and only needs
+   to drop the chrome the other buttons get from their own rule. */
 #btn-mute {
   background: transparent; border: 1px solid var(--line); cursor: pointer;
-  font-size: 15px; padding: 2px 8px; line-height: 1.4;
+  font-size: 13px; padding: 0; line-height: 1;
 }
 #btn-mute:hover { border-color: var(--blue); }
 
@@ -1531,7 +1547,31 @@ button { font-family: var(--mono); }
   #map-zoom-controls { gap: 8px; }
   #map-zoom-controls button { width: 36px; height: 36px; font-size: 16px; }
   #toggle-bases { height: 36px; }
-  #btn-mute { font-size: 18px; padding: 6px 10px; }
+  #btn-mute { font-size: 16px; }
+
+  /* The chrome buttons are drawn at 36px and 29px, against the same 44px
+     guideline HIT_PX in map.js is written to (`22 — half of the 44px
+     guideline`). Rather than draw them bigger, extend the TOUCH area past the
+     paint the way the map already does it: `circle.tgt-hit` is an invisible
+     44px disc under a much smaller icon, and this is that idea in CSS. Drawing
+     these at a true 44px would push #map-header to ~54px, and on a 375px-tall
+     landscape phone the header is spending that out of the chart.
+     The insets stop short of the flexbox gap (8px between these buttons, 8px
+     above #session-buttons), so no two hit areas ever overlap — a thumb landing
+     in the crack still resolves to the button it is nearest, never to the wrong
+     one. Pointer events land on the button itself, since ::after is its child. */
+  #map-zoom-controls button, #session-buttons button, .modal-close { position: relative; }
+  #map-zoom-controls button::after {
+    content: ''; position: absolute; inset: -4px;   /* 36 → 44 */
+  }
+  #session-buttons button::after {
+    content: ''; position: absolute; inset: -7px -3px;   /* 29 → 43 tall */
+  }
+  /* the glyph is narrower than it is tall (24x33), so this one is not square */
+  .modal-close::after {
+    content: ''; position: absolute; inset: -6px -10px;   /* 24 wide → 44 */
+  }
+
   /* the sidebar taskings are the primary touch surface — give them room */
   #fleet-buttons button:not(.action-why), #diplo-buttons button:not(.action-why),
   #intel-buttons button:not(.action-why), #specops-buttons button:not(.action-why),
@@ -1677,4 +1717,31 @@ button { font-family: var(--mono); }
   .title-brief p { margin-bottom: 8px; }
   #difficulty-select { margin: 12px 0 10px; }
   .modal { max-height: 92vh; }
+}
+
+/* ---- reduced motion ----
+   Named selectors, deliberately NOT a blanket `* { animation: none }`. Two
+   kinds of motion in here must keep running:
+
+   - The strike and flight sequences are not decoration. They run on
+     requestAnimationFrame in map.js and the turn is handed on at the end of
+     them; the watchdog that cleans the plot up is on the same clock. Freezing
+     them from the stylesheet would stall the campaign, not calm it down.
+   - The ticker is the only place a headline is ever shown. Stopping the crawl
+     does not still the news, it hides all but the first item — content loss
+     dressed as an accessibility win. It already drops out entirely below 430px
+     of height, which is the honest fix.
+
+   What is listed below is the decorative half: infinite blinks and pulses whose
+   base state still carries the meaning. A stopped .scope-lock is still drawn in
+   red, a stopped .tel-fix is still a fix — the player loses the throb, not the
+   information. Transitions collapse rather than vanish, so anything polling for
+   a settled height (openPanel in ui.js) still sees it settle. */
+@media (prefers-reduced-motion: reduce) {
+  .scope-lock, .pulsing, .raid-helo.raid-wreck, .target.tel-fix,
+  .csar-survivors.csar-contact .csar-ring, .call-phone, .call-levels i,
+  .call-modal.connected .lc-wave, .rotate-icon, .transit-dot {
+    animation: none !important;
+  }
+  * { transition-duration: 0.01ms !important; }
 }
