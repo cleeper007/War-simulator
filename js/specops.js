@@ -209,30 +209,49 @@ const SpecOps = (() => {
   // is sticky until another step sets one, so a beat with no footage of its own
   // holds the last cut rather than dropping to black — which reads as a
   // continuous feed instead of a slideshow.
-  const FOOTAGE = 'video/spec-ops%20infil/';
-  const ASSAULT = 'video/spec-ops%20assault/';
+  //
+  // Every clip here must be H.264 in an MP4, muxed with `-movflags +faststart`.
+  // This is not a preference. These thirteen shipped for months as the phone's
+  // native output — HEVC in a QuickTime container, moov atom at the tail — and
+  // the whole set piece was a black pane for everyone not on Safari: Firefox
+  // will not decode hvc1 at all, and Chrome's HEVC path is gated on a platform
+  // hardware decoder that plenty of Windows and Linux machines do not expose.
+  // The tail moov cost the rest: no frame renders until the entire file has
+  // arrived, which on a phone is the difference between a cut and a stall. The
+  // strike clips beside them were always correct, so the raid failed alone and
+  // quietly. Re-encode new footage before dropping it in:
+  //   ffmpeg -i in.mov -c:v libx264 -preset slow -crf 21 -profile:v high \
+  //          -pix_fmt yuv420p -movflags +faststart out.mp4
+  //
+  // Hyphens, not spaces, and no %20 anywhere. These folders were named with
+  // spaces and reached by pre-encoding them here, which held up on Pages but
+  // put a literal space in the path the moment anything else touched it — zip
+  // rebuilds, CDN rewrites, an itch upload. Keep new asset paths ASCII and
+  // unescaped so the string in the source is the string on disk.
+  const FOOTAGE = 'video/spec-ops-infil/';
+  const ASSAULT = 'video/spec-ops-assault/';
 
   // `static` is signal snow, not a scene. It is the loss-of-feed card: once the
   // net goes silent it stays up through the state-TV beat and the end of the
   // mission, because from the situation room there is genuinely nothing left to
   // see. Never cut away from it — the branches that reach it are already over.
-  const LOST_FEED = ASSAULT + 'static.mov';
+  const LOST_FEED = ASSAULT + 'static.mp4';
 
   // Every branch flies the same infil: the night is identical until the team
   // is on the ground, which is what makes the divergence land.
   const INFIL = [
     { t: 0, phase: 'INFIL', audio: 'launch', text: 'Flight of two off the deck — task force is airborne',
-      clip: FOOTAGE + '1takeoff.mov', fx: (v) => v.infil(30000) },
+      clip: FOOTAGE + '1takeoff.mp4', fx: (v) => v.infil(30000) },
     { t: 4500, text: 'MH-47G carrying the assault element, MH-60M riding overwatch',
-      clip: FOOTAGE + '2twohelicopterformation.mov' },
+      clip: FOOTAGE + '2twohelicopterformation.mp4' },
     { t: 9000, text: 'Feet dry south of Bushehr — nap-of-the-earth, terrain masking the run',
-      clip: FOOTAGE + '3inheloenroute.mov' },
+      clip: FOOTAGE + '3inheloenroute.mp4' },
     { t: 14000, text: 'RC-135 on station: compound security posture unchanged',
-      clip: FOOTAGE + 'staticoverhead.mov' },
+      clip: FOOTAGE + 'staticoverhead.mp4' },
     { t: 19000, text: 'Crossing the Zagros in the dark. No radar tracks on the corridor.',
-      clip: FOOTAGE + '5ridgelineterrain.mov' },
+      clip: FOOTAGE + '5ridgelineterrain.mp4' },
     { t: 24000, text: 'Ten minutes. Assault element moving to the ramp.',
-      clip: FOOTAGE + '6Missionisgomov.mov' },
+      clip: FOOTAGE + '6Missionisgomov.mp4' },
     { t: 28000, text: 'One minute. Green light.' },
   ];
 
@@ -240,25 +259,25 @@ const SpecOps = (() => {
     // ---- SUCCESS: the night everyone planned for ----
     clean: [
       { t: 30000, phase: 'ACTIONS ON OBJECTIVE', text: 'Fast rope — team on the deck outside the south wall',
-        clip: ASSAULT + 'fastrope.mov', fx: (v) => v.fastrope(6000, 6) },
+        clip: ASSAULT + 'fastrope.mp4', fx: (v) => v.fastrope(6000, 6) },
       // No cut here: the fast-rope clip holding is the point. This is the beat
       // where nothing happens, and a feed that keeps running says that better
       // than a new angle would.
       { t: 35000, text: 'No reaction from the guard barracks. They are asleep.' },
       { t: 39000, audio: 'impact', text: 'Charge on the south wall — through the breach',
-        clip: ASSAULT + 'Breachcharge.mov', fx: (v) => v.breach() },
+        clip: ASSAULT + 'Breachcharge.mp4', fx: (v) => v.breach() },
       { t: 43500, kind: 'problem', contested: true, text: 'Two guards in the courtyard — suppressed, down',
-        clip: ASSAULT + 'Courtyardsupressedcontact.mov',
+        clip: ASSAULT + 'Courtyardsupressedcontact.mp4',
         fx: (v) => { v.firefight(3500); v.enter(7000); } },
       { t: 48500, contested: false, text: 'Ground floor clear. Stack moving to the stairs.',
-        clip: ASSAULT + 'Interiorstackmovement.mov' },
+        clip: ASSAULT + 'Interiorstackmovement.mp4' },
       { t: 53000, kind: 'good', audio: 'impact', text: 'JACKPOT — target down on the third floor',
-        clip: ASSAULT + 'roomentry-jackpot.mov', fx: (v) => v.jackpot() },
+        clip: ASSAULT + 'roomentry-jackpot.mp4', fx: (v) => v.jackpot() },
       // PID has no clip of its own; holding the room entry keeps the camera in
       // the room where it happened.
       { t: 58000, kind: 'good', text: 'Positive identification. Two minutes on the objective.' },
       { t: 63000, text: 'Sensitive site exploitation — hard drives, courier bags, phones',
-        clip: ASSAULT + 'sse-documents.mov' },
+        clip: ASSAULT + 'sse-documents.mp4' },
       { t: 68000, text: 'Non-combatants moved to the courtyard, secured, unhurt' },
       { t: 73000, phase: 'EXFIL', clip: null, text: 'Team collapsing to the LZ with the body and the material',
         fx: (v) => v.teamOut(6000) },
@@ -272,7 +291,7 @@ const SpecOps = (() => {
     // ---- SUCCESS: a bird goes in and the assault presses anyway ----
     heloDown: [
       { t: 30000, phase: 'ACTIONS ON OBJECTIVE', text: 'Fast rope — team on the deck outside the south wall',
-        clip: ASSAULT + 'fastrope.mov', fx: (v) => v.fastrope(6000, 6) },
+        clip: ASSAULT + 'fastrope.mp4', fx: (v) => v.fastrope(6000, 6) },
       // The bird goes in off-camera as far as the feed is concerned — the assault
       // element's sensor is still looking at the rope. The tactical pane carries
       // the crash; the feed catches up at the breach.
@@ -282,18 +301,18 @@ const SpecOps = (() => {
       { t: 40500, kind: 'good', text: 'Crew is out and moving under their own power. No fatalities.' },
       { t: 44000, text: 'Ground force commander is pressing. The assault goes.' },
       { t: 48000, audio: 'impact', text: 'Charge on the south wall — through',
-        clip: ASSAULT + 'Breachcharge.mov',
+        clip: ASSAULT + 'Breachcharge.mp4',
         fx: (v) => { v.breach(); v.firefight(11000); } },
       { t: 52000, kind: 'problem', text: 'Heavy contact from the barracks — the crash woke the whole compound',
-        clip: ASSAULT + 'Courtyardsupressedcontact.mov' },
+        clip: ASSAULT + 'Courtyardsupressedcontact.mp4' },
       { t: 57000, text: 'Suppressing. Assault element into the main house.',
-        clip: ASSAULT + 'Interiorstackmovement.mov', fx: (v) => v.enter(7000) },
+        clip: ASSAULT + 'Interiorstackmovement.mp4', fx: (v) => v.enter(7000) },
       { t: 62000, kind: 'good', audio: 'impact', text: 'JACKPOT — target down on the third floor',
-        clip: ASSAULT + 'roomentry-jackpot.mov', fx: (v) => v.jackpot() },
+        clip: ASSAULT + 'roomentry-jackpot.mp4', fx: (v) => v.jackpot() },
       { t: 67000, kind: 'bad', text: 'One operator killed clearing the barracks',
         fx: (v) => v.teamHit(1) },
       { t: 72000, contested: false, text: 'SSE bags loaded. Thermite charges set on the downed airframe.',
-        clip: ASSAULT + 'sse-documents.mov' },
+        clip: ASSAULT + 'sse-documents.mp4' },
       { t: 77000, phase: 'EXFIL', clip: null, text: 'Everyone onto the surviving bird — assault force and downed crew',
         fx: (v) => v.teamOut(6000) },
       { t: 83000, kind: 'problem', text: 'Airframe destroyed in place. She is still burning.',
@@ -306,31 +325,31 @@ const SpecOps = (() => {
     // ---- MIXED: they get him, and they do not come home ----
     mixed: [
       { t: 30000, phase: 'ACTIONS ON OBJECTIVE', text: 'Fast rope — team on the deck outside the south wall',
-        clip: ASSAULT + 'fastrope.mov', fx: (v) => v.fastrope(6000, 6) },
+        clip: ASSAULT + 'fastrope.mp4', fx: (v) => v.fastrope(6000, 6) },
       { t: 34000, kind: 'problem', contested: true, audio: 'retaliation', text: 'Compound floodlights come on. They were waiting.' },
       { t: 38000, kind: 'bad', text: 'Charge on the south wall — through, into heavy fire',
-        clip: ASSAULT + 'Breachcharge.mov',
+        clip: ASSAULT + 'Breachcharge.mp4',
         fx: (v) => { v.breach(); v.firefight(34000); } },
       // The courtyard clip carries the whole loud middle of this branch — the
       // IRGC company, both birds going in, the men down at the door. Cutting a
       // new angle onto each of those would make the compound feel bigger than it
       // is; holding one two-way fight makes it feel surrounded.
       { t: 42500, kind: 'bad', text: 'This is not a guard detachment. Reinforced IRGC company.',
-        clip: ASSAULT + 'Courtyardsupressedcontact.mov' },
+        clip: ASSAULT + 'Courtyardsupressedcontact.mp4' },
       { t: 46500, kind: 'bad', audio: 'aircraftLost', text: 'OVERWATCH BIRD DOWN — RPG off the north roofline',
         fx: (v) => v.heloDown('over') },
       { t: 51000, kind: 'bad', text: 'LZ bird destroyed on the ground. There is no ride home.',
         fx: (v) => v.heloDown('assault', true) },
       { t: 55000, text: 'Ground force commander on the net: they are going to finish it.' },
       { t: 59000, kind: 'bad', text: 'Two operators down at the courtyard door',
-        clip: ASSAULT + 'Interiorstackmovement.mov',
+        clip: ASSAULT + 'Interiorstackmovement.mp4',
         fx: (v) => { v.teamHit(2); v.enter(6000); } },
       { t: 65000, kind: 'good', audio: 'impact', text: 'JACKPOT — target down on the third floor',
-        clip: ASSAULT + 'roomentry-jackpot.mov', fx: (v) => v.jackpot() },
+        clip: ASSAULT + 'roomentry-jackpot.mp4', fx: (v) => v.jackpot() },
       { t: 70000, kind: 'good', text: 'Positive identification. The Supreme Leader is dead.' },
       { t: 75000, phase: 'DANGER CLOSE', kind: 'bad', text: 'Team is surrounded in the main house. QRF is forty minutes out.' },
       { t: 80000, kind: 'bad', text: 'Ammunition low. They are burning the exploitation material.',
-        clip: ASSAULT + 'sse-documents.mov', fx: (v) => v.teamHit(2) },
+        clip: ASSAULT + 'sse-documents.mp4', fx: (v) => v.teamHit(2) },
       { t: 85500, kind: 'bad', text: 'Last transmission from the ground force commander.' },
       { t: 91000, phase: 'NO COMMS', kind: 'bad', text: 'The net has gone silent.',
         clip: LOST_FEED, fx: (v) => v.teamCaptured() },
@@ -341,24 +360,24 @@ const SpecOps = (() => {
     // ---- FAILURE: everything ----
     failure: [
       { t: 30000, phase: 'ACTIONS ON OBJECTIVE', text: 'Fast rope — team going in short of the south wall',
-        clip: ASSAULT + 'fastrope.mov', fx: (v) => v.fastrope(6000, 6) },
+        clip: ASSAULT + 'fastrope.mp4', fx: (v) => v.fastrope(6000, 6) },
       { t: 33000, kind: 'bad', contested: true, audio: 'aircraftLost',
         text: 'ASSAULT BIRD TAKES A ZU-23 BURST ON SHORT FINAL — DOWN',
         fx: (v) => v.heloDown('assault', true) },
       { t: 37500, kind: 'bad', text: 'Two crew dead in the wreck. The team is on the ground and pinned.' },
       { t: 41500, kind: 'bad', text: 'Ambush. Interlocking fire from three sides — this position was known.',
-        clip: ASSAULT + 'Courtyardsupressedcontact.mov', fx: (v) => v.firefight(42000) },
+        clip: ASSAULT + 'Courtyardsupressedcontact.mp4', fx: (v) => v.firefight(42000) },
       { t: 46000, kind: 'bad', text: 'Overwatch bird down. Both airframes are gone.',
         fx: (v) => v.heloDown('over') },
       { t: 50000, kind: 'bad', text: 'Two operators down in the open short of the wall',
         fx: (v) => v.teamHit(2) },
       { t: 55000, text: 'They get through the wall. The house is empty.',
-        clip: ASSAULT + 'Breachcharge.mov', fx: (v) => { v.breach(); v.enter(6000); } },
+        clip: ASSAULT + 'Breachcharge.mp4', fx: (v) => { v.breach(); v.enter(6000); } },
       // This branch never reaches the room entry — there is nobody in the room.
       // The interior clip runs under the empty-house beats instead, which is the
       // same men doing the same job with nothing at the end of it.
       { t: 60000, kind: 'bad', text: 'No target. No family. No papers. The compound was dressed.',
-        clip: ASSAULT + 'Interiorstackmovement.mov' },
+        clip: ASSAULT + 'Interiorstackmovement.mp4' },
       { t: 65000, phase: 'BROKEN CONTACT', kind: 'bad', text: 'They were expecting us. Somebody talked.' },
       { t: 70000, kind: 'bad', text: 'Ground force commander is hit. Element is combat ineffective.',
         fx: (v) => v.teamHit(2) },

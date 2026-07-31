@@ -177,21 +177,21 @@ sourcing raid footage so the raid card reads as the same sensor as the strike sc
 
 ## Cut status — v1.15
 
-**Infil — complete.** `video/spec-ops infil/` covers all seven beats.
+**Infil — complete.** `video/spec-ops-infil/` covers all seven beats.
 
-**Assault — complete for the shared actions.** `video/spec-ops assault/` holds seven clips,
+**Assault — complete for the shared actions.** `video/spec-ops-assault/` holds seven clips,
 reused across all four branches because the branches differ in what the feed *says*, not in
 what the camera sees:
 
 | Clip | Beats it carries |
 |---|---|
-| `fastrope.mov` | every branch's 30s rope-out, and holds through the quiet beat after it |
-| `Breachcharge.mov` | every wall breach (clean 39s · heloDown 48s · mixed 38s · failure 55s) |
-| `Courtyardsupressedcontact.mov` | courtyard contact, barracks contact, the IRGC company, the three-sided ambush |
-| `Interiorstackmovement.mov` | stack to the stairs, into the main house, the empty-house clear |
-| `roomentry-jackpot.mov` | every JACKPOT, holding through PID (failure branch never reaches it) |
-| `sse-documents.mov` | exploitation, SSE bags, and burning the material |
-| `static.mov` | signal snow — the loss-of-feed card from NO COMMS to the end |
+| `fastrope.mp4` | every branch's 30s rope-out, and holds through the quiet beat after it |
+| `Breachcharge.mp4` | every wall breach (clean 39s · heloDown 48s · mixed 38s · failure 55s) |
+| `Courtyardsupressedcontact.mp4` | courtyard contact, barracks contact, the IRGC company, the three-sided ambush |
+| `Interiorstackmovement.mp4` | stack to the stairs, into the main house, the empty-house clear |
+| `roomentry-jackpot.mp4` | every JACKPOT, holding through PID (failure branch never reaches it) |
+| `sse-documents.mp4` | exploitation, SSE bags, and burning the material |
+| `static.mp4` | signal snow — the loss-of-feed card from NO COMMS to the end |
 
 **Exfil — not shot.** Every beat from `EXFIL` / `MISSION COMPLETE` onward parks on NO VISUAL:
 helo lift + feet wet, deck recovery, state-TV handheld over wreckage. Three clips would close it.
