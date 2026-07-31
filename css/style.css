@@ -355,35 +355,37 @@ button { font-family: var(--mono); }
    control: a stacked list of left-aligned buttons, each an order line over a
    dim line of consequence. Fleet, diplomacy, intelligence, special operations
    and recovery all share it, so a tasking looks like a tasking wherever it
-   appears. */
-#fleet-buttons, #diplo-buttons, #intel-buttons, #specops-buttons, #csar-buttons {
+   appears.
+
+   Matched by SHAPE, not by a list of ids. Every order container in the sidebar
+   is `<div id="…-buttons">` inside #sidebar-scroll, and the list-of-ids version
+   of these rules is what shipped ALLIES unstyled: splitting Jerusalem out of
+   DIPLOMATIC ACTIONS added a seventh container and five separate selector lists
+   would each have had to learn about it, so #allied-buttons fell through to the
+   browser's native button — white, centred, in the middle of a black-and-amber
+   war room. #session-buttons is deliberately outside #sidebar-scroll and keeps
+   its own styling. A new panel now inherits all of this for free. */
+#sidebar-scroll [id$="-buttons"] {
   display: flex; flex-direction: column; gap: 6px;
 }
 /* `:not(.action-why)` throughout: the disclosure caret is a button in these
-   same containers but it is not an order, and these ID-scoped rules would
+   same containers but it is not an order, and this id-scoped rule would
    otherwise out-specify everything the .action rules below try to say about
    it — including its width, which is a touch target. */
-#fleet-buttons button:not(.action-why), #diplo-buttons button:not(.action-why),
-#intel-buttons button:not(.action-why), #specops-buttons button:not(.action-why),
-#csar-buttons button:not(.action-why) {
+#sidebar-scroll [id$="-buttons"] button:not(.action-why) {
   text-align: left; padding: 7px 10px; font-size: 11.5px; line-height: 1.35;
   background: var(--bg-panel2); border: 1px solid var(--line);
   color: var(--text); cursor: pointer;
 }
-#fleet-buttons button:not(.action-why):hover:not(:disabled),
-#diplo-buttons button:not(.action-why):hover:not(:disabled),
-#intel-buttons button:not(.action-why):hover:not(:disabled),
-#specops-buttons button:not(.action-why):hover:not(:disabled),
-#csar-buttons button:not(.action-why):hover:not(:disabled) { border-color: var(--blue); }
-#fleet-buttons button:disabled, #diplo-buttons button:disabled,
-#intel-buttons button:disabled, #specops-buttons button:disabled,
-#csar-buttons button:disabled { opacity: 0.35; cursor: not-allowed; }
+#sidebar-scroll [id$="-buttons"] button:not(.action-why):hover:not(:disabled) {
+  border-color: var(--blue);
+}
+#sidebar-scroll [id$="-buttons"] button:disabled { opacity: 0.35; cursor: not-allowed; }
 /* the order line reads first; the cost of giving it reads second.
    Special operations and recovery still render this shape directly — they are
    one-button panels whose whole description IS the odds, so there is nothing
    to fold away. */
-#fleet-buttons .diplo-desc, #diplo-buttons .diplo-desc, #intel-buttons .diplo-desc,
-#specops-buttons .diplo-desc, #csar-buttons .diplo-desc {
+#sidebar-scroll [id$="-buttons"] .diplo-desc {
   color: var(--dim); display: block; font-size: 10.5px; line-height: 1.45;
   margin-top: 3px;
 }
@@ -1508,8 +1510,7 @@ button { font-family: var(--mono); }
    pan-zoom, no long-press text callouts or tap flashes on the icons. */
 #map { touch-action: none; }
 #map, .target, .us-asset, #map-zoom-controls button,
-.panel-head, #fleet-buttons button, #diplo-buttons button,
-#intel-buttons button, #specops-buttons button, #csar-buttons button {
+.panel-head, #sidebar-scroll [id$="-buttons"] button {
   -webkit-tap-highlight-color: transparent;
 }
 .target, .us-asset { -webkit-touch-callout: none; }
@@ -1573,9 +1574,7 @@ button { font-family: var(--mono); }
   }
 
   /* the sidebar taskings are the primary touch surface — give them room */
-  #fleet-buttons button:not(.action-why), #diplo-buttons button:not(.action-why),
-  #intel-buttons button:not(.action-why), #specops-buttons button:not(.action-why),
-  #csar-buttons button:not(.action-why) { padding: 10px 12px; }
+  #sidebar-scroll [id$="-buttons"] button:not(.action-why) { padding: 10px 12px; }
   /* the disclosure sits right beside the order it explains: too narrow and a
      thumb reaching for "why" gives the order instead */
   .action .action-why { padding: 0 14px; }
