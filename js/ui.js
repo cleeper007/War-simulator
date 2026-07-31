@@ -185,7 +185,7 @@ const UI = (() => {
   // rendered, how much of it is still live.
   const ACTION_PANELS = {
     fleet: 'fleet-buttons', csar: 'csar-buttons', diplo: 'diplo-buttons',
-    intel: 'intel-buttons', specops: 'specops-buttons',
+    allied: 'allied-buttons', intel: 'intel-buttons', specops: 'specops-buttons',
   };
   function renderBadges() {
     for (const key in ACTION_PANELS) {
@@ -984,13 +984,6 @@ const UI = (() => {
         desc: 'Tighten the economic screws. Leverage is what a backchannel spends when the time comes.',
       },
       {
-        id: 'coalition', name: 'Build strike coalition',
-        current: G.coalition ? 'Coalition assembled — allied sorties added.' : 'Adds allied sorties.',
-        desc: G.coalition ? '' : 'Brings allied air into the operation and spreads the political weight of it.',
-        disabled: G.coalition,
-      },
-      ...israelActions(G),
-      {
         id: 'spr', name: 'Release the Strategic Reserve',
         current: G.sprReleases >= 2
           ? 'Tanks too low for another release of scale.'
@@ -1011,6 +1004,48 @@ const UI = (() => {
 
     $('diplo-buttons').innerHTML = actionButtons(actions, used);
     wireActions('#diplo-buttons');
+  }
+
+  // Coalition-building and the two Israel orders sit in their own section, and
+  // they still spend the SAME slot as everything in DIPLOMATIC ACTIONS — this is
+  // a shelf, not a second budget. Giving them a budget was the obvious version
+  // and the wrong one: coalition is once a war, coordinating with Israel is once
+  // a war, and Jerusalem takes ISRAEL.holdMax calls, so a dedicated slot would
+  // sit unspent about twenty-five turns out of thirty wearing a READY badge over
+  // nothing — while handing the diplomatic slot a free action every turn, which
+  // is most of what makes the address/backchannel choice a choice.
+  //
+  // What they actually needed was to be SEEN. israelActions draws a gauge whose
+  // whole claim is that a president should catch it filling out of the corner of
+  // an eye, and it was drawn fourth in a collapsed panel behind four unrelated
+  // orders. A section of their own has a header of its own, and the header can
+  // carry the number while shut — which is the entire reason for the split.
+  function renderAllied(G) {
+    const used = G.diploUsed;
+    const p = Math.round(G.israelPressure);
+    const eta = Game.israelEta();
+    const rate = Game.israelDrivers().reduce((n, [amt]) => n + amt, 0);
+    // Short enough for a landscape phone's panel head, and the alarm outranks
+    // the arithmetic: once they are close to launching, the turns left is the
+    // only figure worth the width. The full clock is inside, on the gauge.
+    $('allied-status').textContent =
+      G.israelPosture === 'coordinated' ? `JERUSALEM ${p}% · JOINT`
+      : G.israelPosture === 'unilateral' ? `JERUSALEM ${p}% · UNILATERAL`
+      : eta !== null && eta <= 6 ? `JERUSALEM ${p}% · FLIES IN ${turns(eta)}`
+      : `JERUSALEM ${p}% · ${signed(Math.round(rate))}/turn`;
+
+    const actions = [
+      {
+        id: 'coalition', name: 'Build strike coalition',
+        current: G.coalition ? 'Coalition assembled — allied sorties added.' : 'Adds allied sorties.',
+        desc: G.coalition ? '' : 'Brings allied air into the operation and spreads the political weight of it.',
+        disabled: G.coalition,
+      },
+      ...israelActions(G),
+    ];
+
+    $('allied-buttons').innerHTML = actionButtons(actions, used);
+    wireActions('#allied-buttons');
   }
 
   // one control for every order the player can give, so a tasking looks like a
@@ -1208,6 +1243,7 @@ const UI = (() => {
     renderFleet(G);
     renderAdvisors(G);
     renderDiplo(G);
+    renderAllied(G);
     renderIntel(G);
     SpecOps.renderPanel(G);
     renderBadges();
@@ -2131,6 +2167,8 @@ const UI = (() => {
           'Fifth Fleet moves only one force a night, so it competes with surging the Ford.' },
       { cls: '', title: 'TWO FREE ACTIONS EVERY TURN',
         text: 'One INTELLIGENCE tasking and one DIPLOMATIC action, and they cost you nothing to spend. ' +
+          'DIPLOMATIC ACTIONS and ALLIES are two shelves over that one action, not two actions — ' +
+          'calling Jerusalem is instead of addressing the nation, not as well as. ' +
           'Watch approval, oil, world opinion and casualties along the bottom bar: when approval slips, ' +
           'ADDRESS THE NATION; when oil spikes, release the STRATEGIC PETROLEUM RESERVE. A war that is ' +
           'being won on the map is routinely lost at home.' },

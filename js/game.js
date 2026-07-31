@@ -1440,7 +1440,7 @@ const Game = (() => {
     return rateOf() > 0 ? 'held short of launch at this tempo' : 'standing down — the gauge is falling';
   }
 
-  // one-line posture summary used by map tooltips and the diplomacy panel
+  // one-line posture summary used by map tooltips and the ALLIES panel
   function israelStatus() {
     const p = Math.round(G.israelPressure);
     const clock = israelClock();
