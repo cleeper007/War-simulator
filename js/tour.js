@@ -61,34 +61,39 @@ const Tour = (() => {
       title: 'PICK A PACKAGE',
       text: 'Each row is a way to hit it. Greyed rows are grounded: that aircraft has not been ' +
         'released yet, or it cannot reach from where it sits.' },
-    { sel: estimateOrFooter, modal: true,
+    // NEXT here is ABORT, deliberately and in as many words. The two were always
+    // the same action — closing the dialog is what moves the walkthrough off the
+    // steps that live inside it — but with the button reading NEXT, a player who
+    // took the card's advice and pressed ABORT watched the tutorial advance on
+    // its own and read it as a misfire. Same behaviour, no longer a surprise.
+    { sel: estimateOrFooter, modal: true, next: 'ABORT',
       title: 'NOTHING IS SPENT UNTIL YOU AUTHORIZE',
       text: 'Pick a package and the estimate reads back the odds and the risk to aircrew. ' +
         'ABORT costs you nothing.' },
     { sel: '#resources-panel', panel: 'resources',
       title: 'THREE PACKAGES A NIGHT',
-      text: 'STRIKE ASSETS carries the count. A fourth still flies, degraded, and it comes off ' +
-        'tomorrow\'s plan.' },
+      text: 'STRIKE ASSETS carries the count. Additional sorties still fly, degraded, and they ' +
+        'come off tomorrow\'s plan.' },
     { sel: '#fleet-panel', panel: 'fleet',
-      title: 'THE B-2 IS STILL IN MISSOURI',
-      text: 'Fordow and Natanz are buried and only the B-2 reaches them. Call it forward here — ' +
-        'Fifth Fleet moves one force a night.' },
+      title: 'BRING IN MORE FIREPOWER',
+      text: 'Not everything is in theater yet. Order it forward from here — including the B-2, ' +
+        'the only aircraft that reaches Fordow.' },
     { sel: '#intel-panel', panel: 'intel',
-      title: 'ONE INTELLIGENCE TASKING, FREE',
-      text: 'Every turn, at no cost. Hunt the missile launchers, assess Tehran\'s intent, or ' +
-        're-look a target you have already hit.' },
+      title: 'INTELLIGENCE TASKING',
+      text: 'Hunt the missile launchers, assess Tehran\'s intent, or re-look a target you have ' +
+        'already hit.' },
     { sel: '#diplo-panel', panel: 'diplo',
-      title: 'ONE DIPLOMATIC ACTION, ALSO FREE',
-      text: 'DIPLOMATIC ACTIONS and ALLIES share it. Calling Jerusalem is instead of addressing ' +
-        'the nation, not as well as.' },
+      title: 'DIPLOMATIC ACTIONS',
+      text: 'Steady the home front, work the coalition, or lean on Tehran. This shelf and ALLIES ' +
+        'share one action a turn between them.' },
     { sel: '#status-row',
       title: 'THE WAR AT HOME',
       text: 'Approval, oil, world opinion, casualties. A war being won on the map is routinely ' +
         'lost along this bar.' },
     { sel: '#advisors-panel', panel: 'advisors',
-      title: 'IRAN HAS A PLAN YOU CANNOT SEE',
-      text: 'Close the Strait, bleed you with missiles, or sprint for a bomb. Your staff reads it ' +
-        'off what Tehran actually does.' },
+      title: 'YOUR STAFF IS WORTH READING',
+      text: 'Four advisors watching the war from four directions, the pressing ones flagged ' +
+        'URGENT. When they agree on something, do it.' },
     { sel: '#btn-end-turn', next: 'DONE',
       title: 'THEN END THE TURN',
       text: 'Tehran answers overnight and the assessment lands in the morning. Thirty turns is ' +
@@ -124,9 +129,22 @@ const Tour = (() => {
     document.body.appendChild(root);
     ring = $('tour-ring');
     card = $('tour-card');
-    $('tour-back').addEventListener('click', () => go(i - 1));
+    $('tour-back').addEventListener('click', onBack);
     $('tour-next').addEventListener('click', onNext);
     $('tour-end').addEventListener('click', endTour);
+  }
+
+  // BACK has to step over the dialog steps once the dialog is shut, or it does
+  // nothing at all: step four closed the strike dialog on its way in, so a plain
+  // i-1 lands on a step that lives inside it, the watchdog sees no dialog and
+  // bounces straight forward to four again. The button looked dead. From the
+  // first sidebar card, back is the map.
+  function onBack() {
+    let n = i - 1;
+    if (n >= 0 && STEPS[n].modal && !strikeOpen()) {
+      while (n >= 0 && STEPS[n].modal) n--;
+    }
+    go(Math.max(0, n));
   }
 
   // NEXT off the first card is the way out of the one step that waits: rather
