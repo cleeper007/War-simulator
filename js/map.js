@@ -66,15 +66,53 @@ const MapView = (() => {
     return g;
   }
 
-  // SAM battery: a wheeled launcher with the rails elevated and slewed left,
-  // two canisters riding them nose-up — the silhouette an S-300 site presents.
-  function samSite() {
-    const g = el('g', { class: 'tgt-core' });
-    g.appendChild(el('path', { d: 'M-4.6,5.4 L4.6,5.4 L3.2,3.4 L-3.2,3.4 Z' })); // launcher vehicle
-    const rails = el('g', { transform: 'translate(0,3.4) rotate(-28)' });
-    rails.appendChild(el('path', { d: 'M-2.9,-6.6 L-2.1,-8.1 L-1.3,-6.6 L-1.3,0 L-2.9,0 Z' }));
-    rails.appendChild(el('path', { d: 'M1.1,-6.6 L1.9,-8.1 L2.7,-6.6 L2.7,0 L1.1,0 Z' }));
-    g.appendChild(rails);
+  // Air defense: a shield broken open at the upper right with a missile driving
+  // through the gap. The glyph used to be an erector-launcher, which is the same
+  // object a ballistic missile brigade wears — two of the eight target types
+  // reading as "vehicle with a tube on it" is one too many at map scale, and the
+  // launcher belongs to the type that actually shoots at us. A shield says what
+  // the site does to a package rather than what it looks like from the road.
+  //
+  // The ring is one open path, not an outer shape minus an inner one: it runs
+  // anticlockwise round the outside from the top edge to the right flank, caps
+  // across the wall thickness, and comes back along the inside. Everything is a
+  // single fill because `.tgt-core` colours by status and nothing may hold its
+  // own fill. Drawn at 0.8 so the missile's tail, which overhangs the shield's
+  // shoulder, still lands inside the ±5.5 box the other glyphs live in.
+  function airDefenseShield() {
+    const g = el('g', { class: 'tgt-core', transform: 'scale(0.8)' });
+    g.appendChild(el('path', { d:
+      'M0.9,-5.25 C0.3,-5.1 0.1,-5.05 0,-5.02 C-2.1,-5.85 -4.4,-6.2 -6.0,-6.05 ' +
+      'L-6.0,-1.2 C-6.0,2.7 -3.2,5.5 0,6.7 C1.8,6.0 3.4,5.0 4.6,3.7 ' +
+      'L3.15,2.45 C2.35,3.35 1.3,4.15 0,4.75 C-2.2,3.6 -4.1,1.6 -4.1,-1.2 ' +
+      'L-4.1,-4.05 C-2.9,-4.05 -1.4,-3.8 0,-3.35 C0.2,-3.4 0.6,-3.5 0.9,-3.58 Z' }));
+    // inbound round, nose down-left: it threads the gap and stops short of the
+    // far wall, so the two shapes never touch and merge into one blob at 12px
+    const m = el('g', { transform: 'translate(1.99,-1.91) rotate(-35)' });
+    m.appendChild(el('path', { d:
+      'M-5.6,0 L-3.4,-0.95 L3.2,-0.95 L4.6,-2.5 L5.4,-2.5 L4.9,0 ' +
+      'L5.4,2.5 L4.6,2.5 L3.2,0.95 L-3.4,0.95 Z' }));
+    g.appendChild(m);
+    return g;
+  }
+
+  // Ballistic missile brigade: a transporter-erector-launcher, tube raised and
+  // slewed left off the back of a three-axle chassis. The breech steps up on the
+  // tube's top edge only — squared off symmetrically it grew a corner that
+  // pointed down into the chassis and the whole tail read as an arrowhead.
+  function telLauncher() {
+    // the drawn mass runs low and left — chassis and roadwheels at the bottom,
+    // tube overhanging the nose — so the group is nudged back to sit centred in
+    // the status ring rather than sagging into its lower-left arc
+    const g = el('g', { class: 'tgt-core', transform: 'scale(0.85) translate(0.4,-0.45)' });
+    // chassis, stepping down at the rear to a frame rail behind the cab
+    g.appendChild(el('path', { d:
+      'M-5.2,1.5 L2.0,1.5 L2.0,2.5 L5.4,2.5 L5.4,3.1 L3.0,3.1 L3.0,3.5 L-5.2,3.5 Z' }));
+    for (const cx of [-3.7, -1.5, 0.7]) g.appendChild(el('circle', { cx, cy: 4.3, r: 1.2 }));
+    const tube = el('g', { transform: 'translate(-0.73,-0.84) rotate(34)' });
+    tube.appendChild(el('path', { d:
+      'M-6.6,-0.25 L-5.6,-0.95 L2.3,-0.95 L2.3,-1.75 L4.2,-1.75 L4.2,0.95 L-5.6,0.95 Z' }));
+    g.appendChild(tube);
     return g;
   }
 
@@ -112,12 +150,12 @@ const MapView = (() => {
     switch (type) {
       case 'nuclear':   // radiation trefoil — hub plus three 60-degree blades
         return radiationTrefoil();
-      case 'airdefense':  // SAM site — erector-launcher with two canisters up
-        return samSite();
+      case 'airdefense':  // SAM site — a shield with a round coming through it
+        return airDefenseShield();
       case 'command':   // Iranian national flag on a staff
         return iranianFlag();
-      case 'missile':
-        return el('path', { class: 'tgt-core', d: 'M0,-5.5 L2.5,3 L0,1.2 L-2.5,3 Z' });
+      case 'missile':   // TEL — the launcher itself, not the round it throws
+        return telLauncher();
       case 'naval':
         return el('path', { class: 'tgt-core', d: 'M-4,-1 L4,-1 L2,3 L-2,3 Z M-0.8,-5 L0.8,-5 L0.8,-1 L-0.8,-1 Z' });
       case 'ship':      // a hull underway, as opposed to the base she sails from
