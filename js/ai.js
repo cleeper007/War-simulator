@@ -480,7 +480,7 @@ const IranAI = (() => {
       // a choice that stops being available quietly, which is why it is flagged
       secdef.urgent = true;
       secdef.line = 'The Ford or the 509th — one moves tonight.';
-      secdef.text = 'Two things are outside this theater and Fifth Fleet cuts one transit plan a night to move them: the Ford, five turns out and worth double what one deck gives you, and the 509th, one turn out and the only thing that opens Fordow. One goes tonight, the other tomorrow. My advice is to decide which rather than discover in a week that you needed the one you left at home.';
+      secdef.text = 'Fifth Fleet runs one transit a night. The Ford is five turns out — worth double one deck; the 509th arrives in one and is the only thing that opens Fordow. One goes tonight, the other tomorrow. Decide which before the week decides for you.';
     } else if (nukeDeg >= 100 && warStr <= 1.5) {
       secdef.line = 'They are beaten. End it on our terms.';
       secdef.text = 'They\'re beaten and they know it. Finish the missile force, the navy, and the IRGC command node — end this on our terms, not theirs.';
