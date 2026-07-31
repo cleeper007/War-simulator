@@ -2088,6 +2088,13 @@ const Game = (() => {
     // back together, which is the reason to accept the diplomatic bill for it.
     const oilLeft = TARGETS.filter(t => t.type === 'oil').reduce((n, t) => n + t.hp / 100, 0) / 2;
     eff *= 0.55 + 0.45 * oilLeft;
+    // The northern lifeline (see CASPIAN_REPAIR). Spares that cannot come
+    // overland through a war zone come across the Caspian, and the night the
+    // flotilla goes down at Bandar-e Anzali the berths go with it and Moscow
+    // discovers the closed sea is not closed. Permanent — a hull is on the
+    // bottom or it is not, so this never comes back.
+    const caspian = TARGETS.find(t => t.id === 'ship-caspian');
+    if (caspian && caspian.hp <= 0) eff *= CASPIAN_REPAIR;
 
     const back = [];
     const returned = [];

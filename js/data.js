@@ -162,7 +162,7 @@ const TARGETS = [
   {
     id: 'ship-caspian', name: 'IRGC Caspian Flotilla — Bandar-e Anzali', short: 'CASPIAN FLOT',
     type: 'ship', x: 392, y: 72, depth: 3,
-    desc: 'Missile craft in the Caspian, 900 nm from the Gulf and beyond the fight — but a live hull all the same. The Caspian is a closed sea with Moscow on the far shore: putting American ordnance in it costs far more abroad than the tonnage is worth. No submarine has ever reached it and none ever will — this one is aircraft and cruise missiles or nothing.',
+    desc: 'Missile craft in the Caspian, 900 nm from the Gulf and beyond the fight — but a live hull all the same. The Caspian is a closed sea with Moscow on the far shore: putting American ordnance in it costs far more abroad than the tonnage is worth. No submarine has ever reached it and none ever will — this one is aircraft and cruise missiles or nothing. What the tonnage does not show: Anzali is the Iranian end of the barge traffic from Astrakhan, and putting the flotilla on the bottom of that harbour slows the spares Moscow sends across it for the rest of the war.',
     // Was -8, which priced a handful of missile craft like an oil terminal and
     // made the flotilla a target nobody sane ever took. It is a real hull in a
     // sea Moscow watches, so it still costs more than any other warship on the
@@ -391,6 +391,26 @@ const AD_RECONSTITUTION = {
   // progress that is simply not permanent REMOVAL — which is the whole point.
   cap: 60,
 };
+
+// ============================================================
+// THE NORTHERN LIFELINE
+// ------------------------------------------------------------
+// Multiplier on the national repair effort once the Caspian flotilla is on the
+// bottom. Bandar-e Anzali is the Iranian end of the cross-Caspian traffic out
+// of Astrakhan, and the Caspian is the one approach to Iran no American weapon
+// has ever reached — which is exactly why the spares that matter come that way.
+// Sinking the flotilla wrecks the berths and the cranes with it, and does
+// something the tonnage does not explain: it tells Moscow that a closed sea is
+// no longer a safe one. The barges keep running. They run slower, lighter, and
+// with less on them that anyone will sign for.
+//
+// Small on purpose. This is a reason to take a hull that costs world opinion
+// and sits 900 nm from the fight, not a war-winner — a tenth off every repair
+// roll for the rest of the campaign is worth roughly one extra night of
+// servicing the list, compounding, which is about what a diplomatic bill of
+// -3 should buy. Anything larger and the flotilla stops being a hard call and
+// becomes the opening move.
+const CASPIAN_REPAIR = 0.9;
 
 // Fallback full-effect damage for anything not carrying its own weight in
 // AIR_ASSETS. Individual packages override with `dmg`.
