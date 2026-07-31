@@ -1731,6 +1731,11 @@ const UI = (() => {
       body.onclick = null;
     }
 
+    // Only the primer offers the walkthrough, and it re-arms it after this call.
+    // Reset here rather than there so a nightly report cannot inherit the button
+    // from the last brief the player happened to open.
+    $('btn-report-tour').classList.add('hidden');
+
     const toggle = $('btn-report-detail');
     toggle.classList.toggle('hidden', !collapsible);
     if (collapsible) {
@@ -2144,6 +2149,15 @@ const UI = (() => {
   // Missouri. Leading with the ladder and the bomber answers the question the
   // player actually has at the moment they read this; the action slots follow.
   //
+  // AND SO IS LENGTH. Each card used to run 60-70 words, which is five dense
+  // paragraphs on the first screen of a war the player is impatient to start —
+  // and a wall of text gets ACKNOWLEDGE'd unread, which costs more than saying
+  // less would have. The same argument the turn report already lost once, at the
+  // top of showReport. Each card is now one idea in about 25 words: the action
+  // first, the reason second, and the panel carrying the detail named in caps so
+  // there is somewhere to go. The room teaches the rest — WALK ME THROUGH THE
+  // ROOM in the footer runs these same lessons standing next to the widgets.
+  //
   // Auto-shown on easy and normal only — a player who picked hard was warned the
   // staff refuses nothing. `manual` is the HOW TO PLAY button, which works at
   // every difficulty: suppressing the brief at boot is a judgement about pacing,
@@ -2152,36 +2166,37 @@ const UI = (() => {
     if (!manual && (Game.G.difficulty || 'normal') === 'hard') return;
     const panels = [
       { cls: 'friendly', title: 'FIRST, TAKE THE SKY',
-        text: 'Click any Iranian target to plan a strike — but most of your force is grounded until the ' +
-          'SAM belt comes down. F-35s and Tomahawks fly tonight; fourth-generation squadrons release at ' +
-          '40%, heavy bombers at 80%. STRIKE ASSETS shows which rung you are on. Air defenses repair ' +
-          'overnight, so a belt you stop hitting climbs back.' },
+        text: 'Click any target to plan a strike. Most of your force is grounded until the SAM belt ' +
+          'comes down, so hit air defenses first. STRIKE ASSETS shows what has been released.' },
       // The tasking order is the currency the whole campaign is priced in as of
       // v1.28, and it is the first thing a new player runs into — three packages
       // on night one, and the fourth costs. Discovering that from a refusal on
       // the fourth click is the wrong way to learn the rule the game is about.
-      { cls: '', title: 'THE NIGHT IS PLANNED, AND THE PLAN IS SHORT',
-        text: 'Tonight\'s tasking order holds three strike packages. It grows as the force flow lands. ' +
-          'You can fly past it — the fourth package goes out as a LATE FRAG, degraded, with a heavier ' +
-          'bill in aircrew, and it comes off tomorrow\'s plan. Surging is for a night that matters, not ' +
-          'for every night. STRIKE ASSETS carries the count.' },
-      { cls: '', title: 'THE NUCLEAR SITES NEED A BOMBER YOU HAVE NOT MOVED YET',
-        text: 'Fordow and Natanz are buried. Only the B-2 and its GBU-57 penetrator reach them, and the ' +
-          '509th is still at Whiteman AFB — call it forward from THEATER FORCES. It is one turn out, and ' +
-          'Fifth Fleet moves only one force a night, so it competes with surging the Ford.' },
+      { cls: '', title: 'THREE PACKAGES A NIGHT',
+        text: 'A fourth still flies, as a degraded LATE FRAG, and it comes off tomorrow\'s plan. ' +
+          'Surge for a night that matters, not for every night.' },
+      { cls: '', title: 'THE NUCLEAR SITES NEED THE B-2',
+        text: 'Fordow and Natanz are buried, and only the B-2 reaches them. It is still in Missouri — ' +
+          'call it forward from THEATER FORCES, one turn out.' },
       { cls: '', title: 'TWO FREE ACTIONS EVERY TURN',
-        text: 'One INTELLIGENCE tasking and one DIPLOMATIC action, and they cost you nothing to spend. ' +
-          'DIPLOMATIC ACTIONS and ALLIES are two shelves over that one action, not two actions — ' +
-          'calling Jerusalem is instead of addressing the nation, not as well as. ' +
-          'Watch approval, oil, world opinion and casualties along the bottom bar: when approval slips, ' +
-          'ADDRESS THE NATION; when oil spikes, release the STRATEGIC PETROLEUM RESERVE. A war that is ' +
+        text: 'One INTELLIGENCE tasking, one DIPLOMATIC action, both free. Watch the bottom bar: a war ' +
           'being won on the map is routinely lost at home.' },
-      { cls: 'iran', title: 'AND A WAR PLAN YOU CANNOT SEE',
-        text: 'Tehran has chosen a hidden strategy — strangle the Strait, bleed you with missiles, or sprint ' +
-          'for a bomb. Read it off what Iran actually does, or spend an intelligence slot to assess their ' +
-          'intent. Fight the war in front of you, not the one you expected.' },
+      { cls: 'iran', title: 'IRAN HAS A PLAN YOU CANNOT SEE',
+        text: 'Close the Strait, bleed you with missiles, or sprint for a bomb. Read it off what Tehran ' +
+          'actually does, and fight the war in front of you.' },
     ];
     showReport('HOW TO PLAY — THE WAY THIS WAR IS FOUGHT', panels, null, { prose: true });
+    // The brief is the reference; the walkthrough is the orientation. Offering
+    // it from inside the brief rather than beside it keeps HOW TO PLAY a single
+    // door, and keeps the written version as the thing that always works — it is
+    // five headings and no measuring, where the walkthrough has rects to get
+    // right on every viewport in the world.
+    const walk = $('btn-report-tour');
+    walk.classList.remove('hidden');
+    walk.onclick = () => {
+      $('report-modal').classList.add('hidden');
+      Tour.start();
+    };
   }
 
   return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport,

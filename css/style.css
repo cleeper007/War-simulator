@@ -1744,3 +1744,62 @@ button { font-family: var(--mono); }
   }
   * { transition-duration: 0.01ms !important; }
 }
+
+/* ============ THE WALKTHROUGH ============
+   Kept together at the end of the file, mobile rules included, because the whole
+   feature is one overlay and eight selectors — splitting it across the mobile
+   section buys nothing and costs the next reader a search.
+
+   Sits above the dialogs (100) and below the rotate lock (500): the two steps
+   that run inside the strike dialog have to dim it and draw over it, but a phone
+   turned upright is still a phone turned upright. */
+#tour { position: fixed; inset: 0; z-index: 200; pointer-events: none; }
+
+/* The dim is one element's box-shadow with an absurd spread, rather than four
+   filler divs or an SVG mask: one rect to keep in sync instead of four, and a
+   shadow is not hit-testable, so every click still reaches the room underneath.
+   That last part is the point — a walkthrough that swallows clicks is one a
+   player can be stuck inside.
+
+   No transition on the geometry. The rAF loop in tour.js rewrites these four
+   values every frame to track a panel animating open, and a transition chasing
+   that never arrives. */
+#tour-ring {
+  position: absolute; pointer-events: none;
+  border: 1px solid var(--amber);
+  box-shadow: 0 0 0 9999px rgba(3, 6, 12, 0.74), 0 0 14px rgba(255, 179, 71, 0.35);
+}
+
+#tour-card {
+  position: absolute; pointer-events: auto;
+  width: 300px; max-width: calc(100vw - 16px);
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+  padding: 12px 14px;
+}
+.tour-step { color: var(--dim); font-size: 10px; letter-spacing: 1px; }
+.tour-title { color: var(--amber); font-size: 12px; letter-spacing: 0.5px; margin: 5px 0 6px; }
+.tour-text { line-height: 1.5; }
+.tour-nav { display: flex; gap: 8px; margin-top: 12px; }
+.tour-nav button { flex: 1; font-size: 11px; padding: 6px 8px; }
+
+/* Always in the same place on all ten cards, and never the thing that has to be
+   hunted for: an experienced player who hit HOW TO PLAY by accident should be
+   able to leave without reading anything. */
+.tour-end {
+  display: block; width: 100%; margin-top: 8px; padding: 6px 0;
+  background: none; border: none; border-top: 1px solid var(--line);
+  color: var(--dim); font-family: var(--mono); font-size: 10px;
+  letter-spacing: 1px; cursor: pointer;
+}
+.tour-end:hover { color: var(--red); }
+#tour-card button:focus-visible { outline: 1px solid var(--blue); outline-offset: 2px; }
+
+/* A landscape phone has ~200px of vertical room and the card has to leave some
+   of the thing it is pointing at visible. */
+@media (max-height: 540px) {
+  #tour-card { width: 260px; padding: 9px 11px; }
+  .tour-text { font-size: 11px; line-height: 1.4; }
+  .tour-nav { margin-top: 9px; }
+}
