@@ -60,11 +60,18 @@ const AudioSys = (() => {
   // to sit *under* every event sound rather than beside them — a klaxon or a
   // watch-floor call has to read as an interruption, and it can't if the music
   // is at the same size in the mix. Hence two levels: MUSIC_VOLUME with nothing
-  // else going on, and MUSIC_DUCK while a mission track is up, so the two beds
-  // are never competing at equal gain.
+  // else going on, and MUSIC_DUCK the moment anything else makes a noise —
+  // any clip, the chatter bed, the switchboard. The duck is most of the level,
+  // not a trim: half-stepping it just makes the mix muddy without ever getting
+  // out of the way of the voice.
   const MUSIC_FILE = 'soundtrack.mp3';
-  const MUSIC_VOLUME = 0.10;
-  const MUSIC_DUCK = 0.04;
+  const MUSIC_VOLUME = 0.05;
+  const MUSIC_DUCK = 0.015;
+  // The duck is ramped rather than switched. A strike launch fires several
+  // clips in a second or two, and stepping the gain on each one pumps the bed
+  // audibly — which draws the ear straight to the thing that is supposed to be
+  // beneath notice. Down fast, back up slowly, the way a duck is normally set.
+  const RAMP_MS = { down: 120, up: 550 };
 
   const MUTE_KEY = 'cic-muted';
   const MUSIC_KEY = 'cic-music-off';
@@ -112,11 +119,56 @@ const AudioSys = (() => {
     } catch (e) { /* no Audio support — game plays silent */ }
   }
 
-  // The score's level depends on what else is playing: it steps aside for the
-  // mission chatter rather than layering two beds at the same gain.
+  // ---- ducking ----
+  // Everything that makes a noise takes a hold out on the score and drops it
+  // when it is done; the bed sits at MUSIC_DUCK for as long as any hold is
+  // outstanding. A set rather than a counter because the holds are named — a
+  // clip cut short, a ring the player never answered and a scope torn down by
+  // a skip all release out of order, and dropping the same hold twice must not
+  // leave the bed stuck quiet for the rest of the war.
+  const ducks = new Set();
+  const duckTimers = {};   // per-clip watchdog: no clip holds the bed forever
+  let ramp = null;         // the interval walking the gain to its target
+
+  function duckAdd(key) { if (!ducks.has(key)) { ducks.add(key); musicLevel(); } }
+  function duckDrop(key) { if (ducks.delete(key)) musicLevel(); }
+
+  // A one-shot clip: hold for as long as it runs. Driven off a timer rather
+  // than an `ended` listener because play() re-triggers the same element while
+  // an earlier hold may still be live, and a fresh listener per call would
+  // stack on the element. `duration` is NaN until metadata lands, so a clip
+  // played inside the first moments of the session falls back to a length no
+  // effect in here exceeds.
+  function duckClip(name, clip) {
+    duckAdd('sfx:' + name);
+    clearTimeout(duckTimers[name]);
+    const dur = isFinite(clip.duration) && clip.duration > 0 ? clip.duration : 6;
+    duckTimers[name] = setTimeout(() => duckDrop('sfx:' + name), dur * 1000 + 300);
+  }
+
+  function duckClipDrop(name) {
+    clearTimeout(duckTimers[name]);
+    duckDrop('sfx:' + name);
+  }
+
+  // Walk the gain to wherever the holds say it should be. Stepped by hand on a
+  // timer: Web Audio has a ramp for this, but the rest of this file is bare
+  // <Audio> elements and one gain node is not worth an AudioContext that would
+  // then need its own unlock.
   function musicLevel() {
     if (!music) return;
-    try { music.volume = missionCur ? MUSIC_DUCK : MUSIC_VOLUME; } catch (e) { /* silent */ }
+    const target = ducks.size ? MUSIC_DUCK : MUSIC_VOLUME;
+    const step = 40;
+    const ms = target < music.volume ? RAMP_MS.down : RAMP_MS.up;
+    clearInterval(ramp);
+    const delta = (target - music.volume) / Math.max(1, ms / step);
+    ramp = setInterval(() => {
+      if (!music) { clearInterval(ramp); return; }
+      const next = music.volume + delta;
+      const done = delta >= 0 ? next >= target : next <= target;
+      try { music.volume = done ? target : Math.max(0, Math.min(1, next)); } catch (e) { /* silent */ }
+      if (done) { clearInterval(ramp); ramp = null; }
+    }, step);
   }
 
   // Start (or resume) the bed. No-op until the first gesture unlocks audio, and
@@ -151,7 +203,7 @@ const AudioSys = (() => {
       const p = missionCur.play();
       if (p && p.catch) p.catch(() => {});
     } catch (e) { /* silent */ }
-    musicLevel();   // the score steps down while the chatter is up
+    duckAdd('mission');   // the score steps down while the chatter is up
   }
 
   // A jet's radar scope just opened. Start the music if nothing is playing yet.
@@ -167,7 +219,7 @@ const AudioSys = (() => {
     const c = missionCur;
     missionCur = null;
     try { c.pause(); c.currentTime = 0; } catch (e) { /* silent */ }
-    musicLevel();
+    duckDrop('mission');
   }
 
   // Kill the chatter outright regardless of how many scopes are open — used when
@@ -178,7 +230,7 @@ const AudioSys = (() => {
     const c = missionCur;
     missionCur = null;
     try { c.pause(); c.currentTime = 0; } catch (e) { /* silent */ }
-    musicLevel();
+    duckDrop('mission');
   }
 
   function play(name, delayMs = 0) {
@@ -191,6 +243,7 @@ const AudioSys = (() => {
         const p = c.play();
         if (p && p.catch) p.catch(() => {});
       } catch (e) { /* silent */ }
+      duckClip(name, c);   // the score gets out from under it
     };
     delayMs > 0 ? setTimeout(go, delayMs) : go();
   }
@@ -218,9 +271,13 @@ const AudioSys = (() => {
       if (pendingThen[name] === finish) delete pendingThen[name];
       c.removeEventListener('ended', finish);
       c.removeEventListener('error', finish);
+      duckClipDrop(name);   // the voice has cleared; the bed can come back up
       go();
     };
     pendingThen[name] = finish;
+    // These are the spoken clips, so the hold runs off `finish` — which already
+    // covers ended, error, a stall and being cut short — rather than a timer.
+    duckAdd('sfx:' + name);
     c.addEventListener('ended', finish);
     c.addEventListener('error', finish);
     try {
@@ -267,6 +324,10 @@ const AudioSys = (() => {
     };
     ringOnEnd = () => { ringTimer = setTimeout(ring, RING_GAP); };
     c.addEventListener('ended', ringOnEnd);
+    // One hold for the whole ring rather than one per burst: released between
+    // bursts, the bed would swell back up in every 1.5s silence and pump for as
+    // long as the phone went unanswered.
+    duckAdd('ring');
     ring();
   }
 
@@ -276,6 +337,7 @@ const AudioSys = (() => {
     ringing = false;
     clearTimeout(ringTimer);
     ringTimer = null;
+    duckDrop('ring');
     const c = clips.phoneRing;
     if (!c) return;
     if (ringOnEnd) { c.removeEventListener('ended', ringOnEnd); ringOnEnd = null; }
