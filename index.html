@@ -6,10 +6,15 @@
 <title>Commander in Chief: Persian Gulf War</title>
 
 <!-- Home-screen / tab icons. iOS only reads apple-touch-icon (PNG, no alpha);
-     it ignores the manifest icons, so both sets are declared. -->
+     it ignores the manifest icons, so both sets are declared.
+     PNG only, deliberately: the art is a textured raster tile, and a browser
+     that is offered an SVG prefers it over every PNG here — so a leftover
+     icons/icon.svg would show one icon in the tab and a different one on the
+     home screen. The tile ships full-bleed square with its own ~22% rounded
+     corners, which is iOS's own mask radius; adding corners here would only
+     round an already-rounded tile. -->
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
-<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 <link rel="manifest" href="site.webmanifest">
 <meta name="theme-color" content="#0a1626">
 <meta name="apple-mobile-web-app-capable" content="yes">
