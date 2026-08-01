@@ -135,6 +135,14 @@ const Game = (() => {
     // theater magazine: the Mk-48s are already in her tubes. Four of them, and
     // nobody reloads a boat on patrol — see TORPEDO_LOAD.
     torpedoes: TORPEDO_LOAD,
+    // ---- the escort screen's interceptors ----
+    // The other consumable magazine, and the defensive twin of tlamPool above:
+    // SM-3/SM-6 rounds in the Aegis cells, spent against whatever Tehran throws
+    // at the covered bases and never replaced except alongside an ammunition
+    // ship. Set from NAVAL_BMD.load scaled by difficulty at kickoff (see
+    // bmdCapacity); `bmdRearm` is turns left on a rearm detachment, and while it
+    // is running the deck has no forward station to be ordered to.
+    bmdPool: 0, bmdRearm: 0,
     // The fleet. One deck to start; the second has to be sent for. Only mutable
     // state lives here — names come from CARRIER_INFO by id, so a restored save
     // can never carry a stale ship name back into the war.
@@ -340,7 +348,14 @@ const Game = (() => {
     // of patience, and the campaign continues past it on an accelerating
     // approval drain. Same number, opposite meaning — a v15 save resumed under
     // v16 would be a war whose ending it was never played against.
-    const VERSION = 16;   // v1.46: thirty turns is the plan, not the wall
+    // v17: the fleet's ballistic missile defense stopped being free. What was a
+    // constant fraction of every covered salvo is now a magazine of interceptor
+    // rounds that opens near-total, drains against what Tehran actually fires,
+    // and is only refilled by sending the deck off station to do it. A v16 save
+    // resumed under this rule would be a war carrying a full magazine it had
+    // already spent — every round the screen fired in the first two weeks would
+    // be handed back, which is a different game than the one it was saved from.
+    const VERSION = 17;   // v1.60: the shield is a magazine, not a constant
     const FIELDS = [
       'turn', 'softCap', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -357,6 +372,7 @@ const Game = (() => {
       'milestones', 'difficulty', 'iranPosture', 'postureKnown', 'breakout', 'intel',
       'tankers', 'tankerCap', 'basing', 'basingDebt', 'warPowers', 'addresses', 'threat',
       'timeline', 'adapt', 'adaptSeen', 'turnStartHp', 'tlamPool', 'torpedoes',
+      'bmdPool', 'bmdRearm',
     ];
 
     function write() {
@@ -957,7 +973,9 @@ const Game = (() => {
   // above the sorties it flies. A CSG that far up is a wall of Aegis escorts on
   // the Gulf approaches and a standing threat to anything Iran sails at the
   // strait — which reassures the oil market, makes the strait harder to close,
-  // and shoots down some of the ballistic salvo aimed at the Gulf-state bases.
+  // and shoots down part of the ballistic salvo aimed at the Gulf-state bases —
+  // how much of it depends on what is left in the escorts' cells, which is a
+  // magazine that runs down (see bmdRate, and NAVAL_BMD in data.js).
   // A damaged deck counts half — she is still there, she is just fighting her
   // own fires. Read by the economy (game.js oil model) and by Tehran's naval and
   // missile decisions (ai.js).
@@ -975,6 +993,46 @@ const Game = (() => {
       n += cv.damaged ? 0.5 : 1;
     }
     return n;
+  }
+
+  // ============================================================
+  // THE ESCORT SCREEN'S MAGAZINE
+  // ------------------------------------------------------------
+  // What the forward deck's Aegis escorts can still do about a ballistic salvo,
+  // and how much of it is left. The argument for every number is in NAVAL_BMD
+  // (data.js); what lives here is the state and the three readings taken off it.
+  //
+  // The rate is a function of the magazine and of nothing else — not of the turn
+  // number, which would decay the shield on rails no matter how the campaign was
+  // fought. Rounds come out of it in proportion to what Tehran actually fires at
+  // the covered bases, so the missile hunt the player already runs is also the
+  // thing that decides whether there is still a screen in week three.
+  // ============================================================
+  const bmdCapacity = () => Math.round(NAVAL_BMD.load * diff().bmd);
+  const bmdFrac = () => clamp((G.bmdPool || 0) / bmdCapacity(), 0, 1);
+  const bmdRearming = () => (G.bmdRearm || 0) > 0;
+
+  // 0 with no deck forward, and halved for a deck fighting her own fires — the
+  // same forward-presence term everything else on this station reads.
+  function bmdRate() {
+    const fwd = navalForward();
+    if (fwd <= 0) return 0;
+    return fwd * (NAVAL_BMD.floor + (NAVAL_BMD.peak - NAVAL_BMD.floor) *
+      Math.pow(bmdFrac(), NAVAL_BMD.curve));
+  }
+
+  // Fire on `tracks` inbound. The rate is read BEFORE the rounds come off the
+  // count, on purpose: tonight's salvo is engaged by the magazine that existed
+  // when it was detected, and the bill for it lands on tomorrow night. Firing is
+  // capped by what is actually in the cells, so a raid that arrives against an
+  // empty screen simply costs nothing to not shoot at.
+  function bmdEngage(tracks) {
+    const frac = bmdRate();
+    const before = G.bmdPool || 0;
+    if (frac <= 0 || tracks <= 0) return { frac: 0, fired: 0, before, left: before };
+    const fired = Math.min(before, Math.round(tracks * NAVAL_BMD.perTrack));
+    G.bmdPool = Math.max(0, before - fired);
+    return { frac, fired, before, left: G.bmdPool };
   }
 
   // The theater's air order of battle: the decks, plus every land-based wing
@@ -1214,7 +1272,34 @@ const Game = (() => {
     if (G.over || busy()) return;
     const cv = carrierById(id);
     if (!cv || !cv.arrived || cv.lost || cv.moving || cvFixed(cv)) return;
+    // a deck alongside an ammunition ship has no station to be ordered to. This
+    // is the price of the rearm and it is enforced here rather than only hidden
+    // in the panel, so nothing can hand the umbrella back before the cells are
+    // loaded (see orderRearm).
+    if (bmdRearming()) return;
     cv.moving = cv.posture === 'forward' ? 'back' : 'forward';
+    syncFleetCaps();
+    MapView.setCarrierPosture(cv);
+    AudioSys.play('cable');
+    UI.renderAll(G);
+    Save.write();
+  }
+
+  // Send the screen to reload. Nobody reloads a Mk 41 cell underway — the strike
+  // group detaches to an ammunition anchorage and the missiles go in one at a
+  // time under a crane — so the order is not "spend money on interceptors", it
+  // is "give up the forward station for three nights". The Aegis umbrella, the
+  // weight on the strait and the lid on the oil premium all hang off that same
+  // posture and all three come off together. Only the deck with a forward
+  // station to lose can be sent: the Ford's escorts are behind Suez and are not
+  // shooting at anything aimed at the Gulf.
+  function orderRearm() {
+    if (G.over || busy() || bmdRearming()) return;
+    const cv = G.carriers.find(c => !cvFixed(c) && c.arrived && !c.lost);
+    if (!cv) return;
+    // she comes off station tonight, whichever way she was pointed
+    if (cv.posture === 'forward' || cv.moving === 'forward') cv.moving = 'back';
+    G.bmdRearm = NAVAL_BMD.rearmTurns;
     syncFleetCaps();
     MapView.setCarrierPosture(cv);
     AudioSys.play('cable');
@@ -1235,6 +1320,11 @@ const Game = (() => {
       events.push(cv.posture === 'forward' ? {
         cls: 'friendly', title: `${cvShort(cv)} ON STATION — GULF OF OMAN`,
         text: `${cvName(cv)} has come north through the Ra's al Hadd line and taken station in the Gulf of Oman, a hundred miles off the Makran coast. Her air wing was flying full from standoff and flies full here — what she adds on station is her Aegis escorts over the Gulf bases, her weight on the strait, and a lid on the oil premium. She is also, from tonight, inside every anti-ship weapon Iran owns, and inside most of them by a wide margin.`,
+      } : bmdRearming() ? {
+        // same movement, different reason, and the reason is the whole point of
+        // the order — so it is read back as a rearm and not as a withdrawal
+        cls: 'friendly', title: `${cvShort(cv)} DETACHED TO REARM — ARABIAN SEA`,
+        text: `${cvName(cv)} has cleared the Gulf of Oman and gone alongside the ammunition ship in the open Arabian Sea. The escorts strike down SM-3 and SM-6 rounds one cell at a time under a crane, in a seaway, and it is the only way it can be done — there is no reloading a Mk 41 on station. She flies her full air wing from out there. What she is not doing for the next ${Txt.plural(NAVAL_BMD.rearmTurns, 'night')} is holding an umbrella over Al Udeid and Al Dhafra, leaning on the strait, or keeping a lid on the barrel.`,
       } : {
         cls: 'friendly', title: `${cvShort(cv)} WITHDRAWN TO THE OPEN ARABIAN SEA`,
         text: `${cvName(cv)} has cleared the Gulf of Oman and run south into the middle of the Arabian Sea, halfway between the northern tip of Somalia and the coast of India — five hundred miles of nothing in every direction, and off the plot unless you go looking for her. She keeps her full sortie rate from out there on the tankers. What she gives up is the forward presence: no Aegis over the Gulf bases, no pressure on the strait, no lid on the oil premium.`,
@@ -1242,6 +1332,28 @@ const Game = (() => {
     }
     if (events.length) syncFleetCaps();
     return events;
+  }
+
+  // The rearm detachment, ticked once a night with the rest of the fleet
+  // movement. It ends with full cells and nothing else: she is still in the
+  // Arabian Sea, and putting her back on station is a separate order and another
+  // night. That gap is the price, and it is charged in salvos nobody shot at.
+  function checkRearm() {
+    if (!bmdRearming()) return null;
+    G.bmdRearm--;
+    if (G.bmdRearm > 0) return null;
+    const cv = G.carriers.find(c => !cvFixed(c) && c.arrived && !c.lost);
+    const before = G.bmdPool || 0;
+    G.bmdPool = bmdCapacity();
+    const taken = G.bmdPool - before;
+    return {
+      cls: 'friendly', title: `${cv ? cvShort(cv) : 'ESCORT SCREEN'} REARMED — CELLS FULL`,
+      sum: `Interceptors: ${Txt.signed(taken)} rounds`,
+      text: `The screen has struck down ${Txt.plural(taken, 'round')} and broken away from the ammunition ship. ` +
+        `${G.bmdPool} SM-3 and SM-6 ${Txt.pluralize(G.bmdPool, 'interceptor')} in the cells — a full magazine, ` +
+        `and the last one the theater has cued up for a while. She is still in the open Arabian Sea: ` +
+        `the umbrella over the Gulf bases does not come back until she is ordered north and gets there.`,
+    };
   }
 
   // tick the second carrier's transit; on arrival she joins at safe standoff
@@ -2943,6 +3055,10 @@ const Game = (() => {
       // fleet movement closes the allied half: decks that spent it repositioning
       // are on their new stations, and the second carrier is one leg closer
       const fleet = checkCarrierTransit();
+      // ticked after the transit so the night she leaves reads as a departure and
+      // the night she finishes reads as a full magazine
+      const rearmed = checkRearm();
+      if (rearmed) fleet.push(rearmed);
       const arrival = checkCarrierArrival();
       if (arrival) fleet.push(arrival);
       const bombers = checkBomberArrival();
@@ -3530,6 +3646,10 @@ const Game = (() => {
     // the Lincoln's war-load of Tomahawks; the Ford adds 10 more if she is sent for
     G.tlamPool = 20;
     G.torpedoes = TORPEDO_LOAD;   // Toledo sails with her tubes full
+    // and the screen sails with full cells — how many is a difficulty knob, so
+    // this is read off the table rather than written twice (see NAVAL_BMD)
+    G.bmdPool = bmdCapacity();
+    G.bmdRearm = 0;
     syncFleetCaps();
     G.res.f35 = G.caps.f35;
     G.airPhaseSeen = airPhase();
@@ -3610,6 +3730,9 @@ const Game = (() => {
     israelStatus, israelEta, israelClock, israelDrivers, israelHoldCost, israelPriorities,
     airDefenseWeight, orderCarrier, toggleCarrierPosture, carrierFactor, carrierExposure, navalForward,
     carrierFixed: cvFixed,
+    // the escort screen's interceptor magazine: ai.js fires it, the panel and
+    // the advisors read it, and nothing else may touch G.bmdPool directly
+    bmdEngage, bmdRate, bmdCapacity, bmdFrac, bmdRearming, orderRearm,
     orderBombers, orderHeavies, transitCommitted, wearsDown,
     // the air-superiority ladder: what the sky is worth tonight, and what that
     // releases. pkgBlock is the single answer to "why can't I fly this".

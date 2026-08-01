@@ -434,6 +434,26 @@ const UI = (() => {
       tick: tl ? 'crit' : pool <= 4 ? 'crit' : pool <= 10 ? 'warn' : '',
       low: !!tl || pool <= 4, have: G.res.cruise, cap: G.caps.cruise });
 
+    // The screen's interceptors — the one magazine on this panel that is spent
+    // by the ENEMY rather than by the president, which is exactly why it needs a
+    // row here. A shield that decays silently is the crew-rest bug again: a
+    // cliff nothing on the screen showed. The second line carries the thing the
+    // player actually decides on, which is not the round count but what fraction
+    // of tonight's salvo it still stops (see NAVAL_BMD).
+    const bmdCap = Game.bmdCapacity();
+    const bmdLeft = G.bmdPool ?? 0;
+    const bmdFrac = Game.bmdFrac();
+    const bmdRate = Math.round(Game.bmdRate() * 100);
+    const bmdTick = bmdFrac <= NAVAL_BMD.crit ? 'crit' : bmdFrac <= NAVAL_BMD.warn ? 'warn' : '';
+    add({ name: 'Aegis interceptors',
+      sub: Game.bmdRearming()
+        ? `Rearming — ${turns(G.bmdRearm)} alongside`
+        : Game.navalForward() <= 0
+          ? 'SM-3 / SM-6 · no deck on station'
+          : `SM-3 / SM-6 · stops ${bmdRate}% of a Gulf salvo`,
+      tick: bmdTick, low: bmdFrac <= NAVAL_BMD.crit, group: 'shield',
+      have: bmdLeft, cap: bmdCap });
+
     // The boat's own load — not a theater magazine, and it never refills.
     const torps = G.torpedoes ?? 0;
     add({ name: 'Mk-48 torpedoes', sub: torps === 0 ? 'Tubes dry' : 'Toledo · never refills',
@@ -462,8 +482,14 @@ const UI = (() => {
     return rows;
   }
 
+  // The interceptor magazine gets its own heading rather than sitting under
+  // CLEARED TO FLY with the strike magazines. It is the one row on the panel the
+  // president does not spend — Tehran spends it — and filing it under what can
+  // be tasked tonight would be the only line here that answers a question nobody
+  // asked of it.
   const RES_GROUPS = [
     ['go', 'CLEARED TO FLY', ''],
+    ['shield', 'WHAT DEFENDS THE RAMP', ''],
     ['held', 'NOT RELEASED', 'held'],
     ['away', 'NOT IN THEATER', 'away'],
   ];
@@ -594,7 +620,7 @@ const UI = (() => {
   // the note no longer lists the Aegis umbrella, the weight on the strait and
   // the oil lid only for the button below it to list them again as the price.
   // State here, consequence there.
-  function carrierLine(cv) {
+  function carrierLine(cv, G) {
     if (cv.lost) return { label: 'LOST', cls: 'cv-lost', note: 'Sunk in the Gulf of Oman.' };
     if (!cv.arrived) return null;   // handled by the order/ETA button below
     // A deck with one station reports the station and nothing else — there is no
@@ -605,6 +631,15 @@ const UI = (() => {
         label: 'ON STATION — RED SEA', cls: 'cv-back',
         note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
           'Behind Suez: out of Iranian reach, and out of the Gulf presence entirely. Her air wing is what she brings.',
+      };
+    }
+    // the rearm outranks the station: she is somewhere specific, doing something
+    // specific, and cannot be ordered anywhere until it is finished
+    if (Game.bmdRearming()) {
+      return {
+        label: `REARMING — ${turns(G.bmdRearm).toUpperCase()} ALONGSIDE`, cls: 'cv-moving',
+        note: 'Escorts alongside the ammunition ship, striking down SM-3 and SM-6 one cell at a time. ' +
+          'Full air wing, no umbrella over the Gulf bases, no weight on the strait.',
       };
     }
     if (cv.moving) {
@@ -618,7 +653,8 @@ const UI = (() => {
       return {
         label: 'ON STATION — GULF OF OMAN', cls: 'cv-forward',
         note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
-          'Full sortie generation — and a hull inside Iranian anti-ship fires.',
+          `Full sortie generation, ${Math.round(Game.bmdRate() * 100)}% of a Gulf salvo knocked down — ` +
+          'and a hull inside Iranian anti-ship fires.',
       };
     }
     return {
@@ -702,7 +738,7 @@ const UI = (() => {
 
     box.innerHTML = G.carriers.map(cv => {
       const info = CARRIER_INFO[cv.id];
-      const st = carrierLine(cv);
+      const st = carrierLine(cv, G);
       const head = `<div class="cv-head"><span class="cv-hull">${info.short}</span>` +
         `<span class="cv-state ${st ? st.cls : 'cv-away'}">${st ? st.label : 'NOT IN THEATER'}</span></div>`;
       // a deck that is not here yet has its whole story in the order row below
@@ -772,6 +808,18 @@ const UI = (() => {
           disabled: true });
         return;
       }
+      // Alongside the ammunition ship there is no order to give: the whole cost
+      // of the rearm is that she cannot be sent anywhere while it runs, so the
+      // panel says so in the same slot the posture order lives in.
+      if (Game.bmdRearming()) {
+        acts.push({ id: `cv-rearm-${cv.id}`, attrs: '', name: `${info.short} REARMING`,
+          current: `${turns(G.bmdRearm)} alongside. Cells full when she breaks away.`,
+          desc: 'She cannot be ordered north until the strike-down is finished, and she does not go ' +
+            'north on her own when it is — putting the umbrella back over the Gulf bases is a separate ' +
+            'order and another night.',
+          disabled: true });
+        return;
+      }
       const fwd = cv.posture === 'forward';
       acts.push({
         id: `cv-post-${cv.id}`,
@@ -786,6 +834,24 @@ const UI = (() => {
           : fwd ? 'Full strike either way — what you give up is the Aegis umbrella over the Gulf-state bases, the weight on the strait, and the lid on the oil premium.'
           : 'Full strike either way. The cost is a hull inside Iran\'s anti-ship envelope.',
         disabled: cv.moving,
+      });
+
+      // and the order that gets the umbrella back. Offered whatever her station,
+      // because a deck already pulled back can still be out of interceptors —
+      // and priced in nights either way (see NAVAL_BMD).
+      const bmdPct = Math.round(Game.bmdFrac() * 100);
+      acts.push({
+        id: `cv-rearm-${cv.id}`,
+        name: `REARM ${info.short}'S ESCORT SCREEN`,
+        attrs: `data-carrier-rearm="${cv.id}"`,
+        current: `${G.bmdPool} of ${plural(Game.bmdCapacity(), 'interceptor')} left — ${bmdPct}%. ` +
+          `${turns(NAVAL_BMD.rearmTurns)} alongside, plus the night back north.`,
+        desc: 'Detaches the strike group to the ammunition ship and strikes down a full load of SM-3 and ' +
+          'SM-6. There is no way to do it on station — a Mk 41 cell is loaded by crane, alongside — so ' +
+          'the price is the forward presence for three nights: no umbrella over Al Udeid and Al Dhafra, ' +
+          'no weight on the strait, no lid on the oil premium. The magazine is spent by what Tehran ' +
+          'throws, not by the calendar, so the launchers you service are also interceptors you keep.',
+        disabled: bmdPct >= 100,
       });
     });
 
@@ -836,6 +902,7 @@ const UI = (() => {
       if (btn.dataset.carrierOrder) btn.addEventListener('click', () => Game.orderCarrier());
       else if (btn.dataset.bomberOrder) btn.addEventListener('click', () => Game.orderBombers());
       else if (btn.dataset.heavyOrder) btn.addEventListener('click', () => Game.orderHeavies());
+      else if (btn.dataset.carrierRearm) btn.addEventListener('click', () => Game.orderRearm());
       else if (btn.dataset.carrierToggle) {
         btn.addEventListener('click', () => Game.toggleCarrierPosture(btn.dataset.carrierToggle));
       }

@@ -393,6 +393,82 @@ const AD_RECONSTITUTION = {
 };
 
 // ============================================================
+// THE FLEET'S OWN MAGAZINE — NAVAL BALLISTIC MISSILE DEFENSE
+// ------------------------------------------------------------
+// The mirror of the block above. That one is the enemy's shield coming back;
+// this is ours running down.
+//
+// The umbrella used to be a constant: ~30% of every salvo aimed at the Gulf
+// bases knocked down, forever, for free, as long as a deck sat forward. It
+// depended on nothing — not on how much had already been fired, not on how long
+// the war had run — so it was the one system in the game with no tradeoff
+// attached to it at all, and the war it defended was equally hard on night one
+// and on night thirty.
+//
+// It is a magazine now. The screen opens the war with nearly everything: `peak`
+// is what a full set of cells does to a raid, and it is deliberately far above
+// the old flat rate, because a decline the player never sees the top of is not a
+// mechanic, it is a nerf. What it falls to is `floor` — well below where the old
+// constant sat, and attributable: an escort with its BMD cells empty is not
+// defenceless, it is down to what the screen keeps back for its own terminal
+// defence, which stops a little and covers nothing.
+//
+// WHAT DRAINS IT IS ROUNDS FIRED, NOT THE CALENDAR. This is the whole design.
+// A turn counter would decay the shield on rails no matter what the president
+// did with the campaign; a magazine makes Tehran's salvo tempo the thing that
+// empties it. Which means servicing TELs and missile brigades now pays twice —
+// fewer inbound tonight, AND a screen that still has rounds in week three — and
+// an existing mechanic the player already owns becomes a defensive strategy at
+// no extra cost. A war that leaves the missile force alone burns through the
+// cells around the middle of the second week and spends the rest of the campaign
+// bare; a war that hunts launchers can carry the umbrella most of the way to the
+// end. Those two campaigns have to look different or none of this landed.
+//
+// `perTrack` is shoot-shoot doctrine: two interceptors at every track the screen
+// engages, because a leaker is a hangar full of dead maintainers and the second
+// round is cheap by comparison. It is what converts a salvo into rounds, so it
+// is also the exchange rate the whole feature is tuned on.
+//
+// `curve` bends the rate against the magazine: slightly convex, so the first
+// quarter of the cells is worth more than the last quarter. A full screen can
+// afford to re-engage a leaker; a screen down to its last rounds is firing once
+// and hoping.
+//
+// Rearming is the counterplay, and its price is the true one: nobody reloads a
+// VLS cell underway. The deck goes off station to do it — which costs the Aegis
+// umbrella for the duration AND the weight on the strait AND the lid on the oil
+// premium, all of which already hang off the same forward posture. Three nights
+// of a thinner war for a full magazine is a presidential decision, not a button.
+const NAVAL_BMD = {
+  // SM-3 and SM-6 rounds in the escort screen's cells at the start of the war.
+  // Sized against what a campaign actually throws at the covered bases, measured
+  // over the real salvo generator: a war that never services the missile force
+  // puts ~220 ballistic tracks into the basket across thirty turns, a war that
+  // works the launcher list puts in ~85. At two rounds a track this covers all
+  // of the second kind of war and under half of the first, which is the whole
+  // point — the same magazine lasts the campaign or runs out in twelve nights,
+  // and which one happens is a decision the president has been making all along.
+  load: 200,
+  perTrack: 2,      // interceptors committed per engaged track (shoot-shoot)
+  peak: 0.88,       // fraction of a covered salvo killed on a full magazine
+  floor: 0.08,      // ...and on an empty one, off the screen's self-defence rounds
+  curve: 1.6,       // rate = floor + (peak-floor) * (rounds left / load) ^ curve
+  // Where the picture stops being comfortable. `warn` is where SecDef raises it
+  // in the situation room and the panel goes amber; `crit` is where the sentence
+  // changes from "running down" to "effectively gone". They are not arbitrary:
+  // on the curve above, `warn` is the magazine level at which the screen is
+  // stopping almost exactly 30% of a salvo — the flat rate this whole system
+  // replaced. It is worth telling the president the night the umbrella stops
+  // being better than the one every previous war had for free.
+  warn: 0.45,
+  crit: 0.18,
+  // Turns alongside the ammunition ship. Ordered tonight, she is off station
+  // tonight — so the real bill is this plus the night she spends steaming back
+  // up, and it is paid in unthinned salvos.
+  rearmTurns: 2,
+};
+
+// ============================================================
 // THE NORTHERN LIFELINE
 // ------------------------------------------------------------
 // Multiplier on the national repair effort once the Caspian flotilla is on the
@@ -816,13 +892,19 @@ const BREAKOUT = {
 // a difficulty knob rather than a flat rate because an impatient ally is exactly
 // the kind of pressure a harder war should apply: on hard the IAF is airborne
 // while the president is still deciding, on easy there is room to work the list.
+// `bmd` is how many interceptors the fleet sailed with (see NAVAL_BMD). It scales
+// the magazine rather than the intercept rate, because what a harder war should
+// take away is not how well the screen shoots — that is a fact about Aegis — but
+// how long it can keep doing it. On hard the cells are dry before the second week
+// is out unless the missile force has been worked; on easy there is room to be
+// slow about it.
 const DIFFICULTY = {
-  easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25, israel: 0.75, softGate: false,
-    desc: 'A forgiving war. The country absorbs more, Iran reconstitutes slower, the enrichment clock runs long, and Jerusalem is willing to wait.' },
-  normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1, israel: 1, softGate: false,
+  easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25, israel: 0.75, bmd: 1.35, softGate: false,
+    desc: 'A forgiving war. The country absorbs more, Iran reconstitutes slower, the enrichment clock runs long, the fleet sailed with a deep interceptor magazine, and Jerusalem is willing to wait.' },
+  normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1, israel: 1, bmd: 1, softGate: false,
     desc: 'The war as designed. Everything above and below is scaled from here.' },
-  hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85, israel: 1.3, softGate: true,
-    desc: 'The country has less patience, Iran repairs faster and fights better coordinated, the centrifuges are further along than you would like, Jerusalem has almost none — and the staff will fly any package you order, into any threat, and hand you the casualty list afterwards.' },
+  hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85, israel: 1.3, bmd: 0.7, softGate: true,
+    desc: 'The country has less patience, Iran repairs faster and fights better coordinated, the centrifuges are further along than you would like, the fleet sailed light on interceptors, Jerusalem has almost none — and the staff will fly any package you order, into any threat, and hand you the casualty list afterwards.' },
 };
 
 // These levels were once named for the chair you were sitting in. A save

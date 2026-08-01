@@ -256,39 +256,83 @@ const IranAI = (() => {
     return null;
   }
 
-  // Thin a night's ballistic salvo by whatever the forward carrier group's
-  // Aegis escorts can intercept. Only strikes on the Gulf-side bases are in the
-  // engagement basket — the SM-3/SM-6 magazines sit on the Gulf approaches, not
-  // over the Iraqi interior — so Ain al-Asad is left to its own Patriots. Every
-  // qualifying strike is scaled down together: ~30% knocked down with one deck
-  // forward, ~60% with two, taking casualties, oil and approval damage with it.
+  // Bases the naval BMD umbrella actually covers — the Gulf states, not Iraq.
+  // The SM-3/SM-6 shooters sit on the Gulf approaches and not over the Iraqi
+  // interior, so Ain al-Asad is left to its own Patriots and is deliberately
+  // outside this basket.
+  const BASKET = ['udeid', 'dhafra'];
+  const coveredBases = (ev) => {
+    if (!ev.attack || ev.attack.kind === 'drone') return [];
+    const a = ev.attack;
+    const bases = a.bases || (a.base ? [a.base] : []);
+    return bases.filter(b => BASKET.includes(b));
+  };
+
+  // How the escorts' night is read back to the president, by how much of the
+  // raid they actually stopped. The old text said they "caught much of it in
+  // the midcourse" at every rate there was, which was a lie the moment the
+  // magazine could run down: at 15% the screen is not catching much of anything,
+  // and a report that says otherwise beside a casualty count that says the
+  // opposite teaches the player to stop reading it.
+  // The bands are set against the rate this system actually produces —
+  // NAVAL_BMD.peak down to NAVAL_BMD.floor — rather than against a tidy 0..1, so
+  // the top line is only ever read on a full magazine and the bottom one only
+  // when the cells are effectively gone.
+  const AEGIS_TIERS = [
+    [0.70, 'broke the raid up in the midcourse — SM-3 and SM-6 intercepts took down almost all of it well short of the coast.'],
+    [0.45, 'caught much of it in the midcourse — SM-3 and SM-6 intercepts thinned the raid badly before it crossed the coast.'],
+    [0.25, 'engaged what they could reach; a share of the raid went down over the water and the rest came through.'],
+    [0.12, 'got shots off at the leaders and no further — the screen is firing single rounds now, and most of the salvo crossed the coast intact.'],
+    [0.00, 'are down to the rounds they hold back for their own defence. A handful of terminal engagements is not an umbrella, and the raid came through essentially unopposed.'],
+  ];
+  const aegisLine = (frac) => (AEGIS_TIERS.find(t => frac >= t[0]) || AEGIS_TIERS[AEGIS_TIERS.length - 1])[1];
+
+  // Thin a night's ballistic salvo by whatever the forward carrier group's Aegis
+  // escorts can still intercept, and charge the rounds it took. What the screen
+  // is worth tonight is a function of the magazine and of the deck's station —
+  // Game owns both, so the rate and the drain are read through Game.bmdEngage
+  // and nothing here touches the count (see NAVAL_BMD in data.js).
+  //
+  // Every qualifying strike is scaled down together, taking casualties, oil and
+  // approval damage with it, and each one spends its own rounds — so a night of
+  // two salvos costs twice what a night of one costs, which is the entire reason
+  // suppressing the missile force is now also a defensive act.
   function aegisIntercept(events, fwd) {
     if (fwd <= 0) return;
-    const frac = Math.min(0.6, 0.3 * fwd);
-    // bases the naval BMD umbrella actually covers — the Gulf states, not Iraq
-    const covered = (ev) => {
-      if (!ev.attack) return false;
-      if (ev.attack.base) return ['udeid', 'dhafra'].includes(ev.attack.base);
-      if (ev.attack.bases) return ev.attack.bases.some(b => ['udeid', 'dhafra'].includes(b));
-      return false;
-    };
     for (const ev of events) {
-      if (!covered(ev)) continue;
+      const bases = coveredBases(ev);
+      if (!bases.length) continue;
+      // tracks the screen has to solve tonight: every inbound aimed at a base
+      // inside the basket
+      const tracks = bases.length * (ev.attack.count || 0);
+      const shot = Game.bmdEngage(tracks);
+      const frac = shot.frac;
+      if (frac <= 0) continue;
       const before = ev.casualties || 0;
       if (before > 0) ev.casualties = Math.round(before * (1 - frac));
       if (ev.dOil) ev.dOil = Math.round(ev.dOil * (1 - frac));
       if (ev.dApproval) ev.dApproval = Math.round(ev.dApproval * (1 - frac));
       const saved = before - (ev.casualties || 0);
+      // read by the report's digest and by the campaign sim; the prose below is
+      // what the president actually sees
+      ev.bmdEngaged = tracks; ev.bmdFired = shot.fired; ev.bmdSaved = saved;
       // appended, not concatenated onto `text` — the builders write their prose
       // as a function of the event and this runs after them, so the casualty
       // figure above is already the post-intercept one by the time it renders
+      // The tier line closes its own sentence and the lives saved open a new one:
+      // at the bottom of the range the clause it used to hang off says the raid
+      // came through, and "came through unopposed, and three lives were saved"
+      // is a sentence that argues with itself. Zero is reachable at both ends —
+      // a full magazine can leave nobody dead to save, and an empty one saves
+      // nobody — so the clause is dropped rather than printed as a nought.
       ev.appended = (ev.appended || '') +
-        ` Aegis destroyers of the carrier group standing off the Gulf ` +
-        `caught much of it in the midcourse — SM-3 and SM-6 intercepts thinned the raid ` +
-        `before it crossed the coast` +
+        ` Aegis destroyers of the carrier group standing off the Gulf ` + aegisLine(frac) +
         (saved > 0
-          ? `, and an estimated ${plural(saved, 'American life')} ${were(saved)} saved on the ramp.`
-          : '.');
+          ? ` An estimated ${plural(saved, 'American life')} ${were(saved)} saved on the ramp.`
+          : '') +
+        (shot.fired > 0
+          ? ` ${plural(shot.fired, 'interceptor')} expended; ${shot.left} left in the cells.`
+          : ' The cells are empty.');
     }
   }
 
@@ -457,6 +501,13 @@ const IranAI = (() => {
     const cjcs = { name: 'Gen. Halvorsen, CJCS', cls: 'mil', line: '', text: '' };
 
     const warStr = missileStrength() + navalStrength();
+    // the escort screen's magazine, and whether it is worth a sentence tonight.
+    // A deck already alongside the ammunition ship is not news — the fleet panel
+    // is counting her nights down — so the branch stands down while she rearms.
+    const mStrNow = missileStrength();
+    const bmdLeft = Game.bmdFrac();
+    const bmdCrit = bmdLeft <= NAVAL_BMD.crit;
+    const bmdLow = !Game.bmdRearming() && bmdLeft <= NAVAL_BMD.warn;
 
     // Launchers loose in the country outrank everything else SecDef has to say:
     // it is the one situation where the battle damage assessment is actively
@@ -477,6 +528,30 @@ const IranAI = (() => {
         `and the brigade is not dead. ${hiddenTels === 1 ? 'A launcher group is' : `${hiddenTels} launcher groups are`} ` +
         'out in the country, they are still shooting, and the capacity meter is counting them whether ' +
         'we can see them or not. Put the collection assets on the hunt or accept the salvos indefinitely.';
+    // The screen running out of interceptors is the one thing on this table the
+    // player has no other way to find out about until the casualty list tells
+    // them. It sits below the launcher fixes — those expire tonight and this
+    // does not — and above everything else, because the answer to it is a
+    // three-night decision that has to be taken before the cells are actually
+    // dry rather than after.
+    } else if (bmdLow && mStrNow > 0) {
+      const pct = Math.round(bmdLeft * 100);
+      const onStation = Game.navalForward() > 0;
+      secdef.urgent = bmdCrit;
+      secdef.line = bmdCrit
+        ? 'The screen is out of interceptors. Rearm her or accept the salvos.'
+        : `Interceptor magazine is down to ${pct}%. Decide before it is empty.`;
+      secdef.text = `The Aegis screen is at ${pct}% of its war-load` +
+        (onStation
+          ? `, and stopping about ${Math.round(Game.bmdRate() * 100)}% of what they throw at Udeid and Dhafra. `
+          : ', and she is not on station, so at the moment it is stopping nothing at all. ') +
+        (bmdCrit
+          ? 'The umbrella is a formality now — the next barrage lands on the ramp intact. '
+          : 'Every salvo takes another bite out of it. ') +
+        'There is no reloading a Mk 41 cell underway. If you want that magazine back she detaches to the ' +
+        'ammunition ship, and you buy it with three nights of no Aegis, no weight on the strait and no lid ' +
+        'on the barrel. The cheaper answer is the one you already have: every launcher and every brigade ' +
+        'you service tonight is a salvo the screen does not have to shoot down next week.';
     // early on, the force-flow decision outranks everything else SecDef has to say
     } else if (!G.bombersOrdered && !G.secondCarrierOrdered && G.turn <= 3 && nukeDeg < 100) {
       // a choice that stops being available quietly, which is why it is flagged
