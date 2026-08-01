@@ -876,8 +876,9 @@ const Game = (() => {
   // where the decks sit is the standing decision underneath all the others.
   // FORWARD is the Gulf of Oman: a hull inside everything Iran shoots at ships,
   // but Aegis on the Gulf approaches, weight on the strait, and a lid on the oil
-  // premium. BACK is the open Arabian Sea south of Yemen: untouchable at that
-  // range, and none of those forward effects. The air wing flies at full rate
+  // premium. BACK is the middle of the Arabian Sea, halfway from the northern
+  // tip of Somalia to the Indian coast: untouchable at that range, and none of
+  // those forward effects. The air wing flies at full rate
   // from either station — the move between them takes a turn, and buys the
   // worst of both: exposed on the way, without the presence effects yet.
   //
@@ -1236,7 +1237,7 @@ const Game = (() => {
         text: `${cvName(cv)} has come north through the Ra's al Hadd line and taken station in the Gulf of Oman, a hundred miles off the Makran coast. Her air wing was flying full from standoff and flies full here — what she adds on station is her Aegis escorts over the Gulf bases, her weight on the strait, and a lid on the oil premium. She is also, from tonight, inside every anti-ship weapon Iran owns, and inside most of them by a wide margin.`,
       } : {
         cls: 'friendly', title: `${cvShort(cv)} WITHDRAWN TO THE OPEN ARABIAN SEA`,
-        text: `${cvName(cv)} has cleared the Gulf of Oman and run south into open water below Yemen — five hundred miles of nothing in every direction, and off the plot unless you go looking for her. She keeps her full sortie rate from out there on the tankers. What she gives up is the forward presence: no Aegis over the Gulf bases, no pressure on the strait, no lid on the oil premium.`,
+        text: `${cvName(cv)} has cleared the Gulf of Oman and run south into the middle of the Arabian Sea, halfway between the northern tip of Somalia and the coast of India — five hundred miles of nothing in every direction, and off the plot unless you go looking for her. She keeps her full sortie rate from out there on the tankers. What she gives up is the forward presence: no Aegis over the Gulf bases, no pressure on the strait, no lid on the oil premium.`,
       });
     }
     if (events.length) syncFleetCaps();

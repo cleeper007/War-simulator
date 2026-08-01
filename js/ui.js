@@ -622,7 +622,7 @@ const UI = (() => {
       };
     }
     return {
-      label: 'OPEN ARABIAN SEA — SOUTH OF YEMEN', cls: 'cv-back',
+      label: 'MID — ARABIAN SEA', cls: 'cv-back',
       note: (cv.damaged ? 'Battle damage: flying at a fraction of her rate. ' : '') +
         'Out of reach, and flying her full air wing.',
     };

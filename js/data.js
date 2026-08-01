@@ -931,10 +931,11 @@ const CARRIER_INFO = {
 // is deliberately the most exposed water on the chart: everything Iran owns
 // that shoots at ships reaches her there, and it is the station that buys Aegis
 // over the Gulf bases, weight on the strait and a lid on the oil premium. BACK
-// is the open Arabian Sea at roughly 12N 55E — completely south of Yemen, five
-// hundred miles from the nearest coast, and below the bottom of the opening
-// frame. Being off the chart is what "out of reach" looks like; zoom out to
-// follow her. Repositioning between them takes a turn, and that turn is spent
+// is the middle of the Arabian Sea at roughly 12N 62.5E — the halfway point
+// between Cape Guardafui, the northern tip of Somalia, and the Malabar coast of
+// India, with five hundred miles of open water in every direction and Socotra
+// the nearest land. It is also below the bottom of the opening frame. Being off
+// the chart is what "out of reach" looks like; zoom out to follow her. Repositioning between them takes a turn, and that turn is spent
 // exposed without the forward effects yet.
 //
 // The Ford comes through Suez and works the Red Sea abeam the middle of Saudi
@@ -947,7 +948,7 @@ const CARRIER_INFO = {
 // Every station sits in open water clear of both coasts; check any change
 // against the coastline.
 const CARRIER_STATIONS = {
-  'csg-lincoln': { forward: { x: 750, y: 578 }, back: { x: 567, y: 1046 } },
+  'csg-lincoln': { forward: { x: 750, y: 578 }, back: { x: 800, y: 1040 } },
   'csg-ford':    { back: { x: -48, y: 604 }, fixed: true },
 };
 
