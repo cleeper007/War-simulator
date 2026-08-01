@@ -16,13 +16,36 @@ const IranAI = (() => {
   // whether or not anyone has found them. That is the point of the hunt: the
   // salvos do not get lighter because you destroyed the sheds, and a player who
   // stops at the fixed sites is fighting a missile force that is still there.
+  // Reported as a FRACTION of what the missile force started as, scaled 0..2.
+  //
+  // This used to be a raw sum clamped at 2, and the clamp was binding on turn
+  // one: three bases at full health sum to 3.0, so the first 1.0 of damage the
+  // player did moved nothing at all. Worse, killing a base that disperses only
+  // nets -0.45 (it loses 1.0 and hands 0.55 to the TELs), so a player could
+  // destroy TWO missile bases and watch the capacity meter sit at exactly 100%.
+  // The war's central feedback loop was dead for the first third of it.
+  //
+  // Normalising instead of clamping makes the number mean what the design says:
+  // the denominator is the missile force at full strength, so 2.0 is "intact"
+  // and 0.73 is "the 110 points of dispersed launchers that survived killing all
+  // three bases" — which is 37% of 300, and reads as exactly that.
+  //
+  // TELs are in the numerator and NOT the denominator, deliberately. They are
+  // not independent capacity: they are a reservoir that fills from bases as the
+  // bases die (see DISPERSAL). Counting them below the line would put the force
+  // at 50% on turn one with every launcher still in its shed.
+  const wt = (t) => (t.weight != null ? t.weight : 1);
+
   function missileStrength() {
-    let s = 0;
+    let s = 0, max = 0;
     for (const t of TARGETS) {
-      if (t.type !== 'missile' && t.type !== 'tel') continue;
-      s += t.hp / 100;
+      if (t.type === 'missile') { max += wt(t); s += wt(t) * t.hp / 100; }
+      else if (t.type === 'tel') { s += wt(t) * t.hp / 100; }
     }
-    return Math.min(2, s); // 0..2
+    // the clamp stays as a backstop, but nothing in normal play reaches it now:
+    // the numerator only ever falls, because dispersal moves 55 points out of a
+    // base worth 100 rather than adding anything
+    return max ? Math.min(2, (s / max) * 2) : 0; // 0..2
   }
 
   // The launcher groups actually in play — dispersed and not yet destroyed.
@@ -38,11 +61,18 @@ const IranAI = (() => {
   // surviving FRACTION of the fleet on that scale rather than a raw count.
   // Hulls can then be added or removed without re-tuning the whole sim.
   function navalStrength() {
-    const fleet = TARGETS.filter(t => t.type === 'naval' || t.type === 'ship');
-    if (!fleet.length) return 0;
-    let s = 0;
-    for (const t of fleet) s += t.hp / 100;
-    return (s / fleet.length) * 2; // 0..2
+    // A weighted mean rather than a flat one. This was already normalised — it
+    // divided by fleet.length — but that meant adding any hull or base to the
+    // roster silently made every existing one worth less, so a covert site
+    // could not be added without quietly rebalancing the declared campaign.
+    // Weighting fixes the same problem the honest way: a hidden forward base is
+    // a real part of the fleet, and a smaller part than Bandar Abbas.
+    let s = 0, max = 0;
+    for (const t of TARGETS) {
+      if (t.type !== 'naval' && t.type !== 'ship') continue;
+      max += wt(t); s += wt(t) * t.hp / 100;
+    }
+    return max ? (s / max) * 2 : 0; // 0..2
   }
 
   // ---- event builders (return event objects consumed by game.js) ----
@@ -154,7 +184,14 @@ const IranAI = (() => {
     // capacity, because Israel is shooting back at launchers the US never
     // reached. Cuts both ways — and only a functioning Iran can sustain it.
     israelExchange: () => {
-      const live = TARGETS.filter(t => t.type === 'missile' && t.status !== 'destroyed');
+      // Only sites CENTCOM has. This event NAMES what the IAF caught and marks
+      // it damaged — run against a covert brigade it would reveal the site by
+      // name, for free, in a public event, and hand the player battle damage on
+      // something that is not on their plot. (Israel telling Washington where a
+      // site is would be a fine mechanic; it is not this one, and it should not
+      // arrive by accident.)
+      const live = TARGETS.filter(t => t.type === 'missile' && t.status !== 'destroyed'
+        && Game.plotted(t));
       const hitBack = live.length > 0 && chance(0.4) ? pick(live) : null;
       const ev = {
         title: 'MISSILE EXCHANGE BETWEEN IRAN AND ISRAEL',
@@ -470,7 +507,7 @@ const IranAI = (() => {
     // Sorted on the ASSESSED figure, because that is all anyone in this room
     // actually has; the true number is not available to the people talking.
     const reconstituting = TARGETS
-      .filter(t => Game.wearsDown(t) && t.hp > 0 && t.hp < 100)
+      .filter(t => Game.wearsDown(t) && t.hp > 0 && t.hp < 100 && Game.plotted(t))
       .map(t => ({ t, e: Game.estimate(t) }))
       .sort((a, b) => a.e.mid - b.e.mid)
       .map(x => x.t);

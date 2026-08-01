@@ -1327,6 +1327,18 @@ const UI = (() => {
     const hidden = IranAI.liveTels().filter(t => !t.located).length;
     const brk = Game.breakoutEstimate();
     const posture = G.postureKnown ? IranAI.posture() : null;
+    // The folder line reports what the analysts have OBSERVED — leads carried
+    // and boxes up — and never the number of sites still unknown, because that
+    // is a number CENTCOM cannot have. A panel reading "4 gaps" on turn one
+    // would hand the player the answer to the mechanic and delete the mid-game
+    // this exists to create: the discrepancy is supposed to be something they
+    // notice against the capacity meter, not something the HUD announces.
+    // "Nothing outstanding" beside a live covert site is not the game lying —
+    // it is the assessment being wrong, which is the same contract t.hp and
+    // estimate() already run on.
+    const gaps = Game.covertGaps();
+    const boxed = gaps.filter(t => t.suspected).length;
+    const leads = gaps.reduce((n, t) => n + (t.suspected ? 0 : (t.leads || 0)), 0);
 
     const lines = [
       ['Enrichment', brk.halted ? 'HALTED' : `${brk.lo}–${brk.hi}T · ${brk.conf}`,
@@ -1334,6 +1346,10 @@ const UI = (() => {
       ['Dispersed launchers', hidden ? `${hidden} unlocated` : 'none loose',
         hidden ? 'unknown' : 'known'],
       ['Iranian war plan', posture ? posture.name : 'unassessed', posture ? 'known' : 'unknown'],
+      ['Target folder', boxed ? `${boxed} localized, unresolved`
+        : leads ? `${plural(leads, 'lead')} carried`
+        : 'nothing outstanding',
+        boxed ? '' : leads ? 'unknown' : 'known'],
     ];
     const picture = lines.map(([label, value, cls]) =>
       `<div class="intel-line"><span>${label}</span>` +
@@ -1379,6 +1395,26 @@ const UI = (() => {
           ? 'Enrichment capability is destroyed. There is no timeline left to assess.'
           : 'Narrows the band — the estimate is what the whole campaign is being paced against.',
         disabled: brk.halted,
+      },
+      {
+        id: 'folder', name: 'Work the target folder',
+        // Deliberately vague when there is nothing localized. The tasking's
+        // existence tells the player the folder CAN be worked, which they should
+        // know; its wording must never tell them how much is left in it, which
+        // they should not. It drops off the list entirely once every gap is
+        // closed — that end state is worth reading, and it is the only moment
+        // the panel is allowed to confirm a negative.
+        current: boxed
+          ? `${plural(boxed, 'area')} localized and still unresolved.`
+          : leads
+            ? `${plural(leads, 'lead')} in the file. Nothing localized yet.`
+            : 'The order of battle has discrepancies in it. None of them have a shape.',
+        desc: boxed
+          ? 'The deck knows where to look. Resolving a box turns it into an aimpoint that can go on a ' +
+            'tasking order — and the site has been in this war since the first night.'
+          : 'Flown blind against the holes in the order of battle. A blind deck turns up leads, not ' +
+            'sites; enough leads on the same discrepancy and it becomes a box on the plot.',
+        disabled: !gaps.length,
       },
       {
         id: 'assess-intent', name: 'Assess Iranian war plan',

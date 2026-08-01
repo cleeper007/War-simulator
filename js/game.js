@@ -4,6 +4,12 @@
 
 const Game = (() => {
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  // A target's share of whatever aggregate its type feeds — the missile force,
+  // the fleet, the enrichment program. Defaults to 1, so the declared roster is
+  // unchanged and only sites that say otherwise weigh differently. It exists so
+  // that a covert site can be added to an aggregate without either blowing past
+  // its 0..2 contract or silently making every declared site worth less.
+  const wt = (t) => (t.weight != null ? t.weight : 1);
   const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
   // ---- how long the country lets you fight ----
@@ -263,13 +269,27 @@ const Game = (() => {
       const cv = this.carriers[0];
       return !cv.lost && !cv.moving && cv.posture === 'back';
     },
+    // How much of the enrichment program is gone, 0–100.
+    //
+    // Driven off an `enrichment` flag instead of two hardcoded ids, and weighted
+    // by site, so a hall the folder does not have is a data-only addition rather
+    // than a rewrite of the war's primary objective. Arak and Bushehr NPP are
+    // type 'nuclear' and deliberately NOT flagged: they are reactors, they are on
+    // the target list for other reasons, and they are not what this war is about.
+    //
+    // Read carefully before adding anything here. This number gates BOTH endings
+    // the player can win — checkEnd's military victory and negotiationReady's
+    // path to the table — so a site included in it is a site the campaign cannot
+    // be won without. That is the intended weight of the covert hall, and it is
+    // why that hall alone carries a `surfaceBy` guarantee (see COVERT).
     nukeDegraded() {
-      let d = 0;
-      for (const id of ['natanz', 'fordow']) {
-        const t = TARGETS.find(x => x.id === id);
-        d += (100 - t.hp) / 2;
+      let d = 0, max = 0;
+      for (const t of TARGETS) {
+        if (!t.enrichment) continue;
+        max += wt(t);
+        d += wt(t) * (100 - t.hp) / 100;
       }
-      return Math.round(d); // 0–100
+      return max ? Math.round((d / max) * 100) : 0; // 0–100
     },
     // Iran's remaining ability to fight, 0–100, for the HUD meter:
     // missile force + navy + IRGC command, the set you must break to win
@@ -278,9 +298,23 @@ const Game = (() => {
       return Math.round(100 * (IranAI.missileStrength() + IranAI.navalStrength() + irgc.hp / 100) / 5);
     },
     // warfighting capacity shattered: missile force and navy near zero, IRGC command gone
+    //
+    // The missile bar is 0.35 rather than 0.5 because missileStrength() changed
+    // scale, not because the objective got harder. The old clamped function
+    // needed a raw ≤0.5 against a maximum of 3.0 — 16.7% of the force left
+    // standing. On the normalised 0..2 scale that same 16.7% is 0.33, so 0.35 is
+    // the old requirement carried across, slightly rounded in the player's
+    // favour.
+    //
+    // What that arithmetic buys, and the reason it is written down: a covert
+    // missile brigade at weight 0.8 is 0.42 on this scale when it is the last
+    // thing standing, which sits ABOVE the bar. So Iran cannot be declared
+    // broken while a launcher force nobody has found is still shooting — and it
+    // cannot be broken by accident either, because the margin is deliberate and
+    // not a rounding artifact. Change either number and check the other.
     iranBroken() {
       const irgc = TARGETS.find(t => t.id === 'irgc-hq');
-      return IranAI.missileStrength() <= 0.5 && IranAI.navalStrength() <= 0.5 &&
+      return IranAI.missileStrength() <= 0.35 && IranAI.navalStrength() <= 0.5 &&
         irgc.status === 'destroyed';
     },
     // The leadership target died — whether or not the task force came home.
@@ -355,7 +389,13 @@ const Game = (() => {
     // resumed under this rule would be a war carrying a full magazine it had
     // already spent — every round the screen fired in the first two weeks would
     // be handed back, which is a different game than the one it was saved from.
-    const VERSION = 17;   // v1.60: the shield is a magazine, not a constant
+    // v1.63 bumps again on the same feature, and the reason is the rule about
+    // CHANGING THE MEANING of existing state rather than adding to it: the same
+    // Natanz and Fordow hp now produce a different nukeDegraded, because the
+    // enrichment program has a third hall in it. A v18 save restored here would
+    // read 80% on a program its player finished, with a victory condition that
+    // no longer fires and nothing on screen to say why.
+    const VERSION = 19;   // v1.63: the enrichment program has three halls
     const FIELDS = [
       'turn', 'softCap', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -391,6 +431,10 @@ const Game = (() => {
           data.targets[t.id] = {
             hp: t.hp, dispersed: !!t.dispersed, located: !!t.located,
             lastStruck: t.lastStruck || 0, killedOnce: !!t.killedOnce,
+            // and what the intelligence apparatus has managed to learn about a
+            // site that was never in the folder: the leads accumulated, and
+            // whether they have added up to a box on the plot or a target
+            found: !!t.found, suspected: !!t.suspected, leads: t.leads || 0,
           };
         }
         localStorage.setItem(KEY, JSON.stringify(data));
@@ -494,6 +538,192 @@ const Game = (() => {
       .filter(x => x.e.hi - x.e.lo > BDA_STALE_SPREAD)
       .sort((a, b) => (b.e.hi - b.e.lo) - (a.e.hi - a.e.lo))
       .slice(0, 3);
+  }
+
+  // ============================================================
+  // THE GAPS IN THE FOLDER
+  // ------------------------------------------------------------
+  // The machinery behind COVERT in data.js — read the design note there first.
+  // In short: a covert site is in the war from turn one and out of the folder
+  // until intelligence earns it, through unknown → suspected → found.
+  //
+  // The thing that makes this a mechanic rather than a delay is that a hidden
+  // site is NOT inert. It repairs on the same schedule as everything else and it
+  // counts in every aggregate its type feeds. If hiding a target took it out of
+  // the war, hiding it would be a discount — one fewer aimpoint to service — and
+  // the correct play would be to never look. It has to cost something to not
+  // know, and what it costs is a capacity meter that will not come down.
+  // ============================================================
+
+  // Every target the plot is allowed to draw, and — identically — every target
+  // that can be planned against. A covert site is absent from the document
+  // rather than hidden with a class, for the same reason a dispersal site is:
+  // a class leaves the name and the true position sitting in the inspector, and
+  // the whole point is that the player does not have them.
+  const plotted = (t) => t.dispersal ? (t.dispersed && t.located && t.hp > 0)
+    : t.covert ? !!t.found
+    : true;
+
+  const covertGaps = () => TARGETS.filter(t => t.covert && !t.found && t.hp > 0);
+
+  // What a box on the plot is allowed to say about itself. The type is a genuine
+  // hint and it is meant to be — a box that says nothing is scenery, and the
+  // decision the middle tier exists to create ("is closing this worth a slot
+  // against a stale BDA?") needs the player to have some idea what they would be
+  // buying.
+  const COVERT_HINT = {
+    command:    'command-and-control emissions',
+    missile:    'missile-associated activity',
+    naval:      'unlogged naval movement',
+    airdefense: 'unlocated emitter',
+    nuclear:    'undeclared nuclear-associated activity',
+    airbase:    'unlogged air activity',
+    oil:        'undeclared export activity',
+  };
+
+  // A stable offset per site, derived from the id rather than rolled. The box
+  // must not walk across the map every time the panel re-renders, and deriving
+  // it means there is nothing extra to persist.
+  function fuzzOf(id) {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+    return { dx: (Math.abs(h) % 37) - 18, dy: (Math.abs(h >> 5) % 37) - 18 };
+  }
+
+  // What the map draws for the middle tier: a position that is deliberately not
+  // the site's, and a description of the problem instead of its name. The key is
+  // an index rather than the target id — the id would put the answer in the DOM.
+  function suspectedBoxes() {
+    const out = [];
+    covertGaps().forEach((t) => {
+      if (!t.suspected) return;
+      const f = fuzzOf(t.id);
+      out.push({
+        key: `sus-${out.length}`, x: t.x + f.dx, y: t.y + f.dy,
+        region: t.region || 'unresolved',
+        hint: COVERT_HINT[t.type] || 'unidentified activity',
+      });
+    });
+    return out;
+  }
+
+  // Evidence against a gap. Returns an event only on the night the box appears:
+  // a lead that does not change the picture is not worth a line in the report,
+  // and a stream of "the analysts are still working" is noise the player learns
+  // to skip past — which is exactly the report line they must not learn to skip.
+  function addLead(t, n) {
+    if (!t.covert || t.found) return null;
+    t.leads = (t.leads || 0) + n;
+    if (t.suspected || t.leads < COVERT.leadsToSuspect) return null;
+    t.suspected = true;
+    MapView.syncCovert();
+    return {
+      cls: 'friendly', title: 'ACTIVITY LOCALIZED — GAP IN THE TARGET FOLDER', internal: true,
+      sum: 'Unidentified site localized',
+      text: `The analysts have been carrying an anomaly for several days and have now put a box around ` +
+        `it: ${t.region}, ${COVERT_HINT[t.type] || 'unidentified activity'}. It is on the plot as a box ` +
+        `and that is all it is — there is no aimpoint in it yet, and nothing can be planned against a ` +
+        `box. Closing it is a collection problem, and collection is a slot.`,
+    };
+  }
+
+  // ---- channel 2: the campaign teaches you about itself ----
+  // A package that goes in against a type a gap feeds off may come back with a
+  // lead. This is the channel that makes the SHAPE of a campaign decide what it
+  // learns: a president who works the command nodes finds what the command nodes
+  // were talking to, and a president who never touches them does not.
+  function covertLead(struckType) {
+    const gaps = covertGaps().filter(t => !t.suspected && t.leadFrom === struckType);
+    if (!gaps.length) return null;
+    if (Math.random() > COVERT.leadChance * diff().covert) return null;
+    return addLead(gaps[Math.floor(Math.random() * gaps.length)], 1);
+  }
+
+  // ---- channel 3: the site gives itself away ----
+  // Run at the turn boundary. Ambient for anything still in the war, faster once
+  // the target it was built to replace is rubble — a war that stays coordinated
+  // after its command node is gone is itself the tell. The floor at surfaceTurn
+  // is the guarantee that no campaign can be locked out of an objective it
+  // cannot see: by then a president who never spent a slot on the folder still
+  // gets the box, having been fought by it for two weeks first.
+  function covertTurn() {
+    const out = [];
+    for (const t of covertGaps()) {
+      if (t.suspected) continue;
+      const tell = t.tellAfter && TARGETS.find(x => x.id === t.tellAfter);
+      const p = (tell && tell.status === 'destroyed') ? COVERT.tellLead : COVERT.ambientLead;
+      let ev = null;
+      if (Math.random() < p * diff().covert) ev = addLead(t, 1);
+      // The floor, and a per-site override of it. A site the campaign cannot be
+      // WON without needs a deadline early enough to leave room for the whole
+      // remaining chain — resolve the box, order the aircraft, fly the mission,
+      // miss, fly it again — not merely early enough to be found. That is the
+      // covert enrichment hall and nothing else; see its `surfaceBy` in data.js.
+      const floor = t.surfaceBy || COVERT.surfaceTurn;
+      if (!ev && G.turn >= floor) ev = addLead(t, COVERT.leadsToSuspect);
+      if (ev) out.push(ev);
+    }
+    return out;
+  }
+
+  // ---- channel 1: the collection deck, worked against the folder ----
+  // Spends the intelligence slot. Against a box it resolves an aimpoint; working
+  // blind against unknowns the best it can do is produce a lead, which is the
+  // argument for letting the other two channels put a box up first.
+  function workFolder() {
+    const gaps = covertGaps();
+    if (!gaps.length) return null;
+    const scale = diff().covert * (G.coalition ? 1 + COVERT.coalitionBonus : 1);
+    const falloff = COVERT.folderFalloff * (gaps.length - 1);
+    const boxed = gaps.filter(t => t.suspected);
+
+    if (boxed.length) {
+      const t = boxed[0];
+      const p = clamp((COVERT.folderFind - falloff) * scale, COVERT.folderFloor, 0.92);
+      if (Math.random() < p) {
+        t.found = true;
+        t.suspected = false;
+        G.stats.covertFound = (G.stats.covertFound || 0) + 1;
+        // it goes onto the plot with a fresh, deliberate assessment rather than
+        // as an unknown quantity — the deck that found it also looked at it
+        observe(t, true);
+        MapView.syncCovert();
+        MapView.updateTarget(t);
+        return {
+          cls: 'friendly', title: `AIMPOINT RESOLVED — ${t.short}`, internal: true,
+          sum: `${t.short} resolved — now targetable`,
+          text: `The box in ${t.region} has a name in it. ${t.name}: ${t.desc} It is on the plot, it is ` +
+            `assessed at ${condition(t)}, and as of tonight it can be put on a tasking order. It has been ` +
+            `there since the first night of this war.`,
+        };
+      }
+      return {
+        cls: 'friendly', title: 'COLLECTION AGAINST THE FOLDER — INCONCLUSIVE', internal: true,
+        sum: 'Deck flown, box not closed',
+        text: `A full collection deck worked the box in ${t.region} and came back with the same box. ` +
+          `The activity is real and it did not resolve into an aimpoint tonight. The slot is spent.`,
+      };
+    }
+
+    const t = gaps[Math.floor(Math.random() * gaps.length)];
+    const p = clamp((COVERT.folderLead - falloff) * scale, COVERT.folderFloor, 0.95);
+    if (Math.random() < p) {
+      const ev = addLead(t, 1);
+      if (ev) return ev;
+      return {
+        cls: 'friendly', title: 'FOLDER REVIEW — ANOMALY CARRIED FORWARD', internal: true,
+        sum: 'Anomaly logged, not localized',
+        text: 'Working the gaps blind, the deck has turned up something the analysts are not willing to ' +
+          'call a site yet — a discrepancy in the order of battle that does not close. It goes in the ' +
+          'file. Two or three more of these and it becomes a box on the plot.',
+      };
+    }
+    return {
+      cls: 'friendly', title: 'FOLDER REVIEW — NOTHING TO REPORT', internal: true,
+      sum: 'Folder worked, nothing found',
+      text: 'The deck was flown against the holes in the order of battle and found nothing worth ' +
+        'writing down. The analysts are confident the holes are there. Tonight they could not say where.',
+    };
   }
 
   // The target blurb, plus anything true of this particular war rather than of
@@ -738,13 +968,18 @@ const Game = (() => {
     let w = 0;
     for (const t of TARGETS) {
       if (t.type !== 'airdefense') continue;
-      w += t.hp / 100;
+      w += wt(t) * t.hp / 100;
     }
-    return w; // 0..3
+    return w; // 0..AD_SITES
   }
 
-  // number of air-defense targets, so the weight above can be read as a fraction
-  const AD_SITES = TARGETS.filter(t => t.type === 'airdefense').length;
+  // The denominator that turns the weight above into a fraction. Summed rather
+  // than counted so the two agree when a site weighs something other than 1 —
+  // a count here against a weighted sum above reads every partial-weight site as
+  // free damage the player never did. No covert air-defense site exists yet, but
+  // this is the divisor one would land on, and it is the same shape as the
+  // missile and naval denominators for the same reason.
+  const AD_SITES = TARGETS.reduce((n, t) => t.type === 'airdefense' ? n + wt(t) : n, 0);
 
   // ============================================================
   // AIR SUPERIORITY
@@ -766,7 +1001,7 @@ const Game = (() => {
     let ab = 0, n = 0;
     for (const t of TARGETS) {
       if (t.type !== 'airbase') continue;
-      ab += t.hp / 100; n++;
+      ab += wt(t) * t.hp / 100; n += wt(t);
     }
     const iranian = AIR_WEIGHT.sam * sam + AIR_WEIGHT.airbase * (n ? ab / n : 0);
     return clamp(1 - iranian, 0, 1);
@@ -1549,7 +1784,15 @@ const Game = (() => {
   // the gauge; one CENTCOM serviced is what pulls it down. Everything here reads
   // the flag off TARGETS rather than a hardcoded id list, so adding an aimpoint
   // to Israel's war is a one-word edit in data.js.
-  const israelPriorities = () => TARGETS.filter(t => t.israelPriority);
+  // Jerusalem's list, restricted to sites CENTCOM can actually service. A gap in
+  // the folder must not drive the gauge: `ignored` is charged per priority target
+  // left standing tonight, and charging it for a site the president has no
+  // aimpoint against is charging them for a decision they were never offered.
+  // No current priority target is covert, so this filter changes nothing today —
+  // it is here so that adding one later cannot quietly turn the Israel clock
+  // into a penalty for imperfect intelligence. (The interesting version runs the
+  // other way: coordinated posture buys an aimpoint off Mossad. Not built.)
+  const israelPriorities = () => TARGETS.filter(t => t.israelPriority && plotted(t));
 
   // Tonight's movement on the gauge, as a list of [amount, why] so the panel and
   // the report can both explain a number the player is being judged on rather
@@ -1932,6 +2175,8 @@ const Game = (() => {
     // a launcher group nobody has found is not a target, and a deep target is
     // not reachable without the northern tanker tracks
     if (target.type === 'tel' && (!target.dispersed || !target.located)) return;
+    // ...and a site that is still a box on the plot is not an aimpoint
+    if (target.covert && !target.found) return;
     if (!canReach(target)) return;
     // and a tier that has not been released is not a package
     if (pkgBlock(target, pkg)) return;
@@ -2154,6 +2399,12 @@ const Game = (() => {
         AudioSys.play('impact');
         const batchEvents = batch.map(bm => resolveImpact(target, bm.pkg));
         for (const ev of batchEvents) events.push(ev);
+        // The packages looked at more than the target on the way through. A
+        // strike on a type some gap in the folder feeds off can come back with a
+        // lead — rolled once per target per night rather than once per weapon,
+        // because what produces the intelligence is the visit, not the tonnage.
+        const lead = covertLead(target.type);
+        if (lead) events.push(lead);
         // a successful hit plays the strike clip in the target's radar window —
         // the package decides which clip, so a torpedo lands as a torpedo
         if (batchEvents.some(ev => ev.hit)) MapView.playStrikeHit(target, head.pkg);
@@ -2392,13 +2643,21 @@ const Game = (() => {
     if (G.warPowers.noDeep && (t.depth || 2) >= 3) return 'Prohibited by the War Powers resolution — outside the declared theater.';
     if (!canReach(t)) return 'Unreachable: with Gulf basing and overflight revoked there is no tanker track that puts a package this deep.';
     if (t.type === 'tel' && !t.located) return 'No fix. Dispersed launchers cannot be planned against until ISR finds them.';
+    // A box is not an aimpoint. This is reachable from the picker sheet and from
+    // a suspected box the player clicks on, and it has to say which of the two
+    // problems it is — there is nothing wrong with the weapon or the tanker plan.
+    if (t.covert && !t.found) return 'No aimpoint. The analysts have activity in this area and nothing precise enough to task a package against. Work the target folder from the Intelligence panel.';
     return null;
   }
 
   // ---- diplomacy ----
   // Intelligence taskings and diplomacy draw from two separate one-per-turn
   // slots: knowing and doing no longer compete for the same action.
-  const INTEL_ACTIONS = ['bda', 'hunt', 'assess-nuclear', 'assess-intent', 'isr-prep'];
+  // Which slot an order spends. A tasking missing from this list silently spends
+  // the DIPLOMATIC slot instead — it still runs, the panel still renders it under
+  // Intelligence, and the only symptom is that State lost its night. Anything
+  // added to the intel panel goes in here too.
+  const INTEL_ACTIONS = ['bda', 'hunt', 'assess-nuclear', 'assess-intent', 'isr-prep', 'folder'];
   function doDiplo(action) {
     if (G.over || busy()) return;
     const isIntel = INTEL_ACTIONS.includes(action);
@@ -2646,6 +2905,15 @@ const Game = (() => {
         // pattern-of-life ISR feeding the leadership raid; logic lives in
         // SpecOps, but it spends the intel slot like any other tasking
         if (!SpecOps.runIsrPrep(G, events)) return;
+        break;
+      }
+      case 'folder': {
+        // the collection deck worked against the holes in the order of battle
+        // rather than against a site. The panel drops the tasking when there is
+        // nothing outstanding, so the guard is a backstop.
+        const ev = workFolder();
+        if (!ev) return;
+        events.push(ev);
         break;
       }
       case 'assess-intent': {
@@ -3052,6 +3320,9 @@ const Game = (() => {
       // campaign objectives crossed tonight pay their one-time approval bump
       const objectives = objectiveMilestones();
 
+      // and whatever Tehran gave away tonight simply by running the war with it
+      const gaps = covertTurn();
+
       // fleet movement closes the allied half: decks that spent it repositioning
       // are on their new stations, and the second carrier is one leg closer
       const fleet = checkCarrierTransit();
@@ -3072,7 +3343,7 @@ const Game = (() => {
 
       const day = Math.ceil(G.turn / 2);
       const ours = [...bda, ...(israeli ? [israeli] : []), ...dispersals,
-        ...repairs, ...phase, ...objectives, ...fleet];
+        ...repairs, ...phase, ...objectives, ...gaps, ...fleet];
 
       MapView.whenFootageDone(guard('footage', () => {
         // An ally's package flies on the strategic plot before the report that
@@ -3561,6 +3832,9 @@ const Game = (() => {
       t.located = !!rec.located;
       t.lastStruck = rec.lastStruck || 0;
       t.killedOnce = !!rec.killedOnce;
+      t.found = !!rec.found;
+      t.suspected = !!rec.suspected;
+      t.leads = rec.leads || 0;
       syncStatus(t);
     }
     syncJointPackages(); // packages live on static TARGETS — rebuild from saved state
@@ -3597,6 +3871,14 @@ const Game = (() => {
       t.located = false;
       t.lastStruck = 0;
       t.killedOnce = false;
+      // what the folder does not have this time round. A covert site that was
+      // found last war is back off the plot for this one — TARGETS outlives the
+      // campaign and these three fields leak into the next war if they are not
+      // cleared here, which would hand the player a second campaign with no
+      // mid-game in it at all.
+      t.found = false;
+      t.suspected = false;
+      t.leads = 0;
       syncStatus(t);
     }
 
@@ -3734,6 +4016,9 @@ const Game = (() => {
     // the advisors read it, and nothing else may touch G.bmdPool directly
     bmdEngage, bmdRate, bmdCapacity, bmdFrac, bmdRearming, orderRearm,
     orderBombers, orderHeavies, transitCommitted, wearsDown,
+    // the gaps in the target folder: the map asks what it may draw, the intel
+    // panel asks what is outstanding. Nothing outside game.js writes them.
+    plotted, covertGaps, suspectedBoxes,
     // the air-superiority ladder: what the sky is worth tonight, and what that
     // releases. pkgBlock is the single answer to "why can't I fly this".
     airSuperiority, airPhase, phaseAtLeast, pkgBlock, PHASE_LABEL, minPackage, resKey, pkgStock,

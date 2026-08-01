@@ -60,7 +60,11 @@ const TARGETS = [
   },
   {
     id: 'natanz', name: 'Natanz Enrichment Facility', short: 'NATANZ',
-    type: 'nuclear', x: 441, y: 218, depth: 2, israelPriority: true,
+    // `enrichment` is what nukeDegraded() counts — the program the war is about.
+    // Arak and Bushehr NPP are type 'nuclear' and are NOT flagged: they are
+    // reactors, on the list for other reasons, and destroying them has never
+    // counted toward the primary objective.
+    type: 'nuclear', x: 441, y: 218, depth: 2, israelPriority: true, enrichment: true,
     desc: 'Primary enrichment site. Partially buried — cruise missiles can damage surface halls but only penetrators guarantee destruction. PRIMARY OBJECTIVE.',
     // The enrichment program is the stated reason the country went to war and
     // the one thing no capital will defend out loud. Hitting it costs nothing
@@ -73,7 +77,7 @@ const TARGETS = [
   },
   {
     id: 'fordow', name: 'Fordow Enrichment Plant', short: 'FORDOW',
-    type: 'nuclear', x: 416, y: 174, depth: 2, hardened: true, israelPriority: true,
+    type: 'nuclear', x: 416, y: 174, depth: 2, hardened: true, israelPriority: true, enrichment: true,
     desc: 'Enrichment halls buried under 80m of rock. ONLY a B-2 with GBU-57 penetrators has any chance. PRIMARY OBJECTIVE.',
     world: 0,
     packages: [
@@ -90,6 +94,136 @@ const TARGETS = [
       { asset: 'f35', qty: 2, base: 0.75, label: 'F-35 precision strike — 2 sorties' },
       { asset: 'fighter', qty: 3, base: 0.70, label: 'Precision air strike — 3 F-15E sorties' },
       { asset: 'heavy', qty: 2, base: 0.74, label: 'HEAVY BOMBER STRIKE — 2 B-1B sorties, JASSM' },
+    ],
+  },
+  // ---- the covert roster ----
+  // Three sites that carry weight in an aggregate, added only once those
+  // aggregates were renormalised to admit them (see missileStrength and
+  // navalStrength in ai.js, nukeDegraded in game.js). `weight` is each one's
+  // share of its type's total; the declared roster is all weight 1.
+  //
+  // Every one of these is in the war from turn one. They repair, they count,
+  // and they are the reason the capacity meter will not bottom out for a
+  // president who never looks.
+  {
+    id: 'msl-covert', name: 'Concealed Missile Brigade — Semnan Corridor', short: 'MSL SEMNAN',
+    type: 'missile', x: 535, y: 165, depth: 2, covert: true,
+    // 0.8 rather than 1: a brigade operating out of prepared hides is a real
+    // part of the missile force and a smaller part than a national base. The
+    // number is load-bearing — at 0.8 it is 0.42 on missileStrength's 0..2 scale
+    // when it is the last thing standing, which sits above iranBroken's 0.35
+    // bar. Drop it below ~0.7 and Iran can be declared broken with an undiscovered
+    // launcher force still shooting, which is the whole thing this prevents.
+    weight: 0.8,
+    leadFrom: 'missile',
+    tellAfter: 'msl-shiraz',
+    region: 'Semnan corridor — Dasht-e Kavir margin',
+    desc: 'A brigade that never operated from a declared garrison: prepared hides, buried cabling and a road network built for exactly this. It has been firing since the first night of the war from an address CENTCOM did not have.',
+    world: -2,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.70, label: 'F-35 strike package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.65, label: 'Air strike — 3 F-15E sorties' },
+      { asset: 'cruise', qty: 3, base: 0.72, label: 'TLAM salvo — 3 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.70, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, JDAM' },
+    ],
+  },
+  {
+    id: 'naval-covert', name: 'Forward Swarm Base — Abu Musa', short: 'ABU MUSA',
+    type: 'naval', x: 520, y: 498, depth: 1, covert: true, label: { dy: -14 },
+    // Deliberately NOT sized to gate iranBroken. navalStrength is a mean over
+    // six sites, so no plausible weight puts one hidden base above the 0.5 bar —
+    // forcing it would mean tightening the naval requirement to "sink literally
+    // everything", which is a worse objective than the one that exists. Its job
+    // is that carrier risk and the strait stay live past the point the visible
+    // roster explains, which it does at any weight.
+    weight: 0.8,
+    leadFrom: 'naval',
+    tellAfter: 'naval-bandar',
+    region: 'Lower Gulf islands — Abu Musa and the Tunbs',
+    desc: 'Fast-attack craft, mine stocks and anti-ship missile launchers dispersed onto the disputed islands, inside the shipping lanes rather than beside them. The hulls that keep appearing in the strait after Bandar Abbas stops sailing come from here.',
+    world: -2,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.80, label: 'F-35 strike package — 2 sorties' },
+      { asset: 'fighter', qty: 3, base: 0.75, label: 'Air strike — 3 F/A-18E sorties' },
+      { asset: 'cruise', qty: 2, base: 0.80, label: 'TLAM salvo — 2 cruise missiles' },
+    ],
+  },
+  {
+    id: 'nuc-covert', name: 'Undeclared Enrichment Hall — Kuh-e Siah', short: 'KUH-E SIAH',
+    // sited out toward Yazd rather than due east of Isfahan: at the closer
+    // position the box (drawn at +8,+11 from here) landed around the IRAN
+    // country label and read as though the chart had circled the whole country
+    type: 'nuclear', x: 545, y: 290, depth: 2, covert: true, enrichment: true,
+    // The one that reframes the campaign, and the one that needed the most care.
+    // It is counted by nukeDegraded, which gates BOTH victory conditions, so:
+    //
+    //   weight 0.5 — the declared program (Natanz + Fordow) reaches 80% without
+    //     it. High enough that Israel still stands down at ISRAEL.standDown 65
+    //     and the advisors still read the program as mostly gone; short enough
+    //     that the milestone, the military victory and the table all stay shut.
+    //
+    //   surfaceBy 8 — not the usual 20. This gates the only endings there are,
+    //     so the deadline has to leave room for the whole remaining chain and
+    //     not merely for the discovery: resolve the box, order the B-2 (two
+    //     turns out), fly it, miss at ~20%, fly it again. Twenty would leave a
+    //     hard war unwinnable through no fault of the player.
+    //
+    //   not `hardened` — unlike Fordow. It is a hall built in a hurry under
+    //     shallower cover, which is both why it could be hidden and why the
+    //     saturation option exists at all. That cruise package is the safety
+    //     valve: it is bad, and it means the sole victory condition never rests
+    //     on the player having exactly one airframe available.
+    weight: 0.5,
+    surfaceBy: 8,
+    leadFrom: 'nuclear',
+    tellAfter: 'natanz',
+    region: 'Kuh-e Siah ridge — east of Isfahan',
+    desc: 'Centrifuge halls the declarations never mentioned, cut into a ridge line and fed by a power spur that goes nowhere else. Enrichment has continued here every night of this war. The breakout clock was never counting only Natanz and Fordow.',
+    world: 0,
+    packages: [
+      { asset: 'stealth', qty: 1, base: 0.80, label: 'B-2 mission — GBU-57 penetrators' },
+      { asset: 'cruise', qty: 5, base: 0.42, label: 'Saturation TLAM strike — limited against the halls' },
+    ],
+  },
+  // ---- the first covert aimpoint ----
+  // Not in the folder CENTCOM opens the war with. `covert` means the site is not
+  // on the plot, is not in the DOM, and cannot be planned against until the
+  // intelligence apparatus earns it (see WHAT IS NOT IN THE FOLDER in game.js).
+  //
+  // A second command node is the right target to prove the mechanism on, and the
+  // reason is arithmetic rather than fiction: every aggregate in this game reads
+  // the primary by id — iranCapacity, iranBroken and the advisor recs all say
+  // `find(t => t.id === 'irgc-hq')` — and nothing anywhere iterates type
+  // 'command' except the map's icon switch. So this site can exist, be hidden,
+  // repair and be struck without moving a single balance number. The covert
+  // missile brigade and the island swarm base cannot: missileStrength() clamps at
+  // Math.min(2, s) and navalStrength() divides by fleet length, so adding hidden
+  // targets to either silently changes what the declared ones are worth. Those
+  // land with that renormalization, not before it.
+  {
+    id: 'cmd-alt', name: 'Alternate National Command Post — Abyek', short: 'ALT NCP',
+    // Sited far enough west of the Tehran SAM belt that the BOX clears it too:
+    // the suspected-tier ellipse is drawn at a fuzzed offset from this point
+    // (+7,+11 for this id), and at the original position its UNRESOLVED label
+    // landed on AD TEHRAN's. The fuzz is deterministic, so this clears once and
+    // stays clear — but any covert site added later has to be checked against
+    // its own offset, not against its true coordinates.
+    type: 'command', x: 356, y: 106, depth: 2, covert: true,
+    label: { dy: -14 },
+    // packages against command nodes are what turn up traces of this one: the
+    // primary's destroyed comms hut is where you learn what it was talking to
+    leadFrom: 'command',
+    // and it starts giving itself away once the primary is rubble, because the
+    // war does not stop being coordinated and something is doing the coordinating
+    tellAfter: 'irgc-hq',
+    region: 'Alborz foothills — Qazvin corridor',
+    desc: 'A hardened continuity-of-government facility cut into the Alborz foothills, built to run the war after Tehran stops answering. Striking it does what the IRGC complex was supposed to do and did not: it takes the coordination away for good.',
+    world: -2,
+    packages: [
+      { asset: 'stealth', qty: 1, base: 0.82, label: 'B-2 mission — GBU-57 penetrators' },
+      { asset: 'f35', qty: 2, base: 0.66, label: 'F-35 precision strike — 2 sorties' },
+      { asset: 'cruise', qty: 3, base: 0.62, label: 'TLAM salvo — 3 missiles (partially buried)' },
+      { asset: 'heavy', qty: 2, base: 0.68, label: 'HEAVY BOMBER STRIKE — 2 B-1B sorties, JASSM' },
     ],
   },
   {
@@ -356,6 +490,71 @@ const TARGET_REPAIR = {
   naval:       8,   // piers, cranes and fuel farms take longer than a runway does
   oil:         5,   // refinery trains and loading berths are the slowest of all
 };
+
+// ============================================================
+// WHAT IS NOT IN THE FOLDER
+// ------------------------------------------------------------
+// A `covert` target exists from turn one — it repairs, it counts, it is part of
+// the war — but CENTCOM does not know about it. Discovery moves it through three
+// states, and the middle one is the whole point:
+//
+//   unknown    not in the document at all, per the launcher-hunt precedent
+//   suspected  a dashed box at a fuzzed position with a type guess. You know
+//              something is there. You still cannot plan against it.
+//   found      an ordinary target
+//
+// A straight hidden/visible flip would be a wait-for-RNG button. The suspected
+// tier is what makes it a decision: the box appears, and the player spends the
+// next several turns deciding whether resolving it is worth an intelligence slot
+// against a stale BDA, a loose launcher group and the enrichment estimate.
+//
+// Three channels feed it, deliberately, so discovery is never one button:
+//   1. the collection deck, tasked at the folder (spends the intel slot)
+//   2. leads thrown off by strikes on RELATED targets — so the shape of the
+//      campaign decides what you learn, and flying aggressively pays in intel
+//   3. the site giving itself away by being used
+//
+// Channel 3 is the anti-hard-lock backstop and it is the reason `surfaceTurn`
+// exists: a president who never spends a slot on the folder still finds
+// everything eventually, having been hit by it first. That is a worse campaign,
+// not an impossible one — the objective must always be reachable.
+const COVERT = {
+  leadsToSuspect: 3,     // leads that promote a gap from unknown to a box on the plot
+  leadChance: 0.28,      // per package landed on a target whose type a gap feeds off
+  ambientLead: 0.10,     // per turn, a covert site simply being in the war
+  tellLead: 0.30,        // ...once its `tellAfter` target is destroyed and it takes over
+
+  // The collection deck worked against the folder rather than against a site.
+  // Falls off with the number of outstanding gaps for the same reason the
+  // launcher hunt does: analysts split across four problems solve none of them.
+  folderFind: 0.58,      // resolving a SUSPECTED site — the deck knows where to look
+  folderLead: 0.75,      // working blind against unknowns, it produces a lead at best
+  folderFalloff: 0.10,   // per outstanding gap beyond the first
+  folderFloor: 0.22,
+  coalitionBonus: 0.05,  // partner services and their take on the same problem
+
+  // By this turn anything still hiding has been fighting for two weeks and is at
+  // least a box. Late enough that a player who works the problem beats it by a
+  // wide margin; early enough that the objective stays reachable regardless.
+  //
+  // A target may override it with its own `surfaceBy`, and one has to. The rule
+  // is: if a site gates something the campaign cannot be WON without, its
+  // deadline has to leave room for the entire remaining chain rather than just
+  // for the discovery — resolve the box (a tasking, sometimes two), order the
+  // aircraft (the B-2 is two turns out), fly it, miss, fly it again. Twenty is
+  // enough runway to find a missile brigade you merely wanted. It is not enough
+  // to find, resolve, reach and destroy a buried hall the victory condition is
+  // counted against, on hard, where DIFFICULTY.covert slows all of it down.
+  surfaceTurn: 20,
+};
+
+// DIFFICULTY.covert scales how HARD the gaps are to close, never how many of
+// them there are. A roster that changed size with the difficulty would change
+// what every aggregate in the game divides by — AD_SITES, navalStrength's fleet
+// count — so the hard war would be quietly rebalancing the normal one's targets
+// rather than being harder. What a harder war takes away is how fast the picture
+// fills in, which is the same shape as DIFFICULTY.bmd taking away how long the
+// screen keeps shooting rather than how well it shoots.
 
 // ============================================================
 // THE SAM BELT COMES BACK
@@ -899,12 +1098,12 @@ const BREAKOUT = {
 // is out unless the missile force has been worked; on easy there is room to be
 // slow about it.
 const DIFFICULTY = {
-  easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25, israel: 0.75, bmd: 1.35, softGate: false,
-    desc: 'A forgiving war. The country absorbs more, Iran reconstitutes slower, the enrichment clock runs long, the fleet sailed with a deep interceptor magazine, and Jerusalem is willing to wait.' },
-  normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1, israel: 1, bmd: 1, softGate: false,
+  easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25, israel: 0.75, bmd: 1.35, covert: 1.3, softGate: false,
+    desc: 'A forgiving war. The country absorbs more, Iran reconstitutes slower, the enrichment clock runs long, the fleet sailed with a deep interceptor magazine, Jerusalem is willing to wait, and what Tehran kept off the books does not stay off it for long.' },
+  normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1, israel: 1, bmd: 1, covert: 1, softGate: false,
     desc: 'The war as designed. Everything above and below is scaled from here.' },
-  hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85, israel: 1.3, bmd: 0.7, softGate: true,
-    desc: 'The country has less patience, Iran repairs faster and fights better coordinated, the centrifuges are further along than you would like, the fleet sailed light on interceptors, Jerusalem has almost none — and the staff will fly any package you order, into any threat, and hand you the casualty list afterwards.' },
+  hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85, israel: 1.3, bmd: 0.7, covert: 0.75, softGate: true,
+    desc: 'The country has less patience, Iran repairs faster and fights better coordinated, the centrifuges are further along than you would like, the fleet sailed light on interceptors, Jerusalem has almost none, what Tehran kept off the books stays off them longer — and the staff will fly any package you order, into any threat, and hand you the casualty list afterwards.' },
 };
 
 // These levels were once named for the chair you were sitting in. A save

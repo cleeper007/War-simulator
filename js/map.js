@@ -175,9 +175,12 @@ const MapView = (() => {
     }
   }
 
-  // A dispersal site is not on the plot until launchers have driven into it AND
-  // ISR has found them. Everything else about it is an ordinary target.
-  const telVisible = (t) => !t.dispersal || (t.dispersed && t.located && t.hp > 0);
+  // What the plot is allowed to draw. A dispersal site is not on it until
+  // launchers have driven into it AND ISR has found them; a covert site is not
+  // on it until the folder work has resolved an aimpoint. Game owns both
+  // judgements — the map must never be the second opinion on whether the
+  // president knows a target exists.
+  const onPlot = (t) => Game.plotted(t);
 
   // ---- touch targets ----
   // The invisible disc under each icon used to be a flat 13 map units. Map units
@@ -556,9 +559,14 @@ const MapView = (() => {
       // position sitting in the DOM for anyone who opened the inspector, and
       // the whole point of the launcher hunt is that the player does not know
       // where they are. buildTarget appends it the moment ISR earns it.
-      if (t.dispersal) continue;
+      // ...and neither is a covert site, for exactly the same reason: what is
+      // not in the folder is not in the document.
+      if (!onPlot(t)) continue;
       buildTarget(t);
     }
+
+    // the boxes: activity localized but not resolved into anything strikeable
+    syncCovert();
 
     measureWorld();   // the crop the view is not allowed to escape
     initPanZoom();
@@ -608,11 +616,50 @@ const MapView = (() => {
     }
   }
 
+  // ---- the middle tier: a box, not a site ----
+  // A suspected site is drawn as a dashed ellipse at a position that is
+  // deliberately NOT its own, labelled with the problem instead of the answer.
+  // It is not a `.target` and it carries no target id: the whole value of the
+  // tier is that the player knows something is out there and does not yet know
+  // what or exactly where, and an id in the DOM hands them both. Game.suspected-
+  // Boxes owns the fuzzing, so the offset is stable across re-renders instead of
+  // walking the box across the map every time the panel redraws.
+  //
+  // Rebuilt wholesale rather than diffed. There are at most a handful of these,
+  // they change only at a turn boundary or on an intelligence tasking, and a
+  // diff would be more code than the thing it optimises.
+  function syncCovert() {
+    if (!world) return;
+    let layer = document.getElementById('covert-layer');
+    if (!layer) {
+      layer = el('g', { id: 'covert-layer' });
+      world.appendChild(layer);
+    }
+    while (layer.firstChild) layer.removeChild(layer.firstChild);
+    for (const b of Game.suspectedBoxes()) {
+      const g = el('g', { class: 'covert-box', id: b.key,
+        transform: `translate(${b.x},${b.y})` });
+      // transparent fill so the whole ellipse is a hover surface; there is no
+      // click handler, because there is nothing here to plan a strike against
+      g.appendChild(el('ellipse', { class: 'cb-ring', rx: 27, ry: 19, fill: 'transparent' }));
+      const label = el('text', { y: 31 });
+      label.textContent = 'UNRESOLVED';
+      g.appendChild(label);
+      attachTooltip(g, () =>
+        `<span class="tt-name">Unresolved activity</span><br>` +
+        `<span class="tt-status" style="color:var(--amber)">NOT AN AIMPOINT</span><br>` +
+        `${b.region} — ${b.hint}. The analysts have put a box around something here and cannot yet ` +
+        `resolve it into a site. The position is approximate and nothing can be planned against it.` +
+        `<br><em style="color:var(--blue)">Work the target folder from the Intelligence panel.</em>`);
+      layer.appendChild(g);
+    }
+  }
+
   // Every target on the plot whose touch disc contains a point, nearest first.
   function targetsUnder(p) {
     const out = [];
     for (const t of TARGETS) {
-      if (!telVisible(t) || !document.getElementById(`tgt-${t.id}`)) continue;
+      if (!onPlot(t) || !document.getElementById(`tgt-${t.id}`)) continue;
       const d = Math.hypot(p.x - t.x, p.y - t.y);
       if (d <= hitR) out.push({ t, d });
     }
@@ -932,9 +979,12 @@ const MapView = (() => {
   function updateTarget(t) {
     // a launcher group joins the plot when it is found and leaves it when the
     // track is lost again — it is never a hidden element sitting in the DOM
-    if (t.dispersal) {
+    // ...and a covert site joins it the night the folder work resolves an
+    // aimpoint. Same handling for the same reason: neither is ever a hidden
+    // element sitting in the DOM with its name and true position in it.
+    if (t.dispersal || t.covert) {
       const existing = document.getElementById(`tgt-${t.id}`);
-      if (!telVisible(t)) { if (existing) existing.remove(); return; }
+      if (!onPlot(t)) { if (existing) existing.remove(); return; }
       if (!existing) buildTarget(t);
     }
     const g = document.getElementById(`tgt-${t.id}`);
@@ -3337,7 +3387,7 @@ const MapView = (() => {
     setTimeout(finish, 12000); // watchdog: a throttled tab must never stall the war
   }
 
-  return { render, updateTarget, setHormuz, flashAsset, animateStrike, playStrikeHit,
+  return { render, updateTarget, syncCovert, setHormuz, flashAsset, animateStrike, playStrikeHit,
     whenFootageDone, updateTransit, animateIranianAttacks, alliedStrike,
     setTargetClickHandler, setFastForward,
     setCarrierPosture, setCarrierIngress, setAssetActive, raidOpen,

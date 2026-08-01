@@ -700,6 +700,7 @@ button { font-family: var(--mono); }
    zoom. */
 @media (pointer: coarse) {
   #map.map-far-zoom .target text,
+  #map.map-far-zoom .covert-box text,
   #map.map-far-zoom .us-asset text { opacity: 0; }
   .target text, .us-asset text { transition: opacity 0.18s ease; }
   /* once they are earned, make them worth reading on a phone */
@@ -707,6 +708,31 @@ button { font-family: var(--mono); }
 }
 .target.destroyed text { fill: #4a566e; }
 .target:hover .tgt-ring { stroke-width: 2.5; }
+
+/* ---- unresolved activity: a box, not a site ----
+   The middle tier of target discovery (see COVERT in data.js). It must not read
+   as a target the player has forgotten to service: no crosshair, no ring, no
+   fill — a long-dashed ellipse, which is the shape this chart uses nowhere else.
+   Amber because amber already means "known about and unfinished" everywhere on
+   this map, and the breathing is slow enough to catch the eye on a plot the
+   player is scanning without joining the things that blink for attention. */
+.covert-box .cb-ring {
+  stroke: var(--amber);
+  stroke-width: 1.2;
+  stroke-dasharray: 7 5;
+  opacity: 0.55;
+  animation: covert-breathe 4.2s ease-in-out infinite;
+}
+.covert-box:hover .cb-ring { opacity: 1; stroke-width: 2; animation: none; }
+.covert-box text {
+  fill: var(--amber); font-size: 8px; font-family: var(--mono);
+  text-anchor: middle; pointer-events: none;
+  opacity: 0.6; letter-spacing: 0.1em;
+}
+@keyframes covert-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.24; } }
+@media (prefers-reduced-motion: reduce) {
+  .covert-box .cb-ring { animation: none; }
+}
 
 .us-asset .asset-icon { fill: var(--blue); }
 .us-asset text {
