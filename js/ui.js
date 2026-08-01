@@ -937,6 +937,17 @@ const UI = (() => {
       : '<span class="adv-icon" aria-hidden="true"></span>';
   }
 
+  // The watch card's portrait is this same capped bust, reused rather than
+  // redrawn. What it identifies is A UNIFORMED OFFICER, which is all the card
+  // ever claims — the billet printed beside it says which one, and it is never
+  // the Chairman (see VOICE in audio.js for why). A second, near-identical
+  // silhouette drawn to avoid the association would be worse: two busts to keep
+  // in sync, and a player would read them as the same person anyway.
+  function officerBust() {
+    return `<svg viewBox="0 0 24 24" aria-hidden="true">` +
+      `<path d="${ADV_ICON['Gen. Halvorsen, CJCS']}"/></svg>`;
+  }
+
   function renderAdvisors(G) {
     const advice = IranAI.advise(G);
 
@@ -1873,6 +1884,58 @@ const UI = (() => {
   }
 
   // ============================================================
+  // THE WATCH-FLOOR VOICE CARD
+  // ------------------------------------------------------------
+  // Bottom-right of the map, up for as long as the room is talking. Six clips
+  // carried information that existed in no other form: with the sound off, or
+  // for a player who cannot hear them, the game simply did not say those things.
+  // The caption is most of the reason this exists; the meter is what tells a
+  // player who is looking at Bandar Abbas that it was said just now.
+  //
+  // A STATUS INDICATOR, NOT A DIALOG, and every part of that is deliberate. It
+  // is not an .overlay, it never reaches initModals, it traps nothing, Escape
+  // does not touch it and it never takes focus. The president is in the middle
+  // of picking an aimpoint when the strait closes; the room announcing it must
+  // not be able to interrupt that.
+  //
+  // Who talks and what they say lives in VOICE in audio.js, next to the file
+  // each line belongs to. Nothing about the card touches G — see the raise/lower
+  // pair in audio.js for why voice is transient state.
+  // ============================================================
+
+  // The voice stops and the card holds, flat, for a beat before it retires.
+  // "Target marked." is one second of audio, and a caption nobody can finish
+  // reading is not a caption — but stretching the METER past the clip would be
+  // the card lying about whether anyone is still speaking. So the meter's life
+  // is exactly the clip's life and the card's is a little longer, which is the
+  // same two-state shape the leader call already uses (.connected, then .ended).
+  const VC_LINGER = 2400;
+  let vcTimer = null;
+
+  function voiceUp(who, says) {
+    const card = $('voice-card');
+    if (!card) return;
+    clearTimeout(vcTimer);
+    // Unhide BEFORE writing the line. The caption sits in an aria-live region,
+    // and a region mutated while it is still display:none is not reliably
+    // announced — the one ordering constraint in here.
+    card.classList.remove('hidden', 'vc-ended');
+    $('vc-who').textContent = who;
+    $('vc-caption').textContent = says;
+  }
+
+  // `hard` is a cut: the clip was silenced rather than allowed to finish, so
+  // the card goes with it instead of holding.
+  function voiceDown(hard) {
+    const card = $('voice-card');
+    if (!card) return;
+    clearTimeout(vcTimer);
+    if (hard) { card.classList.add('hidden'); return; }
+    card.classList.add('vc-ended');
+    vcTimer = setTimeout(() => card.classList.add('hidden'), VC_LINGER);
+  }
+
+  // ============================================================
   // ALLIED HEAD-OF-GOVERNMENT CALL
   // ------------------------------------------------------------
   // Runs twice a campaign at most: London off the coalition cable, Paris the
@@ -2248,6 +2311,12 @@ const UI = (() => {
       }
     });
     $('btn-restart').addEventListener('click', () => window.location.reload());
+    // The watch card's one piece of art, dropped in once. It is the only thing
+    // in that card that never changes, so it is filled here rather than on
+    // every raise — and it lives in JS rather than the markup so the advisor
+    // panel stays the single home of the bust (see officerBust).
+    const bust = $('vc-bust');
+    if (bust) bust.innerHTML = officerBust();
   }
 
   // ---- primer ----
@@ -2313,5 +2382,5 @@ const UI = (() => {
   }
 
   return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport,
-    showEndgame, showPrimer, openLeaderCall, closeAllPanels, openPanel };
+    showEndgame, showPrimer, openLeaderCall, closeAllPanels, openPanel, voiceUp, voiceDown };
 })();

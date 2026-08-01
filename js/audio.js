@@ -41,6 +41,61 @@ const AudioSys = (() => {
     phoneRing: 'phone-ring.m4a',   // ~2.3 s
   };
 
+  // ---- WHO IS TALKING ----
+  // The six clips below are the only recordings in the game with words in them,
+  // and this table is the whole hook for the watch card in the corner of the
+  // map: a clip listed here raises the card automatically from inside play()
+  // and playThen(), and a clip not listed here is a noise and gets nothing. A
+  // seventh voice clip needs a row and nothing else.
+  //
+  // `says` is a TRANSCRIPT, not a paraphrase, because with sound off — or for a
+  // player who cannot hear it at all — this line is the only place the content
+  // exists. Everything else the game says, it also writes down somewhere.
+  //
+  // ON ATTRIBUTION. Not one of the recordings names its speaker, and only three
+  // of the six are even addressed to the President. So the card is titled for
+  // the ROOM and the speaker line carries a BILLET rather than a person. The
+  // tempting alternative was to hang all six on Gen. Halvorsen — he is the only
+  // officer this game has named, and the sidebar has already given the player a
+  // face for him. It is false twice over. The Chairman does not key a strike
+  // net to say "target marked" and does not carry a BDA product across the
+  // floor; those are a controller and the intelligence watch, and putting his
+  // name on them would be the kind of small lie nothing else in here tells.
+  // He is also, in this game, an advisor who argues with the president, which
+  // is a different job from a duty officer reading traffic aloud.
+  //
+  // Four of them share the DDO — the officer who actually runs the NMCC watch
+  // and whose job is to speak to the National Command Authority — because they
+  // are all the same act: the floor reporting a change on the board. Splitting
+  // them across four invented speakers to make the card look varied would be
+  // the same lie in a smaller font.
+  const VOICE = {
+    fordArrival: {
+      who: 'DEPUTY DIRECTOR FOR OPERATIONS',
+      says: 'Sir, the Gerald R. Ford Carrier Strike Group has arrived in theater.',
+    },
+    b2Arrival: {
+      who: 'DEPUTY DIRECTOR FOR OPERATIONS',
+      says: 'Sir, stealth bombers have arrived at Diego Garcia.',
+    },
+    strikeForce: {
+      who: 'DEPUTY DIRECTOR FOR OPERATIONS',
+      says: 'Mr. President, the order has been received and authenticated. ' +
+            'Strike forces are moving into position.',
+    },
+    hormuzClosure: {
+      who: 'DEPUTY DIRECTOR FOR OPERATIONS',
+      says: 'Mr. President, Iran has moved to close the Strait of Hormuz.',
+    },
+    // Not addressed to anybody: a controller keying a net to acknowledge that
+    // the aimpoint is now on the tasking. One second of audio, which is why the
+    // card holds after the voice stops — see voiceDown in ui.js.
+    targetMarked: { who: 'STRIKE CONTROL', says: 'Target marked.' },
+    // The product changing hands, not the assessment itself. What it says is
+    // that the BDA is ready; what it is ready to say is on the screen behind it.
+    bdaReport: { who: 'J2 — INTELLIGENCE WATCH', says: 'Battle damage assessment is ready.' },
+  };
+
   // Per-clip playback level, 0..1. Anything not listed plays at full volume.
   // The klaxon rides under the Hormuz closure call rather than over it — at
   // full gain it buried the voice and simply hurt.
@@ -156,6 +211,48 @@ const AudioSys = (() => {
     duckDrop('sfx:' + name);
   }
 
+  // ---- the watch card ----
+  // This file owns exactly one question — is somebody talking right now — and
+  // ui.js owns the card that answers it. The hook lives here rather than at the
+  // six call sites so that adding a row to VOICE is the entire wiring job.
+  //
+  // Both of these are raised off the sound ACTUALLY STARTING rather than off
+  // the call being made. Muted and locked bail out of play()/playThen() before
+  // they get here, but blocked autoplay does not: it comes back as a rejected
+  // play() promise a frame later, and a card raised on the call would flash up
+  // and vanish on every turn of a muted session.
+  //
+  // Transient by design and nowhere near G or FIELDS. A voice that was in the
+  // middle of a sentence when the player quit is not a thing to resume — the
+  // same reasoning arrivalCalls in game.js is written on.
+  let voiceCur = null;      // clip name currently holding the card, or null
+  const voiceTimers = {};   // fallback retire for clips played through play()
+
+  function voiceRaise(name, clip) {
+    const v = VOICE[name];
+    if (!v || typeof UI === 'undefined' || !UI.voiceUp) return;
+    voiceCur = name;
+    try { UI.voiceUp(v.who, v.says); } catch (e) { /* silent, like everything here */ }
+    // playThen knows exactly when its clip stops and lowers the card there.
+    // play() is fire-and-forget, so the card retires on a timer instead — same
+    // shape and same `duration is NaN until metadata lands` fallback as
+    // duckClip above, since it is the same problem.
+    clearTimeout(voiceTimers[name]);
+    const dur = isFinite(clip.duration) && clip.duration > 0 ? clip.duration : 6;
+    voiceTimers[name] = setTimeout(() => voiceLower(name), dur * 1000);
+  }
+
+  // `hard` retires the card immediately instead of letting it hold — a cut.
+  function voiceLower(name, hard) {
+    clearTimeout(voiceTimers[name]);
+    // A second clip may have taken the card while this one was still winding
+    // down; the one that owns it is the one allowed to take it away.
+    if (voiceCur !== name) return;
+    voiceCur = null;
+    if (typeof UI === 'undefined' || !UI.voiceDown) return;
+    try { UI.voiceDown(!!hard); } catch (e) { /* silent */ }
+  }
+
   // Walk the gain to wherever the holds say it should be. Stepped by hand on a
   // timer: Web Audio has a ramp for this, but the rest of this file is bare
   // <Audio> elements and one gain node is not worth an AudioContext that would
@@ -246,7 +343,10 @@ const AudioSys = (() => {
       try {
         c.currentTime = 0;
         const p = c.play();
-        if (p && p.catch) p.catch(() => {});
+        // The card goes up only once the browser says the sound is running.
+        // No promise at all (old engines) is the one case we take on trust.
+        if (p && p.then) p.then(() => voiceRaise(name, c), () => {});
+        else voiceRaise(name, c);
       } catch (e) { /* silent */ }
       duckClip(name, c);   // the score gets out from under it
     };
@@ -277,6 +377,7 @@ const AudioSys = (() => {
       c.removeEventListener('ended', finish);
       c.removeEventListener('error', finish);
       duckClipDrop(name);   // the voice has cleared; the bed can come back up
+      voiceLower(name);     // …and the card comes down with it
       go();
     };
     pendingThen[name] = finish;
@@ -288,7 +389,11 @@ const AudioSys = (() => {
     try {
       c.currentTime = 0;
       const p = c.play();
-      if (p && p.catch) p.catch(finish);
+      // Same guard as play(): the card waits for the sound. `done` is checked
+      // because an error can beat the resolve, and a card raised after its own
+      // finish has already run would never be lowered by anything.
+      if (p && p.then) p.then(() => { if (!done) voiceRaise(name, c); }, finish);
+      else voiceRaise(name, c);
     } catch (e) { finish(); return; }
     const dur = isFinite(c.duration) && c.duration > 0 ? c.duration : 10;
     setTimeout(finish, dur * 1000 + 1000);
@@ -301,6 +406,10 @@ const AudioSys = (() => {
   function cut(name) {
     const c = clips[name];
     if (c) { try { c.pause(); c.currentTime = 0; } catch (e) { /* silent */ } }
+    // Before finish(), which would lower the card the polite way and leave the
+    // caption sitting on the map for two more seconds. A cut is the player
+    // saying they have heard this one; the card goes when the voice goes.
+    voiceLower(name, true);
     const finish = pendingThen[name];
     if (finish) finish();
   }

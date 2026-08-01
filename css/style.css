@@ -1516,6 +1516,108 @@ button { font-family: var(--mono); }
 #lc-footer { flex-wrap: wrap; }
 
 /* ============================================================
+   THE WATCH-FLOOR VOICE CARD
+   ------------------------------------------------------------
+   Kept together — card, meter, reduced-motion state and short-viewport rule —
+   for the same reason the walkthrough at the end of this file is: it is one
+   element and a dozen selectors, and splitting it across three sections costs
+   the next reader a search and buys nothing.
+
+   Bottom-right of the map. The other three things that live in #map-container
+   are the tactical scopes (top-left), the zoom controls (top-right, in the
+   header) and the ambiguous-tap sheet (which follows the finger); this corner
+   is the only one nothing else claims. z-index sits above the scopes and below
+   the raid stage, which takes the whole board for its two minutes and should
+   keep doing so.
+
+   pointer-events: none is load-bearing, not tidiness. The card lands over the
+   chart unannounced while the player may be reaching for a target underneath
+   it, and a status indicator that eats a tap on Bandar Abbas would be worse
+   than no card at all.
+   ============================================================ */
+#voice-card {
+  position: absolute; right: 10px; bottom: 10px; z-index: 16;
+  display: flex; align-items: flex-start; gap: 9px;
+  width: 268px; max-width: 46%;
+  padding: 8px 10px;
+  background: rgba(6, 10, 18, 0.94);
+  border: 1px solid var(--line); border-left: 2px solid var(--green);
+  pointer-events: none;
+}
+/* the voice has stopped and the card is holding to be read — the accent goes
+   with it, so the two states are told apart at a glance and not only by the
+   meter having gone still */
+#voice-card.vc-ended { border-left-color: var(--line); }
+
+.vc-bust { flex: 0 0 22px; line-height: 0; }
+.vc-bust svg { width: 22px; height: 22px; display: block; fill: var(--green); }
+#voice-card.vc-ended .vc-bust svg { fill: var(--dim); }
+
+.vc-body { min-width: 0; flex: 1; }
+.vc-room {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 8.5px; letter-spacing: 1.5px; color: var(--dim);
+}
+/* the reduced-motion substitute: hidden unless the meter has been stilled */
+.vc-onair { display: none; color: var(--green); letter-spacing: 1.2px; }
+#voice-card.vc-ended .vc-onair { color: var(--dim); }
+
+/* Nine bars on shared keyframes with their own delays and durations, which is
+   the same trick the leader call's meter uses and enough irregularity to read
+   as speech rather than an equalizer. It runs for exactly as long as the clip
+   does: audio.js raises the card on the sound starting and drops it when the
+   sound stops, and .vc-ended is the only thing that stills it. */
+/* 3px bars on a 3px floor rather than the 2px both started at: at 2px the row
+   read as a dotted rule for the third of the cycle every bar spends near the
+   bottom, which is the wrong thing entirely for the one element on screen whose
+   whole job is to say somebody is talking. */
+.vc-meter { display: flex; align-items: flex-end; gap: 2px; height: 11px; margin: 5px 0 4px; }
+.vc-meter i {
+  width: 3px; height: 3px; display: block; background: var(--green);
+  animation: vc-level 0.58s ease-in-out infinite alternate;
+}
+.vc-meter i:nth-child(2n)   { animation-duration: 0.41s; }
+.vc-meter i:nth-child(3n)   { animation-duration: 0.73s; }
+.vc-meter i:nth-child(4n+1) { animation-delay: 0.19s; }
+.vc-meter i:nth-child(5n+2) { animation-delay: 0.35s; }
+.vc-meter i:nth-child(7n+3) { animation-delay: 0.08s; }
+@keyframes vc-level { from { height: 3px; } to { height: 11px; } }
+/* nobody is talking any more: the bars drop flat and go the colour of the rule */
+#voice-card.vc-ended .vc-meter i { animation: none; height: 3px; background: var(--line); }
+
+.vc-who { font-size: 9px; letter-spacing: 1.2px; color: var(--amber); }
+#voice-card.vc-ended .vc-who { color: var(--dim); }
+/* The line itself, and the whole point of the card: this is the only place six
+   clips' worth of content exists for a player with the sound off. It gets the
+   body size everything else readable in this game gets, and it wraps rather
+   than being cut with an ellipsis. */
+.vc-caption { font-size: 11.5px; line-height: 1.45; color: var(--text); margin: 2px 0 0; }
+
+/* Short viewport (landscape phones). The card stays. It is the ONLY carrier of
+   this content, it is transient — 5.4 s at the very longest — and the corner it
+   sits in is open water on a chart whose targets are all north and west of it.
+   Hiding it here would delete the accessibility win on exactly the screens
+   where the sidebar has least room to make up for it.
+   What gives way is its size — and the lever is WIDTH, which is not the
+   intuition. The card's height is caption lines, and the longest of the six
+   captions is 100 characters: at the 232px this started at, that wrapped to
+   four lines and the card ate 42% of a 284px chart. Twenty-four more pixels of
+   width is one line fewer and about 26 fewer pixels of height, so the wider
+   card is the smaller one. ~47% across and ~33% down: a corner, not the board. */
+@media (max-height: 540px) {
+  /* max-width has to come up with the width or it, not the width, is what the
+     card ends up being — 46% of a 543px map panel is 250px, which is four
+     caption lines again and the whole widening undone. 276/54% is the first
+     pair that actually lands the longest caption in three lines. */
+  #voice-card { right: 6px; bottom: 6px; width: 276px; max-width: 54%; padding: 6px 8px; gap: 6px; }
+  .vc-bust { flex-basis: 18px; }
+  .vc-bust svg { width: 18px; height: 18px; }
+  .vc-meter { height: 9px; margin: 3px 0 2px; }
+  @keyframes vc-level { from { height: 3px; } to { height: 9px; } }
+  .vc-caption { font-size: 10.5px; line-height: 1.38; }
+}
+
+/* ============================================================
    MOBILE / TOUCH — landscape-first
    ------------------------------------------------------------
    Everything below is gated on a coarse (touch) pointer or a short/narrow
@@ -1776,9 +1878,23 @@ button { font-family: var(--mono); }
 @media (prefers-reduced-motion: reduce) {
   .scope-lock, .pulsing, .raid-helo.raid-wreck, .target.tel-fix,
   .csar-survivors.csar-contact .csar-ring, .call-phone, .call-levels i,
-  .call-modal.connected .lc-wave, .rotate-icon, .transit-dot {
+  .call-modal.connected .lc-wave, .rotate-icon, .transit-dot,
+  .vc-meter i {
     animation: none !important;
   }
+  /* The watch card is the one thing in this list whose base state carries
+     nothing: a stopped level meter is not "a still meter", it is a card giving
+     no sign that anybody is talking. So the movement is REPLACED rather than
+     removed — a lit ON AIR beside the room, and the bars frozen into a
+     staggered profile so the meter still reads as a meter. Both revert on
+     .vc-ended along with everything else — the ID selector up in the card's own
+     block outranks these — which is what keeps "the voice has stopped"
+     distinguishable from "the voice never moved". Percentages rather than
+     pixels so the short-viewport meter shrinks these with it. */
+  .vc-onair { display: inline; }
+  .vc-meter i:nth-child(3n+1) { height: 100%; }
+  .vc-meter i:nth-child(3n+2) { height: 55%; }
+  .vc-meter i:nth-child(3n)   { height: 80%; }
   * { transition-duration: 0.01ms !important; }
 }
 

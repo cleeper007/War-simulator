@@ -28,7 +28,7 @@
      looks like a change that never shipped. Bumping the badge at line 43 renames
      every asset URL, which is the only thing that reliably forces the fetch.
      Bump the stamps and the badge together. -->
-<link rel="stylesheet" href="css/style.css?v=1.58">
+<link rel="stylesheet" href="css/style.css?v=1.59">
 </head>
 <body>
 
@@ -45,7 +45,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.58<span class="beta-tag">BETA</span></div>
+  <div class="version-badge">v1.59<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -119,6 +119,36 @@
              at the zoom the war opens at they share a touch target. -->
         <div id="target-pick" class="hidden"></div>
         <div id="flight-status" class="hidden"></div>
+        <!-- The watch floor, when it speaks. Bottom-right because the tactical
+             scopes stack down the top-left and the zoom controls own the top
+             edge; this is the one corner of the chart nothing else claims.
+             A status indicator, so it is NOT an .overlay and never goes near
+             initModals — see the voice card section in ui.js. Raised and
+             lowered entirely from AudioSys; nothing else calls into it. -->
+        <div id="voice-card" class="hidden">
+          <div id="vc-bust" class="vc-bust" aria-hidden="true"></div>
+          <div class="vc-body">
+            <div class="vc-room">
+              <span>NMCC — WATCH FLOOR</span>
+              <!-- Shown only under prefers-reduced-motion, where it replaces
+                   the meter's movement rather than leaving a dead card. -->
+              <span class="vc-onair">ON AIR</span>
+            </div>
+            <!-- Nine bars, aria-hidden: it is the caption underneath that
+                 carries the content, and a screen reader has no use for a
+                 level meter. -->
+            <div class="vc-meter" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <!-- Polite and atomic so the billet and the line are announced
+                 together, once, without cutting off whatever the player is
+                 already being read. -->
+            <div class="vc-live" aria-live="polite" aria-atomic="true">
+              <div class="vc-who" id="vc-who"></div>
+              <p class="vc-caption" id="vc-caption"></p>
+            </div>
+          </div>
+        </div>
         <!-- The leadership raid does not fly in the corner scope with everything
              else: it takes the middle of the board for its two minutes. -->
         <div id="raid-stage" class="hidden"></div>
@@ -454,18 +484,18 @@
   </div>
 </div>
 
-<script src="js/text.js?v=1.58"></script>
-<script src="js/geodata.js?v=1.58"></script>
-<script src="js/data.js?v=1.58"></script>
-<script src="js/map.js?v=1.58"></script>
-<script src="js/ai.js?v=1.58"></script>
-<script src="js/audio.js?v=1.58"></script>
-<script src="js/ui.js?v=1.58"></script>
+<script src="js/text.js?v=1.59"></script>
+<script src="js/geodata.js?v=1.59"></script>
+<script src="js/data.js?v=1.59"></script>
+<script src="js/map.js?v=1.59"></script>
+<script src="js/ai.js?v=1.59"></script>
+<script src="js/audio.js?v=1.59"></script>
+<script src="js/ui.js?v=1.59"></script>
 <!-- after ui.js: the walkthrough drives the room through UI's exported openPanel
      / openStrikeModal, and ui.js reaches back for Tour.start() at click time -->
-<script src="js/tour.js?v=1.58"></script>
-<script src="js/specops.js?v=1.58"></script>
-<script src="js/csar.js?v=1.58"></script>
-<script src="js/game.js?v=1.58"></script>
+<script src="js/tour.js?v=1.59"></script>
+<script src="js/specops.js?v=1.59"></script>
+<script src="js/csar.js?v=1.59"></script>
+<script src="js/game.js?v=1.59"></script>
 </body>
 </html>
