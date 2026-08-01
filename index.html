@@ -23,7 +23,7 @@
      looks like a change that never shipped. Bumping the badge at line 43 renames
      every asset URL, which is the only thing that reliably forces the fetch.
      Bump the stamps and the badge together. -->
-<link rel="stylesheet" href="css/style.css?v=1.54">
+<link rel="stylesheet" href="css/style.css?v=1.55">
 </head>
 <body>
 
@@ -40,7 +40,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.54<span class="beta-tag">BETA</span></div>
+  <div class="version-badge">v1.55<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -87,6 +87,10 @@
                one thing in there a player needs to press was the first thing to
                scroll off an edge nothing marked. -->
           <button id="btn-mute" title="Toggle sound">🔊</button>
+          <!-- The score's own switch, next to the master. Separate because the
+               two are wanted separately: plenty of players keep the watch-floor
+               calls and drop the music. -->
+          <button id="btn-music" title="Toggle music" aria-pressed="true">🎵</button>
         </div>
       </div>
       <div id="map-container">
@@ -442,18 +446,18 @@
   </div>
 </div>
 
-<script src="js/text.js?v=1.54"></script>
-<script src="js/geodata.js?v=1.54"></script>
-<script src="js/data.js?v=1.54"></script>
-<script src="js/map.js?v=1.54"></script>
-<script src="js/ai.js?v=1.54"></script>
-<script src="js/audio.js?v=1.54"></script>
-<script src="js/ui.js?v=1.54"></script>
+<script src="js/text.js?v=1.55"></script>
+<script src="js/geodata.js?v=1.55"></script>
+<script src="js/data.js?v=1.55"></script>
+<script src="js/map.js?v=1.55"></script>
+<script src="js/ai.js?v=1.55"></script>
+<script src="js/audio.js?v=1.55"></script>
+<script src="js/ui.js?v=1.55"></script>
 <!-- after ui.js: the walkthrough drives the room through UI's exported openPanel
      / openStrikeModal, and ui.js reaches back for Tour.start() at click time -->
-<script src="js/tour.js?v=1.54"></script>
-<script src="js/specops.js?v=1.54"></script>
-<script src="js/csar.js?v=1.54"></script>
-<script src="js/game.js?v=1.54"></script>
+<script src="js/tour.js?v=1.55"></script>
+<script src="js/specops.js?v=1.55"></script>
+<script src="js/csar.js?v=1.55"></script>
+<script src="js/game.js?v=1.55"></script>
 </body>
 </html>

@@ -940,11 +940,14 @@ button { font-family: var(--mono); }
 /* ============ audio ============ */
 /* Sits in #map-zoom-controls, so it inherits that row's 26px box and only needs
    to drop the chrome the other buttons get from their own rule. */
-#btn-mute {
+#btn-mute, #btn-music {
   background: transparent; border: 1px solid var(--line); cursor: pointer;
   font-size: 13px; padding: 0; line-height: 1;
 }
-#btn-mute:hover { border-color: var(--blue); }
+#btn-mute:hover, #btn-music:hover { border-color: var(--blue); }
+/* Music off dims the glyph rather than swapping it: there is no second note
+   emoji that reads as "off" at 13px, and a slash over one is mud at this size. */
+#btn-music.off { opacity: 0.3; }
 
 /* ============ special operations & personnel recovery ============ */
 /* the list itself is the shared action-list control; what these two panels add
@@ -1539,7 +1542,7 @@ button { font-family: var(--mono); }
   #map-zoom-controls { gap: 8px; }
   #map-zoom-controls button { width: 36px; height: 36px; font-size: 16px; }
   #toggle-bases { height: 36px; }
-  #btn-mute { font-size: 16px; }
+  #btn-mute, #btn-music { font-size: 16px; }
 
   /* The chrome buttons are drawn at 36px and 29px, against the same 44px
      guideline HIT_PX in map.js is written to (`22 — half of the 44px
@@ -1694,6 +1697,14 @@ button { font-family: var(--mono); }
   #sidebar { flex-basis: 260px; }
   #map-header { gap: 8px; }
   #map-clock { font-size: 11px; }
+  /* The control row is sized in 44px units — each button is 36px of paint plus
+     the 8px gap its ::after eats — so a landscape phone's ~406px map panel
+     holds exactly the five it had, and the music toggle made six, hanging 21px
+     off an edge nothing marks. The label is what gives way: it is the one thing
+     in this header that is neither a control nor a readout, and at this width
+     it was wrapping to three lines and charging the chart ~15px of height for
+     the privilege. The clock stays — that one is the war telling the time. */
+  #map-header .panel-title { display: none; }
 }
 
 /* ---- overlays & modals: let tall content scroll on a short screen instead

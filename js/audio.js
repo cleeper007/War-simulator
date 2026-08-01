@@ -55,10 +55,26 @@ const AudioSys = (() => {
   // scope is on screen. One is picked at random each time the music starts.
   const MISSION_TRACKS = ['radio-chatter-1.m4a', 'radio-chatter-2.m4a'];
 
+  // The score: one faint bed under the entire session, distinct from
+  // MISSION_TRACKS, which are radio chatter tied to a live radar scope. It has
+  // to sit *under* every event sound rather than beside them — a klaxon or a
+  // watch-floor call has to read as an interruption, and it can't if the music
+  // is at the same size in the mix. Hence two levels: MUSIC_VOLUME with nothing
+  // else going on, and MUSIC_DUCK while a mission track is up, so the two beds
+  // are never competing at equal gain.
+  const MUSIC_FILE = 'soundtrack.mp3';
+  const MUSIC_VOLUME = 0.10;
+  const MUSIC_DUCK = 0.04;
+
   const MUTE_KEY = 'cic-muted';
+  const MUSIC_KEY = 'cic-music-off';
   const clips = {};
   let muted = false;
   let unlocked = false;   // browsers require a user gesture before audio
+
+  // ---- the score ----
+  let music = null;       // the looping bed, null if it failed to load
+  let musicOff = false;   // player's own switch, independent of the master mute
 
   // ---- mission music (jet radar scopes) ----
   // Reference-counted across overlapping sorties: the track starts when the
@@ -86,6 +102,38 @@ const AudioSys = (() => {
         missionAudio.push(a);
       } catch (e) { /* no Audio support — game plays silent */ }
     }
+    try {
+      const m = new Audio(`audio/${MUSIC_FILE}`);
+      m.preload = 'auto';
+      m.loop = true;
+      m.volume = MUSIC_VOLUME;
+      m.addEventListener('error', () => { music = null; });
+      music = m;
+    } catch (e) { /* no Audio support — game plays silent */ }
+  }
+
+  // The score's level depends on what else is playing: it steps aside for the
+  // mission chatter rather than layering two beds at the same gain.
+  function musicLevel() {
+    if (!music) return;
+    try { music.volume = missionCur ? MUSIC_DUCK : MUSIC_VOLUME; } catch (e) { /* silent */ }
+  }
+
+  // Start (or resume) the bed. No-op until the first gesture unlocks audio, and
+  // no-op if either switch is off. Resumes from where it was rather than
+  // restarting — a mute and unmute mid-campaign shouldn't rewind the track.
+  function musicStart() {
+    if (!music || musicOff || muted || !unlocked) return;
+    musicLevel();
+    try {
+      const p = music.play();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* silent */ }
+  }
+
+  function musicStop() {
+    if (!music) return;
+    try { music.pause(); } catch (e) { /* silent */ }
   }
 
   // Pick a random track and start it (no ref-counting). No-op if one is already
@@ -103,6 +151,7 @@ const AudioSys = (() => {
       const p = missionCur.play();
       if (p && p.catch) p.catch(() => {});
     } catch (e) { /* silent */ }
+    musicLevel();   // the score steps down while the chatter is up
   }
 
   // A jet's radar scope just opened. Start the music if nothing is playing yet.
@@ -118,6 +167,7 @@ const AudioSys = (() => {
     const c = missionCur;
     missionCur = null;
     try { c.pause(); c.currentTime = 0; } catch (e) { /* silent */ }
+    musicLevel();
   }
 
   // Kill the chatter outright regardless of how many scopes are open — used when
@@ -128,6 +178,7 @@ const AudioSys = (() => {
     const c = missionCur;
     missionCur = null;
     try { c.pause(); c.currentTime = 0; } catch (e) { /* silent */ }
+    musicLevel();
   }
 
   function play(name, delayMs = 0) {
@@ -246,6 +297,22 @@ const AudioSys = (() => {
   }
 
   function isMuted() { return muted; }
+  function isMusicOff() { return musicOff; }
+
+  // The score's own switch. The speaker button is the master — it silences
+  // everything including this — so a player who wants the game but not the
+  // music turns this one off and leaves the other alone.
+  function setMusicOff(off) {
+    musicOff = !!off;
+    musicOff ? musicStop() : musicStart();
+    try { localStorage.setItem(MUSIC_KEY, musicOff ? '1' : '0'); } catch (e) {}
+    const btn = document.getElementById('btn-music');
+    if (btn) {
+      btn.classList.toggle('off', musicOff);
+      btn.title = musicOff ? 'Music off — click to play' : 'Music on — click to stop';
+      btn.setAttribute('aria-pressed', musicOff ? 'false' : 'true');
+    }
+  }
 
   function setMuted(m) {
     muted = !!m;
@@ -256,6 +323,10 @@ const AudioSys = (() => {
     } else if (!muted && missionCount > 0) {
       playMissionTrack();   // a jet scope is still live — resume music
     }
+    // The speaker is the master switch, so it takes the score down with it —
+    // and hands it back on unmute unless the player turned the music off
+    // separately, which musicStart checks for us.
+    muted ? musicStop() : musicStart();
     // muting mid-ring hangs up the bell, not the call: the popup is still there
     // and still waiting on an answer, it has just stopped making noise
     if (muted) ringStop();
@@ -269,17 +340,23 @@ const AudioSys = (() => {
 
   function init() {
     try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) {}
+    try { musicOff = localStorage.getItem(MUSIC_KEY) === '1'; } catch (e) {}
     preload();
 
     // Respect autoplay policy: unlock only after the first real interaction.
-    const unlock = () => { unlocked = true; };
+    // That gesture is also the earliest moment the score is allowed to start,
+    // so it opens there rather than on load — anything sooner is refused.
+    const unlock = () => { unlocked = true; musicStart(); };
     document.addEventListener('pointerdown', unlock, { once: true });
     document.addEventListener('keydown', unlock, { once: true });
 
     const btn = document.getElementById('btn-mute');
     if (btn) btn.addEventListener('click', () => setMuted(!muted));
+    const mbtn = document.getElementById('btn-music');
+    if (mbtn) mbtn.addEventListener('click', () => setMusicOff(!musicOff));
     setMuted(muted);
+    setMusicOff(musicOff);
   }
 
-  return { init, play, playThen, cut, ringStart, ringStop, alertCheck, isMuted, setMuted, missionMusicStart, missionMusicStop, missionMusicStopAll };
+  return { init, play, playThen, cut, ringStart, ringStop, alertCheck, isMuted, setMuted, isMusicOff, setMusicOff, missionMusicStart, missionMusicStop, missionMusicStopAll };
 })();
