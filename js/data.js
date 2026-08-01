@@ -1006,23 +1006,30 @@ const FLIGHT_DUR = { f35: 10500, fighter: 10500, stealth: 16000, heavy: 14000, c
 // the whole point of the force structure — the 5th-gen pool is what flies on
 // night one, the 4th-gen pool is what floods in once the belt is broken, and
 // the heavies come off the Fairford ramp at the end.
+// `sil` names the scope silhouette in map.js. Every table below picks an
+// airframe per sortie and then announces it by name in the scope header — so
+// the shape on the glass has to match the name above it, or the header reads as
+// flavour text. A B-1 and a B-52 share nothing but a ramp: one is a swing-wing
+// dagger, the other is a plank with eight engines. The same was true of the
+// fighters for longer — a Viper, an Eagle and a Rhino all flew as one generic
+// dart, which quietly cost the tier split its only visual payoff: the night the
+// 4th-gen pool starts flooding in is supposed to LOOK different from night one.
 const F35_TYPES = [
-  { type: 'F-35A', cs: 'PANTHER', from: 'land' },
-  { type: 'F-35C', cs: 'WARLOCK', from: 'carrier' },
-  { type: 'F-22A', cs: 'RAPTOR', from: 'land' },
+  { type: 'F-35A', cs: 'PANTHER', from: 'land', sil: 'f35' },
+  { type: 'F-35C', cs: 'WARLOCK', from: 'carrier', sil: 'f35' },
+  // The Raptor already flies — it sits in the 5th-gen pool, so any land-based
+  // F-35 package can come up RAPTOR — but nothing yet tasks it AS a Raptor:
+  // there is no air-superiority mission for it to own, and a strike sortie is
+  // not what it is for. Until there is, the shape is the only thing that says
+  // one is up there.
+  { type: 'F-22A', cs: 'RAPTOR', from: 'land', sil: 'f22' },
 ];
 const FIGHTER_TYPES = [
-  { type: 'F/A-18E', cs: 'RHINO', from: 'carrier' },
-  { type: 'F-16CM', cs: 'VIPER', from: 'land' },
-  { type: 'F-15E', cs: 'MUDHEN', from: 'land' },
-  { type: 'F/A-18F', cs: 'GUNSLINGER', from: 'carrier' },
+  { type: 'F/A-18E', cs: 'RHINO', from: 'carrier', sil: 'f18' },
+  { type: 'F-16CM', cs: 'VIPER', from: 'land', sil: 'f16' },
+  { type: 'F-15E', cs: 'MUDHEN', from: 'land', sil: 'f15' },
+  { type: 'F/A-18F', cs: 'GUNSLINGER', from: 'carrier', sil: 'f18' },
 ];
-// `sil` names the scope silhouette in map.js. The heavies are the one tier
-// where the airframe is picked per sortie and then announced by name in the
-// scope header — so the shape on the glass has to match the name above it. A
-// B-1 and a B-52 share nothing but a ramp: one is a swing-wing dagger, the
-// other is a plank with eight engines. Drawing both as the same generic
-// bomber made the header read as flavour text.
 const HEAVY_TYPES = [
   { type: 'B-1B', cs: 'BONE', from: 'land', sil: 'b1' },
   { type: 'B-52H', cs: 'BUFF', from: 'land', sil: 'b52' },

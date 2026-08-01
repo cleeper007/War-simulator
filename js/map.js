@@ -1113,10 +1113,69 @@ const MapView = (() => {
 
   // ---- silhouettes: drawn NOSE-UP (nose at -y), rotated +90 onto the heading ----
   const SIL = {
-    // pointed nose, swept delta wings, twin canted tails
-    fighter: 'M0,-7.5 L1.1,-3.4 L1.5,0.4 L6.8,4.4 L6.8,5.8 L1.6,3.8 L1.4,5.4 ' +
-             'L3.4,7.4 L3.4,8.2 L1,7.2 L0,7.9 L-1,7.2 L-3.4,8.2 L-3.4,7.4 ' +
-             'L-1.4,5.4 L-1.6,3.8 L-6.8,5.8 L-6.8,4.4 L-1.5,0.4 L-1.1,-3.4 Z',
+    // ---- the fighters, drawn to relative planform, not to relative scale ----
+    // A Viper really is two-thirds the length of a Strike Eagle, and drawing
+    // them that far apart puts one of them below the size where a shape reads at
+    // all — the scope renders these about twenty pixels tall. So length varies
+    // by a damped amount and the identification is carried by PLANFORM: what the
+    // wing does, and what sits behind it. Three features do all the work at that
+    // size — how far the span exceeds the body, whether the tail is one blade on
+    // the centreline or two prongs flanking a notch, and where the wing's
+    // trailing edge sits relative to the stabilators. Everything finer than that
+    // (inlet ramps, chine facets, wingtip rails) is invisible at twenty pixels
+    // and only muddies the outline, so it is not drawn.
+    //
+    // F-16C: the smallest thing on the scope, and the only one with a SINGLE
+    // fin — that centreline spike past the nozzle is the whole identification,
+    // and it is why the Viper survives being the shortest silhouette here.
+    // Cropped-delta wing blended into the body through the LERX, so there is no
+    // wing root joint to draw; one engine, one plume.
+    f16: 'M0,-7.2 L0.5,-5.6 L0.75,-4 L0.85,-2.6 L1.15,-1.7 L1.3,-0.9 ' +
+         'L5.4,2.1 L5.4,2.95 L1.4,2.45 L1.35,4.3 L3.2,6 L3,6.65 L1.15,5.4 ' +
+         'L0.9,6.9 L0.62,8.15 L0,8.35 L-0.62,8.15 L-0.9,6.9 L-1.15,5.4 ' +
+         'L-3,6.65 L-3.2,6 L-1.35,4.3 L-1.4,2.45 L-5.4,2.95 L-5.4,2.1 ' +
+         'L-1.3,-0.9 L-1.15,-1.7 L-0.85,-2.6 L-0.75,-4 L-0.5,-5.6 Z',
+    // F-15E: the biggest fighter here and drawn like it — widest body, widest
+    // stabilators, twin fins set well outboard. The step biting forward off the
+    // leading edge is the dogtooth, the one feature an Eagle's wing has that
+    // nothing else in this set does; it is exaggerated past scale because at
+    // scope size a true-width snag is a single pixel of nothing.
+    f15: 'M0,-8 L0.6,-6.4 L0.9,-4.9 L1.45,-3.9 L1.65,-2.2 L1.7,-1.5 ' +
+         'L3.6,-0.25 L3.85,-0.6 L6.3,1 L6.3,1.85 L1.85,2.6 L2.05,4.5 ' +
+         'L5,6.4 L4.8,7.1 L1.95,6.1 L1.8,8.4 L1.25,8.5 L1.05,7.3 L0,7.1 ' +
+         'L-1.05,7.3 L-1.25,8.5 L-1.8,8.4 L-1.95,6.1 L-4.8,7.1 L-5,6.4 ' +
+         'L-2.05,4.5 L-1.85,2.6 L-6.3,1.85 L-6.3,1 L-3.85,-0.6 L-3.6,-0.25 ' +
+         'L-1.7,-1.5 L-1.65,-2.2 L-1.45,-3.9 L-0.9,-4.9 L-0.6,-6.4 Z',
+    // F-35A/C: short and thick. The forebody flares almost straight off the
+    // radome — that is the chine, and it is why a Lightning looks stubby from
+    // above where every teen-series jet looks like a dart. Single nozzle on the
+    // centreline, so the tail ends in a bump between the fins rather than a
+    // notch. Deliberately the widest body-to-span ratio in the set: it is the
+    // one that has to read as fifth-gen at a glance on night one.
+    f35: 'M0,-7.2 L0.8,-5.5 L1.2,-3.7 L1.4,-2.2 L1.45,-1.4 L5.5,1.7 L5.5,2.4 ' +
+         'L1.6,2.8 L1.65,4 L3.7,6 L3.5,6.6 L1.5,5.5 L1.7,7.2 L1.15,7.35 ' +
+         'L0.7,7 L0,7.7 L-0.7,7 L-1.15,7.35 L-1.7,7.2 L-1.5,5.5 L-3.5,6.6 ' +
+         'L-3.7,6 L-1.65,4 L-1.6,2.8 L-5.5,2.4 L-5.5,1.7 L-1.45,-1.4 ' +
+         'L-1.4,-2.2 L-1.2,-3.7 L-0.8,-5.5 Z',
+    // F/A-18E/F: slim nose that kicks out into the leading-edge extensions, so
+    // the Rhino wears a pair of shoulders where the Eagle is one continuous
+    // wedge. That break is what tells the two apart at size — both are twin
+    // tails on a broad body otherwise.
+    f18: 'M0,-7.6 L0.5,-6.3 L0.72,-5 L1.55,-4 L2.15,-1.6 L2.2,-1 L6.3,1.7 ' +
+         'L6.3,2.4 L2.1,2.8 L1.95,4.4 L4.8,6.3 L4.6,6.9 L1.9,6 L1.75,8 ' +
+         'L1.2,8.1 L1,7.1 L0,6.9 L-1,7.1 L-1.2,8.1 L-1.75,8 L-1.9,6 ' +
+         'L-4.6,6.9 L-4.8,6.3 L-1.95,4.4 L-2.1,2.8 L-6.3,2.4 L-6.3,1.7 ' +
+         'L-2.2,-1 L-2.15,-1.6 L-1.55,-4 L-0.72,-5 L-0.5,-6.3 Z',
+    // F-22A: the diamond. Long wing root running most of the fuselage, and a
+    // trailing edge that sweeps FORWARD from tip to root — so the wing hands
+    // straight off to the stabilators with no gap, and the whole aircraft reads
+    // as one arrowhead instead of a fuselage wearing surfaces. Nothing else here
+    // has that; it is the only planform cue that survives at scope size.
+    f22: 'M0,-8 L0.75,-6.3 L1.15,-4.5 L1.45,-3 L1.6,-2.3 L6.5,2 L6.5,2.5 ' +
+         'L2.2,4.2 L4.9,6.2 L4.7,6.8 L2.05,6 L1.85,8 L1.3,8.1 L1.1,7.2 L0,7 ' +
+         'L-1.1,7.2 L-1.3,8.1 L-1.85,8 L-2.05,6 L-4.7,6.8 L-4.9,6.2 ' +
+         'L-2.2,4.2 L-6.5,2.5 L-6.5,2 L-1.6,-2.3 L-1.45,-3 L-1.15,-4.5 ' +
+         'L-0.75,-6.3 Z',
     // flying wing — no tails, one continuous sawtooth trailing edge
     stealth: 'M0,-6.5 L9,4.2 L5.2,3.4 L2.8,6.4 L0,4.8 L-2.8,6.4 L-5.2,3.4 L-9,4.2 Z',
     // heavy bomber — long fuselage, high-aspect swept wings, big tailplane.
@@ -1191,6 +1250,19 @@ const MapView = (() => {
   // is lighting.
   const BURNER = {
     jet: 'M-1.5,7 L1.5,7 L0.9,12.5 L-0.9,12.5 Z',
+    // One plume or two, and where — the same question the airframe answers. A
+    // Viper and a Lightning are single-engine and light one flame on the
+    // centreline; the Eagle, the Rhino and the Raptor light two, split around
+    // it. Each starts at that airframe's nozzle: a plume that begins where the
+    // fuselage isn't reads as a shape defect, not as afterburner.
+    f16: 'M-0.85,6.6 L0.85,6.6 L0.55,11.8 L-0.55,11.8 Z',
+    f35: 'M-0.9,7.2 L0.9,7.2 L0.6,12.4 L-0.6,12.4 Z',
+    f15: 'M0.15,7.1 L1,7.1 L0.8,12 L0.3,12 Z ' +
+         'M-1,7.1 L-0.15,7.1 L-0.3,12 L-0.8,12 Z',
+    f18: 'M0.15,6.9 L0.95,6.9 L0.75,11.7 L0.3,11.7 Z ' +
+         'M-0.95,6.9 L-0.15,6.9 L-0.3,11.7 L-0.75,11.7 Z',
+    f22: 'M0.2,7 L1.05,7 L0.85,11.9 L0.35,11.9 Z ' +
+         'M-1.05,7 L-0.2,7 L-0.35,11.9 L-0.85,11.9 Z',
     // four plumes trailing the four wing pods — a BUFF's engines are out on
     // the wing, and watching them light up out there is half the read
     b52: 'M4.75,2.6 L5.9,2.6 L5.55,7.2 L5.1,7.2 Z ' +
@@ -1351,12 +1423,18 @@ const MapView = (() => {
     // one silhouette per aircraft/missile in the run — capped so a fat package
     // doesn't overflow the tiny scope
     const N = Math.max(1, Math.min(6, count | 0 || 1));
-    // Which shape flies. Every tier but `heavy` has exactly one airframe, so
-    // the tier name IS the silhouette; the heavies pick a type per sortie and
-    // carry their own `sil` so the B-1 and the B-52 are told apart on the
-    // glass the same way the header tells them apart in text.
+    // Which shape flies. The B-2 and the TLAM are one airframe each, so the
+    // tier name IS the silhouette. Every other tier picks a type per sortie and
+    // then announces it by name in the scope header, so the type carries its own
+    // `sil` and the shape on the glass matches the name above it — a header
+    // reading MUDHEN 42 · F-15E over a generic dart is the header admitting it
+    // is flavour text. There is no generic jet left to fall back on, so a table
+    // entry that forgets its `sil` gets the commonest airframe of its tier
+    // rather than `SIL[undefined]`, which is an invisible aircraft and a scope
+    // that looks broken.
     const silKey = heavy ? (ft.sil || 'heavy')
-      : cruise ? 'cruise' : stealth ? 'stealth' : 'fighter';
+      : cruise ? 'cruise' : stealth ? 'stealth'
+      : (ft.sil || (assetType === 'f35' ? 'f35' : 'f16'));
 
     // live SAM coverage over this target — the same number computeStrike() used
     const adw = (typeof Game !== 'undefined' && Game.airDefenseWeight) ? Game.airDefenseWeight() : 0;
@@ -3177,7 +3255,12 @@ const MapView = (() => {
         const mx = (o.x + t.x) / 2, my = (o.y + t.y) / 2 - 120;
         const path = el('path', { class: 'iaf-path', d: `M${o.x},${o.y} Q${mx},${my} ${t.x},${t.y}` });
         fx.appendChild(path);
-        const jet = el('path', { class: 'iaf-jet', d: SIL.fighter });
+        // Israel flies the two airframes it would actually send this far: the
+        // F-15I for reach and load, the F-35I for the leg that has to survive
+        // being seen. Picked per aircraft, so a package crossing the plot is a
+        // mixed formation rather than four copies of one shape — which is also
+        // what the IAF would put over a defended target.
+        const jet = el('path', { class: 'iaf-jet', d: pick([SIL.f15, SIL.f35]) });
         fx.appendChild(jet);
         litter.add(path).add(jet);
         const total = path.getTotalLength();
