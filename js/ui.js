@@ -860,6 +860,83 @@ const UI = (() => {
   // windows are real but measured in turns rather than tonight.
   const ADV_PRIORITY = ['NSA Reyes', 'SecDef Whitfield', 'Gen. Halvorsen, CJCS', 'SecState Okafor'];
 
+  // ---- the four faces in the room ----
+  // Shoulder-up busts in the same vocabulary the map's SIL table already
+  // speaks: one solid closed path each, no strokes, no gradients, nothing
+  // finer than the CRT look carries. Collapsed, the panel was four lines of
+  // text that read as one block; the point of these is that the player can
+  // tell who is talking before reading a word.
+  //
+  // Keyed by NAME rather than by cls for the same reason ADV_PRIORITY above
+  // is: NSA Reyes has an empty cls, so cls is not a unique key. And the table
+  // lives here rather than in ai.js because ai.js owns what an advisor says —
+  // how one is drawn is presentation.
+  //
+  // Deliberately faceless. At 15px a mouth or a pair of eyes is four grey
+  // pixels that read as a smudge, and the moment they resolve at all the panel
+  // stops looking like a briefing and starts looking like a cartoon. So the
+  // identification is carried entirely by OUTLINE, which is the only thing
+  // that survives at this size: headwear first, then shoulder width, then the
+  // collar, then the crown. Four axes, one per advisor.
+  //
+  // All 0 0 24 24, all drawn counterclockwise from the bottom-left corner:
+  // up the left shoulder, up the neck, around the head, down the right.
+  const ADV_ICON = {
+    // Heaviest build in the room and the widest shoulders — they run the full
+    // box. Close-cropped: the crown is squared off rather than domed, which is
+    // the one head shape here that reads as flat at 15px. Notched lapel cut up
+    // out of the bottom edge, the only bust with one.
+    'SecDef Whitfield':
+      'M0.8,24 C0.8,19.4 4.4,16.8 9.2,16 L9.6,12.3 ' +
+      'C8.2,11.5 7,9.8 6.8,7.8 L6.8,4.8 C6.8,3 9,2.2 12,2.2 ' +
+      'C15,2.2 17.2,3 17.2,4.8 L17.2,7.8 C17,9.8 15.8,11.5 14.4,12.3 ' +
+      'L14.8,16 C19.6,16.8 23.2,19.4 23.2,24 L13.9,24 L12,19.9 L10.1,24 Z',
+    // The narrow one: shoulders inset three units on each side, a longer neck,
+    // and a taller, rounder skull. Closed collar, no notch — read against
+    // Whitfield's lapel it is the whole difference between the two civilians
+    // who flank the argument.
+    'SecState Okafor':
+      'M3.2,24 C3.2,19.6 6.2,17.2 9.8,16.4 L10.1,12 ' +
+      'C8.4,11 7.4,9.2 7.4,7.4 C7.4,4.3 9.5,2.2 12,2.2 ' +
+      'C14.5,2.2 16.6,4.3 16.6,7.4 C16.6,9.2 15.6,11 13.9,12 ' +
+      'L14.2,16.4 C17.8,17.2 20.8,19.6 20.8,24 Z',
+    // The third civilian, and the hardest to separate from the other two, so
+    // it takes the middle of every axis — shoulders between Whitfield's and
+    // Okafor's, no collar detail — and earns its silhouette at the top
+    // instead: a fuller head of hair swept over the left temple, the only
+    // asymmetric outline in the set.
+    'NSA Reyes':
+      'M2.2,24 C2.2,19.4 5.6,16.8 9.6,16 L9.9,12.2 ' +
+      'C8.4,11.4 7.2,9.9 6.9,8.2 C6.4,7.7 6.3,6.6 6.6,5.4 ' +
+      'C7.1,3.2 9.2,1.9 12,1.9 C15.1,1.9 17.3,3.5 17.3,6 L17.1,8.2 ' +
+      'C16.8,9.9 15.6,11.4 14.1,12.2 L14.4,16 ' +
+      'C18.4,16.8 21.8,19.4 21.8,24 Z',
+    // Service cap, and it does all the work — nothing else in the panel has
+    // anything above the brow line. The bill is drawn wider than the head and
+    // a full two units deep, exaggerated past scale for the same reason the
+    // map's F-15 dogtooth is: a true-depth visor is one pixel of nothing here.
+    // Crown flares outward as it rises, which is what makes it a peaked cap
+    // rather than a hat. Shoulders are wide and flatter than the civilians'.
+    'Gen. Halvorsen, CJCS':
+      'M1.4,24 C1.4,18.6 4.6,16.9 9.4,16.1 L9.7,12.4 ' +
+      'C8.4,11.6 7.4,10.4 7.1,9.1 L3.6,9.3 L6.3,6.9 L5.6,3.6 ' +
+      'C5.6,2.4 8.2,1.8 12,1.8 C15.8,1.8 18.4,2.4 18.4,3.6 L17.7,6.9 ' +
+      'L20.4,9.3 L16.9,9.1 C16.6,10.4 15.6,11.6 14.3,12.4 L14.6,16.1 ' +
+      'C19.4,16.9 22.6,18.6 22.6,24 Z'
+  };
+
+  // aria-hidden because the name is already in the button as text — the bust
+  // is decoration on top of it, not a second label. The empty span is not
+  // dead code: if a name in advise() ever changes without this table
+  // following, the column still gets filled and the four names stay aligned
+  // instead of one of them jumping 21px left.
+  function advIcon(name) {
+    const d = ADV_ICON[name];
+    return d
+      ? `<svg class="adv-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`
+      : '<span class="adv-icon" aria-hidden="true"></span>';
+  }
+
   function renderAdvisors(G) {
     const advice = IranAI.advise(G);
 
@@ -876,6 +953,7 @@ const UI = (() => {
       return `<div class="advisor ${a.cls}${a.urgent ? ' urgent' : ''}${open ? ' open' : ''}" data-adv="${a.name}">` +
         `<button type="button" class="adv-head" aria-expanded="${open}">` +
         `<span class="adv-caret" aria-hidden="true">▾</span>` +
+        advIcon(a.name) +
         `<span class="adv-name">${a.name}</span>` +
         (a.urgent ? '<span class="adv-flag">URGENT</span>' : '') +
         `<span class="adv-line">${a.line}</span>` +

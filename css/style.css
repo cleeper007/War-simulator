@@ -312,10 +312,32 @@ button { font-family: var(--mono); }
 .advisor.mil  { border-left-color: var(--amber); }
 
 .adv-head {
-  display: grid; grid-template-columns: 10px 1fr auto; gap: 2px 6px;
+  display: grid; grid-template-columns: 10px 15px 1fr auto; gap: 2px 6px;
   width: 100%; padding: 6px 10px; text-align: left;
   background: none; border: 0; color: inherit; font: inherit; cursor: pointer;
 }
+/* The portrait column sits between the caret and the name so the four names
+   stay left-aligned with each other, and 15px is chosen off the row rather
+   than off the art: the header row is already ~16px tall (the 11px .adv-name
+   at the panel's 1.45 line-height), so a 15px bust differentiates four
+   advisors without adding a single pixel to a panel that has to survive
+   ~200px of scroll pane on a landscape phone. display:block kills the inline
+   baseline gap that would grow the row. */
+.adv-icon {
+  width: 15px; height: 15px; display: block; align-self: center;
+  fill: currentColor;
+  /* The bust borrows the accent the border-left already speaks rather than
+     introducing a second colour language for the same three postures. --line
+     is right for a 2px rule and far too dark for a 15px filled shape, so the
+     unaccented advisor takes --dim. The urgent rule is last on purpose: it
+     ties with the cls rules on specificity, so source order decides, and the
+     portrait goes amber alongside .advisor.urgent .adv-line for free. */
+  color: var(--dim);
+}
+.advisor.hawk .adv-icon { color: var(--red); }
+.advisor.dove .adv-icon { color: var(--green); }
+.advisor.mil  .adv-icon { color: var(--amber); }
+.advisor.urgent .adv-icon { color: var(--amber); }
 .adv-head:hover { background: rgba(255, 255, 255, 0.03); }
 .adv-caret {
   color: var(--dim); font-size: 9px; line-height: 1.6;
@@ -323,8 +345,10 @@ button { font-family: var(--mono); }
 }
 .advisor.open .adv-caret { transform: none; }
 .advisor .adv-name { color: var(--blue); font-weight: bold; font-size: 11px; }
-/* the tasking spans back under the caret — it is the line meant to be read */
-.adv-line { grid-column: 2 / 4; color: var(--text); }
+/* the tasking spans back under the caret — it is the line meant to be read.
+   It starts at the PORTRAIT column, not the name column, so adding the bust
+   pushed the name right without moving or narrowing the line by a pixel. */
+.adv-line { grid-column: 2 / 5; color: var(--text); }
 .adv-flag {
   font-size: 9px; letter-spacing: 1px; color: var(--red);
   border: 1px solid var(--red); padding: 0 4px; align-self: center;
@@ -1632,6 +1656,17 @@ button { font-family: var(--mono); }
   #sidebar-scroll.at-end {
     mask-image: none; -webkit-mask-image: none;
   }
+
+  /* The advisor header has almost no slack left at this width: on a 268px
+     sidebar "Gen. Halvorsen, CJCS" is 132px of monospace against ~137px of
+     column, so the portrait's 15px + gap wrapped that one name and charged the
+     panel a whole extra line — exactly the height this breakpoint exists to
+     protect. The 21px comes back out of things that are not holding anything:
+     the caret column is 10px around a 5.4px glyph, the head's gaps and side
+     padding are desktop-generous, and URGENT's 1px tracking is decoration on a
+     badge already framed by a border. Nothing here loses a character. */
+  .adv-head { grid-template-columns: 7px 15px 1fr auto; gap: 2px 4px; padding: 6px 8px; }
+  .adv-flag { letter-spacing: 0.5px; padding: 0 3px; }
 
   /* claw back height where it costs nothing: the objectives list and the
      device-timer box are the tallest things in the sidebar */
