@@ -81,7 +81,12 @@ const AudioSys = (() => {
 
   // ---- the score ----
   let music = null;       // the looping bed, null if it failed to load
-  let musicOff = false;   // player's own switch, independent of the master mute
+  // The player's own switch, independent of the master mute. Default is OFF:
+  // the score is a bed under a session someone chose to sit down for, and a
+  // first-time visitor who lands on the title screen with music already
+  // playing reaches for the tab close before the toggle. Opt-in, and the
+  // choice sticks either way — see init.
+  let musicOff = true;
 
   // ---- mission music (jet radar scopes) ----
   // Reference-counted across overlapping sorties: the track starts when the
@@ -402,7 +407,9 @@ const AudioSys = (() => {
 
   function init() {
     try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) {}
-    try { musicOff = localStorage.getItem(MUSIC_KEY) === '1'; } catch (e) {}
+    // Absent means off, so the test is against '0' rather than '1' — only a
+    // player who has explicitly turned the score on gets it back on reload.
+    try { musicOff = localStorage.getItem(MUSIC_KEY) !== '0'; } catch (e) {}
     preload();
 
     // Respect autoplay policy: unlock only after the first real interaction.

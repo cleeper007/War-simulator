@@ -90,7 +90,10 @@
           <!-- The score's own switch, next to the master. Separate because the
                two are wanted separately: plenty of players keep the watch-floor
                calls and drop the music. -->
-          <button id="btn-music" title="Toggle music" aria-pressed="true">🎵</button>
+          <!-- Starts off, so the markup starts off too — setMusicOff at boot
+               rewrites both attributes, but the pre-script paint should not
+               claim the score is playing. -->
+          <button id="btn-music" class="off" title="Music off — click to play" aria-pressed="false">🎵</button>
         </div>
       </div>
       <div id="map-container">
