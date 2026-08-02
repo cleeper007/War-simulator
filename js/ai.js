@@ -708,8 +708,8 @@ const IranAI = (() => {
       secstate.line = 'The joint package is on the board. Spend it.';
       secstate.text = 'We own Israel\'s war now as well as our own, and the combined planning cell has a deep-strike package ready. That is real capability against the buried halls and I would rather we spend it than sit on it — understand that every hour it waits, Tehran is still shooting at Haifa on our account.';
     } else if (G.israelPosture === 'coordinated') {
-      secstate.line = `IAF flies again in ~${israelEta === null ? 'a while' : Txt.turns(israelEta)}. The joint slot comes back with it.`;
-      secstate.text = `The Israelis are inside our tasking order, which means their impatience is working for us for once: when Jerusalem reaches the end of it they fly our corridor${israelEta === null ? '' : ` — my read is about ${Txt.turns(israelEta)}`}, and the combined deep-strike slot comes back on the board when they do. The bill is standing and it is mine: this war does not get more popular abroad while Israeli aircraft are transiting Arab airspace with our permission.`;
+      secstate.line = `IAF flies again in ~${israelEta === null ? 'a while' : Txt.turns(israelEta)}. Not all of it will be our list.`;
+      secstate.text = `The Israelis are inside our tasking order, which means their impatience is working for us for once: when Jerusalem reaches the end of it they fly our corridor${israelEta === null ? '' : ` — my read is about ${Txt.turns(israelEta)}`}, and the combined deep-strike slot comes back on the board when they do. What I cannot promise you is that they stop where we stopped. Half their nights end with a second element over the grid or the crossings, and when the province goes dark it is a photograph of an American tanker at the top of the story. The bill is standing, it is mine, and lately it is also yours.`;
     } else if (israelUrgent) {
       secstate.urgent = true;
       secstate.line = `Jerusalem flies alone in ~${Txt.turns(israelEta)} unless you move.`;

@@ -3147,7 +3147,14 @@ const Game = (() => {
     for (const [amt] of israelDrivers()) G.israelPressure += amt;
     G.israelPressure = clamp(G.israelPressure, 0, ISRAEL.fly);
 
-    if (G.israelPressure < ISRAEL.fly) return null;
+    // An ally in the war keeps its own calendar. Past `earlyFloor` they may
+    // simply go tonight — not from a standing start, so a president reading the
+    // gauge can see the weather turning even though they cannot know the day.
+    // A sidelined Israel is held by the gauge and nothing else: they are not in
+    // this war yet, and there is no ally to be unpredictable about.
+    const early = G.israelPosture !== 'sidelined' &&
+      G.israelPressure >= ISRAEL.earlyFloor && Math.random() < ISRAEL.earlyFly;
+    if (G.israelPressure < ISRAEL.fly && !early) return null;
 
     // They are going. Posture decides whose war it is — and a sidelined Israel
     // that reaches this point is a sidelined Israel no longer: the first
@@ -3160,29 +3167,67 @@ const Game = (() => {
     G.israelSorties++;
     G.israelHold = 0;   // whatever was promised is moot; they flew
 
-    // What they hit: their own list, worst-condition-first among what is still
-    // standing, because a half-wrecked hall is where an air force with one night
-    // and no penetrators can actually finish something. Nothing here consults the
-    // American target list — that is the difference between an ally and an asset.
-    const avail = israelPriorities().filter(t => t.hp > 0)
-      .sort((a, b) => a.hp - b.hp).slice(0, ISRAEL.aimpoints);
-    const hits = [];
-    for (const t of avail) {
+    // One aimpoint, worked over by somebody else's air force. Returns true if
+    // anything came of it; the BDA is sharp either way, because CENTCOM watched
+    // this happen and an ally's battle damage is not an estimate.
+    const service = (t, out) => {
       const kill = t.hardened ? E.hardKill : E.kill;
       const dmg = t.hardened ? E.hardDamage : E.damage;
       const roll = Math.random();
       if (roll < kill) damageTarget(t, 100);
       else if (roll < dmg) damageTarget(t, wearsDown(t) ? PKG_DAMAGE : 50);
-      else continue;
-      hits.push(`${t.name} ${t.status}`);
-      // CENTCOM watched this happen — an ally's BDA is not an estimate
+      else return false;
+      out.push(`${t.name} ${t.status}`);
       G.intel[t.id] = { hp: t.hp, turn: G.turn, sharp: true };
-    }
+      return true;
+    };
+
+    // What they hit: their own list, worst-condition-first among what is still
+    // standing, because a half-wrecked hall is where an air force with one night
+    // and no penetrators can actually finish something. Nothing here consults the
+    // American target list — that is the difference between an ally and an asset.
+    // Inside the tasking order they fly a wider night: American tankers and
+    // American SEAD are the difference between two aimpoints and three.
+    const avail = israelPriorities().filter(t => t.hp > 0)
+      .sort((a, b) => a.hp - b.hp)
+      .slice(0, coordinated ? ISRAEL.coordAimpoints : ISRAEL.aimpoints);
+    const hits = [];
+    for (const t of avail) service(t, hits);
+
+    // ---- and the part nobody agreed to ----
+    // The civil infrastructure class, serviced by an ally who has decided that
+    // breaking Iran's ability to move and to generate is part of the war whether
+    // Washington signed off or not. The military effect is real and it is the
+    // same one the class always had (INFRA_RESUPPLY: Iran rebuilds slower after
+    // a night like this). The bill is a flat surcharge below rather than each
+    // site's own `worldOnKill`, because what is being charged for is not the
+    // building — it is an American president having refuelled the aircraft.
+    const civil = TARGETS.filter(t => t.type === 'infra' && t.hp > 0)
+      .sort((a, b) => a.hp - b.hp).slice(0, ISRAEL.wildcardAimpoints);
+    const wildHits = [];
+    const wild = civil.length > 0 && Math.random() < ISRAEL.wildcard;
+    if (wild) for (const t of civil) service(t, wildHits);
 
     const bda = hits.length
       ? `Assessed effects: ${hits.join('; ')}.`
       : 'Assessed effects: negligible. They spent the sortie and bought nothing.';
+    // What the second half of the night did, in the language the wire will use.
+    // Zero has to read as its own outcome here: a package that went for the grid
+    // and missed is still a package that went for the grid.
+    const civilBda = !wild ? ''
+      : wildHits.length
+        ? ` A second element went to targets that were on nobody's agreed list: ${wildHits.join('; ')}. ` +
+          `Jerusalem's position is that a grid running centrifuges and a railway carrying reload rounds ` +
+          `are military objects, and that they did not need to be asked.`
+        : ` A second element went to the grid and the crossings — targets that were on nobody's agreed ` +
+          `list — and came off them without effect. The intent is the story regardless; the imagery of ` +
+          `the run is already on every network in the region.`;
     const nth = G.israelSorties > 1 ? ` — ${Txt.ordinal(G.israelSorties).toUpperCase()} ISRAELI NIGHT` : '';
+    // Going early is a separate fact from going wide, and the report says which
+    // it was: the gauge the player has been reading did not predict this one.
+    const earlyNote = early
+      ? ` The gauge in the Situation Room had them days out. Nobody in Washington was told this was tonight.`
+      : '';
 
     // Coordinated, the night also puts the joint deep-strike option back on the
     // board. This is the payoff for keeping them inside the plan and it is
@@ -3194,20 +3239,38 @@ const Game = (() => {
       rearmed = true;
     }
 
+    // The surcharge for a night that went past the list, on top of whatever the
+    // posture already costs. It is the largest single approval charge any ally
+    // can hand the president, and that is the honest size of it: the networks
+    // will run the dark province against a White House that armed the aircraft.
+    const wWorld = wild ? ISRAEL.wildcardWorld : 0;
+    const wApproval = wild ? ISRAEL.wildcardApproval : 0;
+    const wOil = wild ? ISRAEL.wildcardOil : 0;
+    const landed = hits.length + wildHits.length;
+
     const ev = coordinated ? {
-      cls: 'friendly', title: `IAF DEEP-STRIKE PACKAGE FLOWN UNDER CENTCOM TASKING${nth}`,
-      sum: 'Israel flew the plan', outcome: hits.length ? 'damaged' : 'miss',
-      text: `The IAF flew a long-range package overnight against aimpoints on Jerusalem's list, fragged into the tasking order and refuelled off American tankers. ${bda} It is a night of effects CENTCOM did not spend a package to buy — and the region has watched Israeli aircraft transit Arab airspace with American permission, which is the part that gets read out in every capital tomorrow.` +
+      cls: wild ? 'world' : 'friendly',
+      title: wild
+        ? `IAF PACKAGE FLOWN UNDER CENTCOM TASKING — AND PAST IT${nth}`
+        : `IAF DEEP-STRIKE PACKAGE FLOWN UNDER CENTCOM TASKING${nth}`,
+      sum: wild ? 'Israel went off the list' : 'Israel flew the plan',
+      outcome: landed ? 'damaged' : 'miss',
+      text: `The IAF flew a long-range package overnight against aimpoints on Jerusalem's list, fragged into the tasking order and refuelled off American tankers.${earlyNote} ${bda}${civilBda} It is a night of effects CENTCOM did not spend a package to buy — and the region has watched Israeli aircraft transit Arab airspace with American permission, which is the part that gets read out in every capital tomorrow.` +
         (rearmed ? ' The combined planning cell is warm again: one joint US–Israeli deep-strike package is back on the board.' : ''),
-      dWorld: E.world, dOil: E.oil, israelSortie: true, alliedStrike: hits.length > 0,
+      dWorld: E.world + wWorld, dOil: E.oil + wOil, dApproval: E.approval + wApproval,
+      israelSortie: true, alliedStrike: landed > 0,
     } : {
-      cls: 'world', title: `ISRAEL STRIKES IRAN UNILATERALLY${nth}`,
-      sum: 'Israel flew alone', outcome: hits.length ? 'damaged' : 'miss',
-      text: `Without notifying Washington, the Israeli Air Force flew a long-range package against ${G.israelSorties > 1 ? 'the target set again' : 'the enrichment sites'} overnight. The first CENTCOM knew of it was the radar picture. ${bda} Jerusalem's statement thanks the United States for its support. Every capital in the region believes you authorized this, and Tehran has said so on every frequency it owns. You no longer control the escalation — you only answer for it.`,
-      dWorld: E.world, dOil: E.oil, dApproval: E.approval, israelSortie: true, alliedStrike: hits.length > 0,
+      cls: 'world',
+      title: wild ? `ISRAEL STRIKES IRANIAN CITIES AND INFRASTRUCTURE${nth}` : `ISRAEL STRIKES IRAN UNILATERALLY${nth}`,
+      sum: wild ? 'Israel hit the grid alone' : 'Israel flew alone',
+      outcome: landed ? 'damaged' : 'miss',
+      text: `Without notifying Washington, the Israeli Air Force flew a long-range package against ${G.israelSorties > 1 ? 'the target set again' : 'the enrichment sites'} overnight. The first CENTCOM knew of it was the radar picture. ${bda}${civilBda} Jerusalem's statement thanks the United States for its support. Every capital in the region believes you authorized this, and Tehran has said so on every frequency it owns. You no longer control the escalation — you only answer for it.`,
+      dWorld: E.world + wWorld, dOil: E.oil + wOil, dApproval: E.approval + wApproval,
+      israelSortie: true, alliedStrike: landed > 0,
     };
-    // the aimpoints the strike actually reached, so the map can fly it
-    ev.alliedTargets = avail.map(t => t.id);
+    // the aimpoints the strike actually reached, so the map can fly it — both
+    // halves of the night, because the plot should show where they actually went
+    ev.alliedTargets = avail.concat(wild ? civil : []).map(t => t.id);
     return ev;
   }
 

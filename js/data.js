@@ -1287,11 +1287,35 @@ const ISRAEL = {
   // player would have paid for. Alone, they are at the end of their range with
   // what they can carry: real damage to surface plant, nothing whatever under
   // the rock at Fordow. `hard*` applies to `hardened` sites.
+  //
+  // The coordinated `approval` charge is the one line here with no military
+  // counterpart, and it is the point: the president is not paying for the
+  // sortie, they are paying for having been the one who let it happen.
   effect: {
-    coordinated: { kill: 0.30, damage: 0.85, hardKill: 0.10, hardDamage: 0.45, world: -5, oil: 6, approval: 0 },
-    unilateral:  { kill: 0.18, damage: 0.60, hardKill: 0,    hardDamage: 0.30, world: -13, oil: 15, approval: -3 },
+    coordinated: { kill: 0.42, damage: 0.95, hardKill: 0.16, hardDamage: 0.55, world: -8, oil: 7, approval: -3 },
+    unilateral:  { kill: 0.22, damage: 0.66, hardKill: 0,    hardDamage: 0.34, world: -15, oil: 15, approval: -5 },
   },
   aimpoints: 2,        // how many of their priorities one Israeli night services
+  coordAimpoints: 3,   // ...inside the tasking order, with tankers and SEAD
+
+  // ---- the nights that were not on the agreed list ----
+  // Charged on TOP of the posture's own bill, and deliberately steep at home:
+  // the photograph of a dark province is an American problem the moment an
+  // American president is known to have refuelled the aircraft. `wildcard` is
+  // near a coin flip because an occasional surprise is flavour and a frequent
+  // one is a mechanic — this has to be something the president plans around.
+  wildcard: 0.45,
+  wildcardAimpoints: 2,   // civil sites serviced on such a night
+  wildcardWorld: -10,
+  wildcardApproval: -6,
+  wildcardOil: 6,
+
+  // ...and the nights they simply do not wait. Only once they are in the war —
+  // a sidelined Israel is held by the gauge and nothing else — and never from a
+  // standing start, so a president watching the bar knows when the weather has
+  // turned even if they cannot know the day.
+  earlyFly: 0.16,
+  earlyFloor: 62,
 };
 
 // ============================================================
@@ -1309,7 +1333,19 @@ const ISRAEL = {
 // phases rather than a substitute for them.
 const HEAVY_TRANSIT_TURNS = 2;
 const HEAVY_CAP = 4;        // sustainable missions off the ramp
-const HEAVY_READY = 2;      // generated and ready the turn they land
+const HEAVY_READY = 3;      // generated and ready the turn they land
+// Turnaround, in sorties regenerated per night. There is nothing to repair
+// between sorties on a B-1 or a B-52 — no low-observable coatings, no
+// atoll — just fuel, bombs and crew rest, and Fairford is a NATO main
+// operating base with a munitions yard and a full complement of ground crew
+// standing behind it. One a night was the B-2's tempo written onto the wrong
+// aircraft: it made phase three, the phase the whole air campaign is a
+// sequence TOWARD, arrive as a single heavy package every other night, which
+// is slower than the fourth-generation force it is supposed to eclipse. At two
+// the ramp sustains a heavy package a night against a two-sortie frag and
+// still cannot bank more than the CAP, so the reward for taking the sky is
+// something the player can actually feel in the target list.
+const HEAVY_REGEN = 2;
 
 // ============================================================
 // TANKER TRACKS

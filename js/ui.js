@@ -1156,18 +1156,23 @@ const UI = (() => {
             : 'Israel is in. The joint slot returns when they next fly.')
         : posture === 'unilateral'
           ? 'Too late — Israel is running its own war now.'
-          : 'World opinion −8, and a standing price abroad.',
+          : 'World opinion −8, a standing price abroad, and a bill at home every night they fly.',
       extra: gauge,
       desc: posture === 'sidelined'
         ? 'Brings the IAF in openly. Fighter capacity, +half a package a night on the tasking order from their ' +
-          'escort and SEAD, and a joint deep-strike package against Natanz or Fordow — the only path to the ' +
-          'buried halls that does not need a B-2. It also inverts the gauge above: instead of flying alone when ' +
-          'their patience runs out, they fly inside your plan, and the joint package comes back every time they do. ' +
-          'The bill is standing rather than one-off — this war stops recovering abroad past a lower ceiling, and ' +
-          'Iran starts shooting at Israel on our account.'
+          'escort and SEAD, three of their aimpoints serviced every night they fly, and a joint deep-strike ' +
+          'package against Natanz or Fordow — the only path to the buried halls that does not need a B-2. It ' +
+          'also inverts the gauge above: instead of flying alone when their patience runs out, they fly inside ' +
+          'your plan, and the joint package comes back every time they do. ' +
+          'The bill is standing rather than one-off — this war stops recovering abroad past a lower ceiling, ' +
+          'Iran starts shooting at Israel on our account, and every Israeli night costs you at home. They are ' +
+          'an ally, not a squadron: they do not always wait for the gauge, and about half their nights end with ' +
+          'a second element over the power stations and the river crossings. You will answer for those.'
         : posture === 'coordinated'
           ? 'They are inside the tasking order. When the gauge fills they fly your corridor against their own ' +
-            'aimpoints, and the joint deep-strike slot re-arms. What follows is why it is filling:' +
+            'aimpoints — sometimes before it fills, and often past the agreed list onto the grid and the ' +
+            'crossings, which is charged to you abroad and at home. The joint deep-strike slot re-arms every ' +
+            'time they fly. What follows is why the gauge is filling:' +
             `<ul class="israel-why">${why}</ul>`
           : 'They went alone and they will go again, on their own timetable. Nothing recovers abroad while ' +
             'that is true. What is driving the next one:' +
