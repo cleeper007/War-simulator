@@ -230,9 +230,16 @@ const UI = (() => {
     $('capacity-value').textContent = `${cap}%`;
     $('capacity-value').style.color = cap >= 60 ? 'var(--red)' : cap >= 30 ? 'var(--amber)' : 'var(--green)';
 
+    // Every readout on this bar that can END the war names the line it is
+    // measured against, the way the Strait already counts CLOSED 3/7 and
+    // casualties count against what the country will absorb. A bare "58%" told
+    // a new president nothing about the fact that 20 is impeachment — and
+    // approval finishes the overwhelming majority of campaigns, so it was the
+    // single most important number on the screen with no denominator on it.
     const ap = $('approval-value');
     ap.textContent = `${Math.round(G.approval)}%`;
     ap.className = 'stat-value big ' + (G.approval < 30 ? 'crit' : G.approval < 45 ? 'warn' : 'good');
+    $('approval-label').textContent = 'APPROVAL — FALLS AT 20%';
 
     // Oil defeats the war outright at $240; pulse the number once it is close
     // enough that the next spike could end it, so the loss never arrives unseen.
@@ -240,6 +247,11 @@ const UI = (() => {
     oil.textContent = `$${Math.round(G.oil)}`;
     oil.className = 'stat-value big ' + (G.oil >= 150 ? 'crit' : G.oil >= 110 ? 'warn' : '') +
       (G.oil >= 190 ? ' pulsing' : '');
+    // $135 is where the barrel starts costing approval every night, $165 where
+    // it doubles, $240 where it ends the war. The label names whichever line is
+    // the next one coming, so it always reads as a warning rather than a stat.
+    $('oil-label').textContent = G.oil >= 165 ? 'BRENT CRUDE — BREAKS AT $240'
+      : G.oil >= 135 ? 'BRENT CRUDE — DOUBLES AT $165' : 'BRENT CRUDE — BITES AT $135';
 
     // A closed Strait breaks the economy after five turns shut. Show the count
     // against that limit the same way casualties are counted against theirs.
@@ -253,8 +265,29 @@ const UI = (() => {
     w.textContent = Math.round(G.world);
     w.className = 'stat-value big ' + (G.world < 30 ? 'crit' : G.world < 45 ? 'warn' : '');
 
-    $('casualty-value').textContent = G.casualties.us;
-    $('casualty-value').className = 'stat-value big ' + (G.casualties.us > 180 ? 'crit' : G.casualties.us > 110 ? 'warn' : '');
+    const lim = Game.casualtyLimit();
+    $('casualty-value').textContent = `${G.casualties.us}/${lim}`;
+    $('casualty-value').className = 'stat-value big ' +
+      (G.casualties.us > lim * 0.72 ? 'crit' : G.casualties.us > lim * 0.44 ? 'warn' : '') +
+      (G.casualties.us > lim * 0.85 ? ' pulsing' : '');
+
+    // The primer names not spending the free slots as the most common way a new
+    // player loses, and then nothing anywhere said a slot was still open. This
+    // is on the button rather than behind a confirm dialog on purpose: a player
+    // who meant to hold a night is not interrupted, and a player who forgot is
+    // told in the one place they are already looking.
+    const unspent = (G.intelUsed ? 0 : 1) + (G.diploUsed ? 0 : 1);
+    const end = $('btn-end-turn');
+    if (end) {
+      // Txt inflects on the last word and returns lower-case 's', which reads as
+      // "2 FREE ACTIONs" inside an upper-case button label. This is the one
+      // place in the game that counts a noun in caps, so it does it by hand
+      // rather than teaching the whole helper about case.
+      end.textContent = unspent && !G.over
+        ? `END TURN — ${unspent} FREE ACTION${unspent === 1 ? '' : 'S'} UNSPENT`
+        : 'END TURN — AWAIT DEVELOPMENTS';
+      end.classList.toggle('has-unspent', unspent > 0 && !G.over);
+    }
 
     AudioSys.alertCheck(G);
   }
@@ -263,10 +296,19 @@ const UI = (() => {
   function renderObjectives(G) {
     const deg = G.nukeDegraded();
     const brk = Game.breakoutEstimate();
+    // Every objective carries its own number, and every way of losing carries
+    // the line it is measured against. Casualties always did — "7 / 250
+    // tolerated" is the model the other three now follow, because a bare 58% on
+    // the bar teaches a new president nothing about the fact that 20 ends the
+    // war, and approval ends nine campaigns in ten.
+    const wm = G.warMachine();
     const items = [
       { text: `Destroy nuclear program (${deg}% / 100%)`, done: deg >= 100 },
-      { text: 'Break Iran\'s war machine (missiles · navy · IRGC command)', done: G.iranBroken() },
+      { text: `Break Iran's war machine (${wm.map(c => `${c.label} ${c.pct}%`).join(' · ')})`,
+        done: G.iranBroken() },
       { text: `Limit US casualties (${G.casualties.us} / ${Game.casualtyLimit()} tolerated)`, done: null },
+      { text: `Hold approval above 20% (now ${Math.round(G.approval)}%)`, done: null },
+      { text: `Keep crude under $240 (now $${Math.round(G.oil)})`, done: null },
       { text: `Keep Strait of Hormuz open`, done: null },
     ];
     $('objectives-list').innerHTML = items.map(i =>
@@ -2273,7 +2315,7 @@ const UI = (() => {
     html += `<p class="dim">Final: ` +
       `approval ${Math.round(result.stats.approval)}% · oil $${Math.round(result.stats.oil)} · ` +
       `${result.stats.casualties} of ${result.stats.limit} tolerated US dead · ` +
-      `${result.stats.destroyed} targets destroyed · ${result.stats.turns} turns · ` +
+      `${Txt.plural(result.stats.destroyed, 'target')} destroyed · ${Txt.turns(result.stats.turns)} · ` +
       `${result.stats.difficulty}</p>`;
     $('end-body').innerHTML = html;
     $('end-modal').classList.remove('hidden');

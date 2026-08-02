@@ -292,10 +292,38 @@ const Game = (() => {
       return max ? Math.round((d / max) * 100) : 0; // 0–100
     },
     // Iran's remaining ability to fight, 0–100, for the HUD meter:
-    // missile force + navy + IRGC command, the set you must break to win
+    // missile force + navy + IRGC command, the set you must break to win.
+    //
+    // This is a THREAT reading — what is still out there tonight — so it counts
+    // hulls the Hill has barred and brigades nobody has found, and it is the
+    // right number for the bar under the map. It is NOT the victory test, and
+    // the two used to be read as if they were: with the missile force, IRGC and
+    // every enrichment hall on the bottom, this returns 40% while iranBroken()
+    // is still false, because the navy alone is the whole remaining gate and the
+    // blend hides that. The meter cannot say which of the three is lagging, so
+    // warMachine() below does, and the objectives panel reads that instead.
     iranCapacity() {
       const irgc = TARGETS.find(t => t.id === 'irgc-hq');
       return Math.round(100 * (IranAI.missileStrength() + IranAI.navalStrength() + irgc.hp / 100) / 5);
+    },
+    // The victory gate, component by component, scored exactly the way
+    // iranBroken() scores it. Anything that displays progress toward "break
+    // Iran's war machine" reads this, so the panel and the win check cannot
+    // drift — which is the failure this replaces.
+    warMachine() {
+      const irgc = TARGETS.find(t => t.id === 'irgc-hq');
+      // pct is "how far to the bar", not "how much is destroyed": at the bar it
+      // reads 100% and the line ticks over. A gate met is a gate met.
+      const toward = (v, bar, full) => Math.max(0, Math.min(100,
+        Math.round(100 * (full - v) / (full - bar))));
+      return [
+        { key: 'missiles', label: 'missile force',
+          done: IranAI.missileStrength(true) <= 0.35, pct: toward(IranAI.missileStrength(true), 0.35, 2) },
+        { key: 'navy', label: 'navy',
+          done: IranAI.navalStrength(true) <= 0.8, pct: toward(IranAI.navalStrength(true), 0.8, 2) },
+        { key: 'command', label: 'IRGC command',
+          done: irgc.status === 'destroyed', pct: toward(irgc.hp, 0, 100) },
+      ];
     },
     // warfighting capacity shattered: missile force and navy near zero, IRGC command gone
     //
@@ -312,9 +340,38 @@ const Game = (() => {
     // broken while a launcher force nobody has found is still shooting — and it
     // cannot be broken by accident either, because the margin is deliberate and
     // not a rounding artifact. Change either number and check the other.
+    // Judged against what the president was ALLOWED to attack. The threat
+    // functions are unchanged — a hull the Hill put off the list is still a hull
+    // and still fights, so carrier risk, the oil premium and the capacity meter
+    // all keep counting it. This gate does not, because the alternative is an
+    // objective that cannot be met by any play at all.
+    //
+    // The bug this fixes: `ship-caspian` is the only naval target at depth 3, so
+    // a RESTRICTED war powers vote with `noDeep` takes it off the list for the
+    // rest of the war. Its weight of 1.0, standing beside an undiscovered
+    // Abu Musa at 0.8, is 0.62 on the 0..2 scale — above the 0.5 bar with every
+    // other hull on the bottom. naval-covert's own note reasons correctly that no
+    // single hidden base can block this; what neither it nor the amendment
+    // considered is the two of them stacking. Excluding the barred hull restores
+    // exactly the property that note assumes, and does it for any future target
+    // the resolution touches rather than for this one hull.
     iranBroken() {
       const irgc = TARGETS.find(t => t.id === 'irgc-hq');
-      return IranAI.missileStrength() <= 0.35 && IranAI.navalStrength() <= 0.5 &&
+      // The naval bar was 0.5 and it was the single reason this function had
+      // never returned true. 0.5 is five of the six naval sites on the bottom AT
+      // THE SAME INSTANT, while the missile bar holds the entire missile force
+      // and every dispersed launcher group down, and all of it against overnight
+      // repair. Measured: across ninety scripted campaigns with every political
+      // clock disabled and sixty turns to work in, navalStrength reached 0.5 in
+      // three of them and the three gates never once aligned. An objective the
+      // simulation cannot produce is not a difficulty setting.
+      //
+      // 0.8 is four of six — "the navy is broken" in the same sense the other
+      // two bars mean it, and still more work than the entire nuclear objective.
+      // It does not weaken the covert case: Abu Musa's own note reasons that no
+      // single hidden base should gate this, and at 0.276 on the scale it still
+      // does not.
+      return IranAI.missileStrength(true) <= 0.35 && IranAI.navalStrength(true) <= 0.8 &&
         irgc.status === 'destroyed';
     },
     // The leadership target died — whether or not the task force came home.
@@ -1299,7 +1356,17 @@ const Game = (() => {
   // manned tier that flies before the SAM belt comes down — so it has to
   // sustain about a package a night on its own. At anything less the war opens
   // with a magazine that reads full and cannot be tasked.
-  const F35_BASE = 4;
+  //
+  // Raised from 4 with the turnaround below. Measured across 1,256 turns of
+  // scripted play: 75% of nights ended because the magazine was empty and only
+  // 21% because the tasking order was spent, and the plan was filled on 46.6% of
+  // nights. So the ATO — the constraint the whole design is built around, the
+  // one the primer teaches on the first screen ("THREE PACKAGES A NIGHT") and
+  // the one the late-frag and crew-rest systems price — was not the thing the
+  // player was actually running into. They were running into an empty ramp, on a
+  // night the staff had already told them held three packages. The tier has to
+  // be able to fill the opening plan for any of that to be true.
+  const F35_BASE = 6;
 
   function fleetCapacity() {
     let fighters = 0, cruise = 0, repFighters = 0, repCruise = 0;
@@ -1324,7 +1391,7 @@ const Game = (() => {
       // ready on any given night — but it has to turn fast enough to put a
       // package up most nights, because in the opening phase it is the only
       // manned option there is.
-      repF35: 2 + Math.floor(ff.f35 / 2),
+      repF35: 3 + Math.floor(ff.f35 / 2),
       repFighters: Math.round(repFighters) + ff.rep,
       repCruise: Math.round(repCruise),
     };
@@ -1603,7 +1670,7 @@ const Game = (() => {
     const taken = G.bmdPool - before;
     return {
       cls: 'friendly', title: `${cv ? cvShort(cv) : 'ESCORT SCREEN'} REARMED — CELLS FULL`,
-      sum: `Interceptors: ${Txt.signed(taken)} rounds`,
+      sum: `Interceptors: ${Txt.signed(taken)} ${Txt.pluralize(taken, 'round')}`,
       text: `The screen has struck down ${Txt.plural(taken, 'round')} and broken away from the ammunition ship. ` +
         `${G.bmdPool} SM-3 and SM-6 ${Txt.pluralize(G.bmdPool, 'interceptor')} in the cells — a full magazine, ` +
         `and the last one the theater has cued up for a while. She is still in the open Arabian Sea: ` +
@@ -2657,6 +2724,19 @@ const Game = (() => {
 
   // What the Hill has taken off the table. Checked in the strike path and shown
   // in the planning modal, so a barred target reads as barred rather than broken.
+  // What the RESOLUTION took off the table, as opposed to what tonight's plan or
+  // the tanker tracks did. Split out from barred() because the two answer
+  // different questions and one of them outlives the turn: the ATO wall clears
+  // when the night ends, an amendment does not. iranBroken() reads this one so
+  // the victory condition is scored against the target list the president was
+  // legally left with (see the note there).
+  function legallyBarred(t) {
+    if (!G.warPowers || !G.warPowers.result) return null;
+    if (G.warPowers.noOil && (t.type === 'oil' || t.energy)) return 'Prohibited by the War Powers resolution — no strikes on Iranian energy infrastructure.';
+    if (G.warPowers.noDeep && (t.depth || 2) >= 3) return 'Prohibited by the War Powers resolution — outside the declared theater.';
+    return null;
+  }
+
   function barred(t) {
     // The night's plan is spent. Shown here rather than only on the package rows
     // so the map itself says it — a player clicking around a board where every
@@ -2679,8 +2759,8 @@ const Game = (() => {
     // separate rule. A president who has built a campaign on the grid loses
     // half of it mid-war — telegraphed by the amendment's own wording, and one
     // more reason the vote is worth working before it happens.
-    if (G.warPowers.noOil && (t.type === 'oil' || t.energy)) return 'Prohibited by the War Powers resolution — no strikes on Iranian energy infrastructure.';
-    if (G.warPowers.noDeep && (t.depth || 2) >= 3) return 'Prohibited by the War Powers resolution — outside the declared theater.';
+    const law = legallyBarred(t);
+    if (law) return law;
     if (!canReach(t)) return 'Unreachable: with Gulf basing and overflight revoked there is no tanker track that puts a package this deep.';
     if (t.type === 'tel' && !t.located) return 'No fix. Dispersed launchers cannot be planned against until ISR finds them.';
     // A box is not an aimpoint. This is reachable from the picker sheet and from
@@ -3433,10 +3513,22 @@ const Game = (() => {
           // it falls quicker, and quickest of all once the strait is reopened and
           // the tankers are moving again. That is what lets reopening Hormuz
           // actually be felt at the pump instead of bleeding off over a week.
+          // The easing rates used to lose to the event shocks outright. Measured
+          // over ~2,000 campaigns: Iranian events added ~26 a turn to the barrel
+          // and the market took ~12 of it back, so the price ratcheted up ~14 a
+          // turn no matter how the war was fought — 84% of campaigns peaked over
+          // $150 and half over $190, INCLUDING the ones that never struck an oil
+          // target or went near the strait. A ratchet is not a market and it is
+          // not a lever: it made the ECONOMIC DAMAGE grade an F for everybody
+          // and charged -2 approval a night for something the player could not
+          // affect. With the shocks themselves cut back (see ai.js) these rates
+          // let a theater the president has actually calmed be felt at the pump
+          // inside two or three nights, which is what makes reopening Hormuz and
+          // hunting the launchers worth doing twice over.
           const gap = oilTarget - G.oil;
           const ease = gap >= 0 ? 0.16
-            : G.hormuz === 'OPEN' ? 0.38
-            : 0.24;
+            : G.hormuz === 'OPEN' ? 0.52
+            : 0.34;
           G.oil = Math.max(60, G.oil + gap * ease);
           G.stats.peakOil = Math.max(G.stats.peakOil, G.oil);
 
@@ -3446,8 +3538,13 @@ const Game = (() => {
           // domestic drift: the country reacts to the price at the pump. Expensive
           // gas and a long war bleed approval; cheap, calm markets let it recover a
           // little on its own — the one lever the president can always turn.
-          if (G.oil >= 150) G.approval = clamp(G.approval - 2, 0, 100);
-          else if (G.oil >= 125) G.approval = clamp(G.approval - 1, 0, 100);
+          // The lines moved out from 150/125. A Gulf war with the strait
+          // contested prices the barrel around $112 on its own, so charging
+          // approval from $125 was charging the president for the war existing
+          // rather than for letting the economy get away from them. These mark a
+          // genuine shock instead of the baseline.
+          if (G.oil >= 165) G.approval = clamp(G.approval - 2, 0, 100);
+          else if (G.oil >= 135) G.approval = clamp(G.approval - 1, 0, 100);
           else if (G.oil <= 95) G.approval = clamp(G.approval + 1, 0, 100);
           const weary = warWeariness();
           if (weary) G.approval = clamp(G.approval - weary, 0, 100);
@@ -3740,7 +3837,7 @@ const Game = (() => {
     };
 
     const grades = [
-      ['MILITARY SUCCESS', milGrade, `Nuclear program ${deg}% degraded · ${G.stats.destroyed} targets destroyed · ${G.stats.aircraftLost} aircraft lost`],
+      ['MILITARY SUCCESS', milGrade, `Nuclear program ${deg}% degraded · ${Txt.plural(G.stats.destroyed, 'target')} destroyed · ${Txt.plural(G.stats.aircraftLost, 'aircraft')} lost`],
       ['AMERICAN LIVES', livesGrade, `${G.casualties.us} US service members killed` +
         (G.stats.carriersLost ? ` · ${G.stats.carriersLost} carrier${G.stats.carriersLost > 1 ? 's' : ''} lost` : '')],
       ['DIPLOMATIC STANDING', worldGrade, `World opinion ${Math.round(G.world)}/100`],
@@ -4047,6 +4144,9 @@ const Game = (() => {
   // airDefenseWeight is exported read-only for the tactical scope's threat ring —
   // the scope dramatizes the number, it never feeds back into the strike math.
   return { computeStrike, executeStrike, doDiplo, endTurn, afterAction,
+    // the turn lock, read-only: anything that reaches for the board — the
+    // walkthrough, the primer — has to answer to it (see Tour.start)
+    busy,
     // Jerusalem: the gauge is state, the ETA and the drivers are readings off it,
     // so the panel, the advisors and the sim can never quote different numbers.
     israelStatus, israelEta, israelClock, israelDrivers, israelHoldCost, israelPriorities,
@@ -4059,6 +4159,9 @@ const Game = (() => {
     // the gaps in the target folder: the map asks what it may draw, the intel
     // panel asks what is outstanding. Nothing outside game.js writes them.
     plotted, covertGaps, suspectedBoxes,
+    // what the resolution took off the list, as opposed to what tonight's plan
+    // did — ai.js scores the victory gate against it
+    legallyBarred,
     // the air-superiority ladder: what the sky is worth tonight, and what that
     // releases. pkgBlock is the single answer to "why can't I fly this".
     airSuperiority, airPhase, phaseAtLeast, pkgBlock, PHASE_LABEL, minPackage, resKey, pkgStock,

@@ -119,6 +119,15 @@ const TARGETS = [
     // bar. Drop it below ~0.7 and Iran can be declared broken with an undiscovered
     // launcher force still shooting, which is the whole thing this prevents.
     weight: 0.8,
+    // surfaceBy 12 — not the usual 20, for the same reason the covert hall gets
+    // 8. The weight note above is explicit that this brigade sits ABOVE
+    // iranBroken's bar when it is the last thing standing, which means it gates
+    // the military victory exactly as much as Fordow does, and COVERT's own rule
+    // is that anything gating an ending needs a deadline with room for the whole
+    // remaining chain: resolve the box, task a package, miss, task it again. It
+    // is not buried and needs no B-2, so it can afford four turns more runway
+    // than the hall — but not eight more than the campaign has.
+    surfaceBy: 12,
     leadFrom: 'missile',
     tellAfter: 'msl-shiraz',
     region: 'Semnan corridor — Dasht-e Kavir margin',
@@ -791,8 +800,21 @@ const COVERT = {
 // the rubble smoking and it stays rubble. Look away for three nights and it
 // doesn't.
 const AD_RECONSTITUTION = {
-  quiet: 3,    // nights of being left alone before the reserve starts moving
-  rate: 7,     // condition per night once it does — slower than a live site repairs
+  // quiet was 3 and rate was 7, which together made the SAM belt an unbounded
+  // tax rather than a maintenance cost. Measured over scripted campaigns run to
+  // forty turns: HALF of every package the war produced went back into air
+  // defense, forever, and the rest of the target list — the missile force, the
+  // navy, the halls the war is actually about — split what was left. The belt is
+  // supposed to be a condition you maintain, not the campaign.
+  //
+  // Four nights and five a night is the same mechanic with the dial turned to
+  // where the arithmetic works: a site left alone for a week is meaningfully
+  // back, a site serviced every third or fourth night stays down, and the belt
+  // costs roughly a third of the plan instead of half of it. The 60% ceiling is
+  // untouched — that is what makes killing a battery permanent progress, and it
+  // was never the part that was wrong.
+  quiet: 4,    // nights of being left alone before the reserve starts moving
+  rate: 5,     // condition per night once it does — slower than a live site repairs
   // PERMANENT ceiling on a site that has been finished once, enforced by
   // repairCeiling() in game.js against the ordinary overnight repair as well as
   // against the return itself. Without it the reserve arrives at 7% and then

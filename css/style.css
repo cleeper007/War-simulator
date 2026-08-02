@@ -151,6 +151,11 @@ button { font-family: var(--mono); }
   background: #12233f; color: var(--blue); border-color: #2a4a7a;
 }
 .btn-primary:hover { background: #1a3156; }
+/* A night with an intelligence tasking or a diplomatic order still on the table.
+   Amber rather than red: it is an unspent free action, not a mistake — the
+   button still does exactly what it says if that is what the president wants. */
+#btn-end-turn.has-unspent { color: var(--amber); border-color: #6a4d18; background: #241a08; }
+#btn-end-turn.has-unspent:hover { background: #33260c; }
 .btn-secondary {
   background: transparent; color: var(--dim); border-color: var(--line);
 }

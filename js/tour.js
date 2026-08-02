@@ -338,6 +338,12 @@ const Tour = (() => {
 
   function start() {
     if (i >= 0) return;
+    // Never over a resolving turn or an open set piece. The HOW TO PLAY button
+    // already guards the primer this way; the walkthrough reaches for the same
+    // board — it opens panels, opens the strike modal and moves the map — so it
+    // has to answer to the same lock rather than relying on the primer being the
+    // only door into it.
+    if (Game.busy && Game.busy()) return;
     if (!root) build();
     hadOpen = [...document.querySelectorAll('#sidebar-scroll .panel[data-panel]')]
       .filter(p => !p.classList.contains('collapsed')).map(p => p.dataset.panel);

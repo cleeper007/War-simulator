@@ -36,9 +36,16 @@ const IranAI = (() => {
   // at 50% on turn one with every launcher still in its shed.
   const wt = (t) => (t.weight != null ? t.weight : 1);
 
-  function missileStrength() {
+  // `legalOnly` drops whatever the War Powers resolution put off the list. It is
+  // ONLY for scoring the victory condition (see Game.iranBroken) — every threat
+  // reading takes the default, because a target the Hill barred is still out
+  // there and still shooting.
+  const outlawed = (t) => !!(Game.legallyBarred && Game.legallyBarred(t));
+
+  function missileStrength(legalOnly) {
     let s = 0, max = 0;
     for (const t of TARGETS) {
+      if (legalOnly && outlawed(t)) continue;
       if (t.type === 'missile') { max += wt(t); s += wt(t) * t.hp / 100; }
       else if (t.type === 'tel') { s += wt(t) * t.hp / 100; }
     }
@@ -60,7 +67,7 @@ const IranAI = (() => {
   // negotiation gate — is written against a 0..2 scale, so this reports the
   // surviving FRACTION of the fleet on that scale rather than a raw count.
   // Hulls can then be added or removed without re-tuning the whole sim.
-  function navalStrength() {
+  function navalStrength(legalOnly) {
     // A weighted mean rather than a flat one. This was already normalised — it
     // divided by fleet.length — but that meant adding any hull or base to the
     // roster silently made every existing one worth less, so a covert site
@@ -70,6 +77,7 @@ const IranAI = (() => {
     let s = 0, max = 0;
     for (const t of TARGETS) {
       if (t.type !== 'naval' && t.type !== 'ship') continue;
+      if (legalOnly && outlawed(t)) continue;
       max += wt(t); s += wt(t) * t.hp / 100;
     }
     return max ? (s / max) * 2 : 0; // 0..2
@@ -86,6 +94,35 @@ const IranAI = (() => {
   // Anything appended after the fact goes in `ev.appended`; ui.js reads both
   // through one helper (`evBody`) and never touches `.text` directly.
   const { plural, pluralize, were, are } = Txt;
+
+  // ---- WHAT AN ARM CAN STILL COST YOU ----
+  // How hard an arm hits, as a multiplier on everything its events charge:
+  // casualties, approval, and the barrel.
+  //
+  // The casualty figures always scaled with the arm's condition. The approval
+  // and oil bills did not — they were flat literals — and that single omission
+  // was the largest balance problem in the game. Measured over ~2,000 scripted
+  // campaigns: Iranian events spent 69 points of approval per campaign while the
+  // entire American air campaign returned about 24, and none of the 69 moved in
+  // response to anything the president did. A war in which every brigade in Iran
+  // had been destroyed still paid the full -4 approval and +8 on the barrel for
+  // every salvo that flew, so counterforce bought lives and nothing else. It is
+  // why a bot that did nothing at all survived six turns and the best line I
+  // could write survived ten: the dominant clock in the game was not connected
+  // to the game.
+  //
+  // Scaling the bill with the arm is what makes servicing missile brigades and
+  // launcher groups a POLITICAL act as well as a defensive one — the thing the
+  // design has always claimed about the missile hunt and never actually paid
+  // out. The floor is deliberately not zero: a broken arm firing what it has
+  // left is still a strike on an American base, and still a bad night.
+  const bite = (str) => Math.max(0.25, str / 2);
+  const scaled = (ev, str) => {
+    const k = bite(str);
+    if (ev.dApproval) ev.dApproval = -Math.max(1, Math.round(Math.abs(ev.dApproval) * k));
+    if (ev.dOil) ev.dOil = Math.max(1, Math.round(ev.dOil * k));
+    return ev;
+  };
 
   const EV = {
     cyber: () => ({
@@ -114,25 +151,25 @@ const IranAI = (() => {
         text: (ev) => 'An Iranian-backed militia struck a US position with drones and rockets. ' +
           `${ev.casualties} American service ${pluralize(ev.casualties, 'member')} ` +
           `${were(ev.casualties)} killed.`,
-        casualties: c, dApproval: -3, dOil: 4, flashAsset: 'asad',
+        casualties: c, dApproval: -2, dOil: 3, flashAsset: 'asad',
         attack: { kind: 'drone', base: 'asad', count: 5 },
       };
     },
-    shipping: () => ({
+    shipping: (str) => scaled({
       title: 'Tanker struck by Iranian drone in Gulf of Oman',
       text: 'A commercial tanker was hit by a loitering munition. Crews survived; insurers are pulling coverage for Gulf transits.',
-      dOil: 8,
-    }),
-    mineScare: () => ({
+      dOil: 6,
+    }, str),
+    mineScare: (str) => scaled({
       title: 'Mines reported in the Strait of Hormuz',
       text: 'Two tankers reported near-misses with drifting mines. Fifth Fleet has begun minesweeping operations; transits are slowing.',
-      hormuz: 'CONTESTED', dOil: 12,
-    }),
+      hormuz: 'CONTESTED', dOil: 9,
+    }, str),
     missileBase: (str) => {
       const base = pick(['udeid', 'asad', 'dhafra']);
       const names = { udeid: 'Al Udeid Air Base in Qatar', asad: 'Ain al-Asad Air Base in Iraq', dhafra: 'Al Dhafra Air Base in the UAE' };
-      const c = Math.round(rand(2, 8) * Math.max(0.3, str / 2));
-      return {
+      const c = Math.round(rand(2, 8) * bite(str));
+      return scaled({
         title: `Ballistic missile strike on ${names[base]}`,
         // the zero branch is reachable: a light salvo inside the Aegis basket
         // can be thinned to nothing, and "0 Americans were killed" is the wrong
@@ -142,32 +179,32 @@ const IranAI = (() => {
             ? `${plural(ev.casualties, 'American')} ${were(ev.casualties)} killed and ` +
               'aircraft were damaged on the ramp.'
             : 'Aircraft were damaged on the ramp. There were no American fatalities.'),
-        casualties: c, dApproval: -4, dOil: 8, flashAsset: base,
+        casualties: c, dApproval: -2, dOil: 5, flashAsset: base,
         attack: { kind: 'missile', base, count: 4 },
-      };
+      }, str);
     },
     hormuzClose: () => ({
       title: 'IRAN MOVES TO CLOSE THE STRAIT OF HORMUZ',
       text: 'Anti-ship missile batteries are active, minelayers are operating at night, and Tehran has declared the Strait closed to "hostile" shipping. A fifth of the world\'s oil is now blocked.',
-      hormuz: 'CLOSED', dOil: 35,
+      hormuz: 'CLOSED', dOil: 26,
     }),
-    allyStrike: (israelInPlay) => {
+    allyStrike: (israelInPlay, str) => {
       // once Israel is in the war, Tehran's salvos go there by preference
       const pool = israelInPlay
         ? ['Israeli port infrastructure at Haifa', 'Israeli port infrastructure at Haifa', 'Saudi oil facilities at Abqaiq']
         : ['Saudi oil facilities at Abqaiq', 'Israeli port infrastructure at Haifa', 'Emirati facilities near Abu Dhabi'];
       const tgt = pick(pool);
-      return {
+      return scaled({
         title: `Iranian missiles strike ${tgt.split(' at ')[0]}`,
         text: `A missile and drone salvo hit ${tgt}. Allied capitals are demanding either decisive US action or immediate de-escalation.`,
-        dOil: 14, dWorld: -3, dApproval: -2,
+        dOil: 8, dWorld: -3, dApproval: -1,
         // a salvo that landed on Israel is an argument in Jerusalem
         dPressure: tgt.startsWith('Israeli') ? ISRAEL.westward : 0,
-      };
+      }, str);
     },
     massBarrage: (str) => {
-      const c = Math.round(rand(12, 30) * Math.max(0.4, str / 2));
-      return {
+      const c = Math.round(rand(12, 30) * Math.max(0.35, bite(str)));
+      return scaled({
         title: 'MASS MISSILE BARRAGE ACROSS THE THEATER',
         text: (ev) => 'Iran launched its largest salvo of the crisis at US bases and fleet units ' +
           'across the region. Defenses were saturated. ' +
@@ -175,15 +212,15 @@ const IranAI = (() => {
             ? `${plural(ev.casualties, 'American')} ${are(ev.casualties)} dead. `
             : 'Casualty reports are still coming in. ') +
           'CENTCOM assesses this as the opening of a general war.',
-        casualties: c, dApproval: -6, dOil: 20, flashAsset: 'udeid',
+        casualties: c, dApproval: -4, dOil: 12, flashAsset: 'udeid',
         attack: { kind: 'mixed', bases: ['udeid', 'asad', 'dhafra'], count: 4 },
-      };
+      }, str);
     },
     // A two-front exchange. Iran throws a barrage at Israel and takes the
     // counter-strike: this is the one Iranian action that can cost Iran
     // capacity, because Israel is shooting back at launchers the US never
     // reached. Cuts both ways — and only a functioning Iran can sustain it.
-    israelExchange: () => {
+    israelExchange: (str) => {
       // Only sites CENTCOM has. This event NAMES what the IAF caught and marks
       // it damaged — run against a covert brigade it would reveal the site by
       // name, for free, in a public event, and hand the player battle damage on
@@ -193,14 +230,14 @@ const IranAI = (() => {
       const live = TARGETS.filter(t => t.type === 'missile' && t.status !== 'destroyed'
         && Game.plotted(t));
       const hitBack = live.length > 0 && chance(0.4) ? pick(live) : null;
-      const ev = {
+      const ev = scaled({
         title: 'MISSILE EXCHANGE BETWEEN IRAN AND ISRAEL',
         text: 'Iran fired a large ballistic and drone salvo at Israeli cities and airbases overnight; Arrow and David\'s Sling intercepted most of it. The IAF answered before dawn against launch sites in western Iran.',
-        dOil: 10, dWorld: -4, dApproval: -1,
+        dOil: 6, dWorld: -4, dApproval: -1,
         // Israeli cities under fire is the single loudest argument for going in
         // properly, whatever Washington has asked for
         dPressure: ISRAEL.westward * 1.5,
-      };
+      }, str);
       if (hitBack) {
         ev.degradeTarget = hitBack.id;
         ev.text += ` Israeli aircraft caught ${hitBack.name} in the open — the counter-strike did work CENTCOM had not scheduled.`;
@@ -409,7 +446,7 @@ const IranAI = (() => {
     const P = posture();
 
     // Revenge logic: hitting oil draws shipping/economic retaliation
-    if (struckOil && nStr > 0) events.push(chance(0.6) ? EV.shipping() : EV.mineScare());
+    if (struckOil && nStr > 0) events.push(chance(0.6) ? EV.shipping(nStr) : EV.mineScare(nStr));
 
     if (cap <= 1) {
       // capacity overrides intent: a broken Iran cannot sustain the war
@@ -429,12 +466,12 @@ const IranAI = (() => {
       // had time to sail, or the plan reads itself out on night one (NAVAL_SPINUP)
       if (nStr > 0 && G.turn >= NAVAL_SPINUP) {
         if (G.hormuz === 'OPEN' && nStr >= 1.5 && chance(0.2 * w * P.hormuz * hormuzGuard)) events.push(EV.hormuzClose());
-        else if (G.hormuz === 'OPEN' && chance(0.3 * w * P.naval)) events.push(EV.mineScare());
+        else if (G.hormuz === 'OPEN' && chance(0.3 * w * P.naval)) events.push(EV.mineScare(nStr));
         else if (G.hormuz === 'CONTESTED' && chance(0.35 * w * P.hormuz * hormuzGuard)) events.push(EV.hormuzClose());
       }
-      if (chance((israelInPlay ? 0.5 : 0.3) * w * P.ally)) events.push(EV.allyStrike(israelInPlay));
+      if (chance((israelInPlay ? 0.5 : 0.3) * w * P.ally)) events.push(EV.allyStrike(israelInPlay, mStr));
       // a sustained two-front fight needs a missile force that still exists
-      if (israelInPlay && mStr > 0 && chance(0.4 * w)) events.push(EV.israelExchange());
+      if (israelInPlay && mStr > 0 && chance(0.4 * w)) events.push(EV.israelExchange(mStr));
     }
 
     // ---- adaptation ----
@@ -481,7 +518,15 @@ const IranAI = (() => {
     // Hormuz reopens the war-sim way: break Iran's navy and the Fifth Fleet
     // clears the strait by force. While the navy fights, it mostly stays shut —
     // though a carrier group forward escorting the convoys hurries it along.
-    if (G.hormuz !== 'OPEN' && chance(nStr < 1 ? 0.65 : 0.12 + 0.12 * fwd)) {
+    // The escorted-convoy term was 0.12 + 0.12·fwd, which reads as "a deck
+    // forward hurries it along" and was not one: one carrier moved a closed
+    // strait from a 12% to a 24% chance of clearing, against a loss condition
+    // that fires on SEVEN consecutive closed nights. When campaigns ended on
+    // turn seven that wall was never reached and the weakness never showed; at
+    // fifteen-plus turns it became the second most common way to lose, with the
+    // only counter being a coin flip. Standing the deck on the strait is now
+    // worth what the prose has always said it was worth.
+    if (G.hormuz !== 'OPEN' && chance(nStr < 1 ? 0.65 : 0.18 + 0.22 * fwd)) {
       events.push({
         title: 'Strait of Hormuz reopened by force',
         text: nStr < 1
