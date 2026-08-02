@@ -503,8 +503,12 @@ const Game = (() => {
             lastStruck: t.lastStruck || 0, killedOnce: !!t.killedOnce,
             // and what the intelligence apparatus has managed to learn about a
             // site that was never in the folder: the leads accumulated, and
-            // whether they have added up to a box on the plot or a target
+            // whether they have added up to a box on the plot or a target.
+            // `worked` is how many collection decks have already been flown
+            // against the box — a reload that dropped it would hand back every
+            // night the player spent narrowing it (see workFolder).
             found: !!t.found, suspected: !!t.suspected, leads: t.leads || 0,
+            worked: t.worked || 0,
           };
         }
         localStorage.setItem(KEY, JSON.stringify(data));
@@ -759,11 +763,22 @@ const Game = (() => {
     const boxed = gaps.filter(t => t.suspected);
 
     if (boxed.length) {
-      const t = boxed[0];
-      const p = clamp((COVERT.folderFind - falloff) * scale, COVERT.folderFloor, 0.92);
+      // The box the deck has already spent nights on, not whichever one is
+      // first in the array. Working two boxes alternately would throw away the
+      // persistence below on both, and a president who tasked the folder twice
+      // running is asking for the same problem to be finished.
+      const t = boxed.slice().sort((a, b) => (b.worked || 0) - (a.worked || 0))[0];
+      // WHAT LAST NIGHT BOUGHT. A collection deck that comes back without an
+      // aimpoint has still narrowed the problem — the cuts it flew are cuts the
+      // next one does not have to fly. Without this the tasking is a coin flip
+      // repeated until it lands, which is the shape a player reads as the game
+      // wasting their slot; with it, committing to a box is a plan with an end.
+      const p = clamp((COVERT.folderFind - falloff + COVERT.folderPersist * (t.worked || 0)) * scale,
+        COVERT.folderFloor, 0.94);
       if (Math.random() < p) {
         t.found = true;
         t.suspected = false;
+        t.worked = 0;
         G.stats.covertFound = (G.stats.covertFound || 0) + 1;
         // it goes onto the plot with a fresh, deliberate assessment rather than
         // as an unknown quantity — the deck that found it also looked at it
@@ -778,25 +793,29 @@ const Game = (() => {
             `there since the first night of this war.`,
         };
       }
+      t.worked = (t.worked || 0) + 1;
       return {
         cls: 'friendly', title: 'COLLECTION AGAINST THE FOLDER — INCONCLUSIVE', internal: true,
-        sum: 'Deck flown, box not closed',
+        sum: 'Box narrowed, not closed',
         text: `A full collection deck worked the box in ${t.region} and came back with the same box. ` +
-          `The activity is real and it did not resolve into an aimpoint tonight. The slot is spent.`,
+          `The activity is real and it did not resolve into an aimpoint tonight — but the cuts flown ` +
+          `tonight are cuts the next deck does not have to fly, and the analysts are asking for it. ` +
+          `Tasked again, they are markedly better placed than they were this evening.`,
       };
     }
 
     const t = gaps[Math.floor(Math.random() * gaps.length)];
     const p = clamp((COVERT.folderLead - falloff) * scale, COVERT.folderFloor, 0.95);
     if (Math.random() < p) {
-      const ev = addLead(t, 1);
+      const ev = addLead(t, COVERT.folderLeadYield);
       if (ev) return ev;
       return {
         cls: 'friendly', title: 'FOLDER REVIEW — ANOMALY CARRIED FORWARD', internal: true,
         sum: 'Anomaly logged, not localized',
         text: 'Working the gaps blind, the deck has turned up something the analysts are not willing to ' +
           'call a site yet — a discrepancy in the order of battle that does not close. It goes in the ' +
-          'file. Two or three more of these and it becomes a box on the plot.',
+          'file, and it goes in heavily annotated. One more night like this one and it becomes a box ' +
+          'on the plot.',
       };
     }
     return {
@@ -3986,6 +4005,7 @@ const Game = (() => {
       t.found = !!rec.found;
       t.suspected = !!rec.suspected;
       t.leads = rec.leads || 0;
+      t.worked = rec.worked || 0;
       syncStatus(t);
     }
     syncJointPackages(); // packages live on static TARGETS — rebuild from saved state
@@ -4030,6 +4050,7 @@ const Game = (() => {
       t.found = false;
       t.suspected = false;
       t.leads = 0;
+      t.worked = 0;
       syncStatus(t);
     }
 

@@ -738,22 +738,50 @@ const TARGET_REPAIR = {
 // exists: a president who never spends a slot on the folder still finds
 // everything eventually, having been hit by it first. That is a worse campaign,
 // not an impossible one — the objective must always be reachable.
+// v1.66 RESCALE — THE FOLDER WAS PRICED AGAINST A WAR NOBODY PLAYS.
+// Measured with .claude/betatest/covert.js over 180 campaigns of the three
+// personas that actually spend the intel slot here: the median site was a box
+// on turn 11–14 and an aimpoint on turn 14–18. That is a defensible schedule
+// against the 30-turn plan and an indefensible one against the war as played,
+// which ends around turn 12–14 on the approval floor — so the mid-game this
+// tier exists to create was landing after the campaign it belonged to. Worse,
+// the chain was FOUR uninterrupted slots deep at the old rates (three blind
+// decks to raise a box, one or two more to close it) against one slot a night
+// shared with BDA, the launcher hunt and the raid's ISR prep.
+//
+// So the rates below are raised, the crowding penalty is cut, and two new
+// mechanics do most of the work — both aimed at the same complaint, which was
+// never "the odds are low", it was "the slot vanished and nothing happened":
+//
+//   folderLeadYield  a blind deck that hits carries TWO leads out, so the box
+//                    goes up on the second good night rather than the third
+//   folderPersist    a deck that fails against a box leaves the next one
+//                    better placed. Analysts do not start over — they start
+//                    from last night's cut. This is the important one: it makes
+//                    a spent slot always worth something, and it means a
+//                    president who commits to a box closes it on a schedule
+//                    they can plan around instead of one they can only survive.
 const COVERT = {
   leadsToSuspect: 3,     // leads that promote a gap from unknown to a box on the plot
-  leadChance: 0.28,      // per package landed on a target whose type a gap feeds off
-  ambientLead: 0.10,     // per turn, a covert site simply being in the war
-  tellLead: 0.30,        // ...once its `tellAfter` target is destroyed and it takes over
+  leadChance: 0.36,      // per package landed on a target whose type a gap feeds off
+  ambientLead: 0.16,     // per turn, a covert site simply being in the war
+  tellLead: 0.40,        // ...once its `tellAfter` target is destroyed and it takes over
 
   // The collection deck worked against the folder rather than against a site.
   // Falls off with the number of outstanding gaps for the same reason the
   // launcher hunt does: analysts split across four problems solve none of them.
-  folderFind: 0.58,      // resolving a SUSPECTED site — the deck knows where to look
-  folderLead: 0.75,      // working blind against unknowns, it produces a lead at best
-  folderFalloff: 0.10,   // per outstanding gap beyond the first
-  folderFloor: 0.22,
+  // The falloff is halved from v1.65 — at 0.10 across four live gaps it was
+  // taking 30 points off the top of every roll, which is most of what made the
+  // opening fortnight feel like the deck was not flying at all.
+  folderFind: 0.70,      // resolving a SUSPECTED site — the deck knows where to look
+  folderLead: 0.88,      // working blind against unknowns, it produces a lead at best
+  folderFalloff: 0.05,   // per outstanding gap beyond the first
+  folderFloor: 0.40,
+  folderLeadYield: 2,    // leads a successful blind deck carries out
+  folderPersist: 0.18,   // ...and what last night's failed cut is worth tonight
   coalitionBonus: 0.05,  // partner services and their take on the same problem
 
-  // By this turn anything still hiding has been fighting for two weeks and is at
+  // By this turn anything still hiding has been fighting long enough to be at
   // least a box. Late enough that a player who works the problem beats it by a
   // wide margin; early enough that the objective stays reachable regardless.
   //
@@ -761,11 +789,14 @@ const COVERT = {
   // is: if a site gates something the campaign cannot be WON without, its
   // deadline has to leave room for the entire remaining chain rather than just
   // for the discovery — resolve the box (a tasking, sometimes two), order the
-  // aircraft (the B-2 is two turns out), fly it, miss, fly it again. Twenty is
-  // enough runway to find a missile brigade you merely wanted. It is not enough
-  // to find, resolve, reach and destroy a buried hall the victory condition is
-  // counted against, on hard, where DIFFICULTY.covert slows all of it down.
-  surfaceTurn: 20,
+  // aircraft (the B-2 is two turns out), fly it, miss, fly it again.
+  //
+  // It was 20 through v1.65, and 20 was a backstop that never fired: under
+  // scripted play the median campaign is over before it, so the guarantee that
+  // "no campaign can be locked out of an objective it cannot see" was being
+  // made to a war that had already ended. Fourteen is still late enough that
+  // working the problem beats waiting for it by a week.
+  surfaceTurn: 14,
 };
 
 // DIFFICULTY.covert scales how HARD the gaps are to close, never how many of

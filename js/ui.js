@@ -1384,6 +1384,9 @@ const UI = (() => {
     const gaps = Game.covertGaps();
     const boxed = gaps.filter(t => t.suspected).length;
     const leads = gaps.reduce((n, t) => n + (t.suspected ? 0 : (t.leads || 0)), 0);
+    // nights of collection already flown against the box the deck is furthest
+    // into — the one workFolder will task next
+    const worked = gaps.reduce((n, t) => Math.max(n, t.suspected ? (t.worked || 0) : 0), 0);
 
     const lines = [
       ['Enrichment', brk.halted ? 'HALTED' : `${brk.lo}–${brk.hi}T · ${brk.conf}`,
@@ -1449,16 +1452,25 @@ const UI = (() => {
         // they should not. It drops off the list entirely once every gap is
         // closed — that end state is worth reading, and it is the only moment
         // the panel is allowed to confirm a negative.
+        // A box the deck has already been flown against is closer than one it
+        // has not, and the panel says so — the persistence in workFolder is the
+        // main reason this tasking is worth committing to two nights running,
+        // and a mechanic the player cannot see is a mechanic they cannot plan
+        // against. It counts nights spent, never odds: the folder does not quote
+        // probabilities anywhere else and should not start here.
         current: boxed
-          ? `${plural(boxed, 'area')} localized and still unresolved.`
+          ? `${plural(boxed, 'area')} localized and still unresolved.` +
+            (worked ? ` ${plural(worked, 'night')} of collection already flown against the closest.` : '')
           : leads
             ? `${plural(leads, 'lead')} in the file. Nothing localized yet.`
             : 'The order of battle has discrepancies in it. None of them have a shape.',
         desc: boxed
           ? 'The deck knows where to look. Resolving a box turns it into an aimpoint that can go on a ' +
-            'tasking order — and the site has been in this war since the first night.'
+            'tasking order — and the site has been in this war since the first night. A night that does ' +
+            'not close it still narrows it: the analysts pick up where they left off, so tasking the same ' +
+            'box again is worth more than starting a new one.'
           : 'Flown blind against the holes in the order of battle. A blind deck turns up leads, not ' +
-            'sites; enough leads on the same discrepancy and it becomes a box on the plot.',
+            'sites; two good nights on the same discrepancy and it becomes a box on the plot.',
         disabled: !gaps.length,
       },
       {
