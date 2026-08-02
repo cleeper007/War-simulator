@@ -1210,6 +1210,40 @@ const ATO = {
 //
 // Firing does not stop the clock. It discharges to `after` and starts climbing
 // again — the campaign is 30 turns and Israel should be live in all of them.
+//
+// ---- v1.66: AN ALLY, NOT A SUBCONTRACTOR ----
+// Coordinated Israel was, through v1.65, the safe half of the bargain: better
+// numbers than a unilateral night, a re-armed joint package, and a bill of
+// −5 abroad and nothing at all at home. The gauge asked one question at the
+// start of the war and never asked it again, because the answer was always yes.
+//
+// What is wrong with that is not the balance, it is the fiction. An air force
+// flying its own war aims off your tankers is not a squadron you have tasked.
+// It picks its own aimpoints, it briefs them to its own cabinet, and the first
+// CENTCOM hears of the ones that were not on the agreed list is the imagery.
+// So the coordinated numbers below go UP — meaningfully; three aimpoints a
+// night at close to a package's effect is the biggest single non-American
+// contribution in the game — and three prices come with them:
+//
+//   1. A standing bill at HOME as well as abroad. Every Israeli night now
+//      costs the president approval, because every Israeli night is an American
+//      president answering for a decision an American president did not make.
+//   2. `wildcard` — the nights they go past the agreed list. Roughly half of
+//      them, and what they hit when they do is the civil infrastructure class:
+//      the grid, the crossings. It is a genuine military effect (those four
+//      aimpoints run INFRA_RESUPPLY, so Iran rebuilds slower after one) bought
+//      at a price the president never agreed to pay, in the currency that is
+//      hardest to earn back. The dual-use class was built to be a decision;
+//      this is the one way it gets made FOR you.
+//   3. `earlyFly` — they do not always wait for the gauge. An ally with its own
+//      clock sometimes goes tonight, and the reason the floor exists is that
+//      a launch out of nowhere would be a dice roll rather than a risk: past
+//      `earlyFloor` the president can see the weather coming.
+//
+// The net is deliberately a real question rather than a trap. Bringing them in
+// is still the largest force multiplier available and still the only renewable
+// path into the buried halls. It now costs a war's worth of standing to keep,
+// and the president who takes it has to fly a campaign that can afford it.
 const ISRAEL = {
   fly: 100,                     // pressure at which the IAF goes, posture regardless
   startMin: 12, startMax: 30,   // rolled per war: Jerusalem's temper is not a constant

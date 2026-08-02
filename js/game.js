@@ -3677,11 +3677,11 @@ const Game = (() => {
       G.res.stealth = Math.min(G.res.stealth + 1, G.caps.stealth);
     }
     // the heavies turn faster than the B-2s do: no low-observable coatings to
-    // repair between sorties, just fuel, bombs and crew rest. One a night
-    // against two-sortie packages is a heavy cell every other night, which is
-    // the tempo an atoll 2,900 nm from the target can actually sustain.
+    // repair between sorties, just fuel, bombs and crew rest, and a NATO main
+    // operating base with a munitions yard behind them. See HEAVY_REGEN — at
+    // one a night, phase three delivered a heavy package every OTHER night.
     if (G.heaviesArrived) {
-      G.res.heavy = Math.min(G.res.heavy + 1, G.caps.heavy);
+      G.res.heavy = Math.min(G.res.heavy + HEAVY_REGEN, G.caps.heavy);
     }
 
     // tonight's tanker plan is written fresh: fuel in the air does not bank
