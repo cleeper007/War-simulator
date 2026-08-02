@@ -465,7 +465,15 @@ const Game = (() => {
     // campaign whose repair arithmetic it was never played under — with four
     // aimpoints at full condition that its player was never offered and never
     // declined, which is also the half of it the player would actually see.
-    const VERSION = 20;   // v1.64: bridges, railways and the grid are on the list
+    // v21: coordinating with Israel means something different than it did. The
+    // same saved `israelPosture: 'coordinated'` now buys a wider night and a
+    // standing bill at home, and roughly half of those nights end with an
+    // element over the civil grid that the president answers for. This is the
+    // CHANGING THE MEANING rule and not the adding-to-it one: a v20 save was
+    // played by someone who accepted a bargain this build does not offer, and
+    // would resume mid-war having bought something else. The folder rates and
+    // the heavy bomber turnaround moved underneath it in the same build.
+    const VERSION = 21;   // v1.66: Israel is an ally with its own aimpoints
     const FIELDS = [
       'turn', 'softCap', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
