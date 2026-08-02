@@ -2321,10 +2321,65 @@ const Game = (() => {
     }
     if (pkg.asset !== 'cruise') G.strikesThisTurn++;
     G.stats.strikes++;
-    G.missions.push({ targetId: target.id, pkg: { ...pkg }, eta: pkg.eta || MISSION_ETA[pkg.asset] });
+    // `turn` and the two charges are carried on the mission so a recall can hand
+    // back exactly what this package cost rather than what a package costs
+    // tonight — the tanker plan and the tasking order are both rewritten at the
+    // turn boundary, and a refund computed later would be a different number.
+    G.missions.push({
+      targetId: target.id, pkg: { ...pkg }, eta: pkg.eta || MISSION_ETA[pkg.asset],
+      turn: G.turn, tanker: cost, surge: atoOver(pkg) > 0,
+    });
     AudioSys.play('targetMarked');
     UI.renderAll(G);
     Save.write();
+  }
+
+  // ============================================================
+  // SCRUBBING A PACKAGE
+  // ------------------------------------------------------------
+  // Until the turn is ended, tonight's order is a document. The frag has been
+  // written, the crews have been briefed, and nothing has rolled — so a package
+  // can be struck off it and everything it booked comes back whole: the
+  // airframes, the fuel, the crew-rest debt a late frag accrued, the slot on the
+  // tasking order, and the joint option if it was committed. The aircraft was
+  // never launched, so Iran never saw it either and the adaptation counter that
+  // logs platforms is rolled back with the rest.
+  //
+  // The line is the TURN, not the ETA, and it is a real line rather than a
+  // convenience. A B-2 fragged last night is nine hours into the Indian Ocean
+  // with a tanker plan built around it; that mission is airborne and it is not
+  // coming back because the president changed their mind. What this exists for
+  // is the misclick and the reconsidered order — which, on a board where a
+  // package is the scarcest thing there is, should not cost a night.
+  function recallMission(idx) {
+    if (G.over || busy()) return false;
+    const m = G.missions[idx];
+    if (!m || m.turn !== G.turn) return false;
+    const pkg = m.pkg;
+
+    // The magazine goes back exactly as it was drawn. No clamp against `caps`:
+    // capacity is only ever rewritten at the turn boundary, so anything handed
+    // back this turn came out of this turn's pool, and a clamp here could only
+    // ever destroy sorties the player still owns.
+    if (pkg.sub) G.torpedoes = (G.torpedoes ?? 0) + pkg.qty;
+    else {
+      G.res[resKey(pkg.asset)] += pkg.qty;
+      if (pkg.asset === 'cruise') G.tlamPool = (G.tlamPool || 0) + pkg.qty;
+    }
+    G.tankers = Math.min(G.tankerCap || tankerCapacity(), G.tankers + (m.tanker || 0));
+    if (pkg.joint) { G.israelJointAvailable = true; syncJointPackages(); }
+    if (!pkg.sub) G.adapt[pkg.asset] = Math.max(0, (G.adapt[pkg.asset] || 0) - 1);
+    // the debt this package charged against tomorrow, and only this one: a
+    // surge flown earlier tonight was still flown
+    if (m.surge) G.fatigue = Math.max(0, (G.fatigue || 0) - ATO.fatiguePerSurge);
+    if (pkg.asset !== 'cruise') G.strikesThisTurn = Math.max(0, G.strikesThisTurn - 1);
+    G.stats.strikes = Math.max(0, G.stats.strikes - 1);
+
+    G.missions.splice(idx, 1);
+    AudioSys.play('cable');
+    UI.renderAll(G);
+    Save.write();
+    return true;
   }
 
   // resolve one mission at time-on-target; returns the BDA event
@@ -4241,7 +4296,7 @@ const Game = (() => {
 
   // airDefenseWeight is exported read-only for the tactical scope's threat ring —
   // the scope dramatizes the number, it never feeds back into the strike math.
-  return { computeStrike, executeStrike, doDiplo, endTurn, afterAction,
+  return { computeStrike, executeStrike, recallMission, doDiplo, endTurn, afterAction,
     // the turn lock, read-only: anything that reaches for the board — the
     // walkthrough, the primer — has to answer to it (see Tour.start)
     busy,

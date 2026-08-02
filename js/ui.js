@@ -611,16 +611,44 @@ const UI = (() => {
     }
 
     // ---- what is already out ----
-    if (G.missions.length) {
+    // Split by whether the package can still be struck off tonight's order.
+    // Anything fragged this turn has not rolled — it is a line on a document and
+    // it can be scrubbed, magazine and fuel and all (see Game.recallMission).
+    // Anything carried over from a previous night is genuinely airborne, and the
+    // two must not look alike: a president who reads "RECALL" next to a B-2 nine
+    // hours down-range has been told something that is not true.
+    const onOrder = [], airborne = [];
+    G.missions.forEach((m, i) => (m.turn === G.turn ? onOrder : airborne).push({ m, i }));
+
+    const flightRow = ({ m, i }, recallable) => {
+      const t = TARGETS.find(x => x.id === m.targetId);
+      return `<div class="res-flight"><span class="tgt">→ ${t.short}</span>` +
+        `<span class="eta">${m.eta > 1 ? `TOT ${m.eta}T` : 'TOT TONIGHT'}</span>` +
+        (recallable
+          ? `<button type="button" class="res-recall" data-mission="${i}" ` +
+            `title="Strike this package off tonight's order — aircraft, fuel and the slot come back">` +
+            `SCRUB</button>`
+          : '') + `</div>`;
+    };
+
+    if (onOrder.length) {
+      html += `<div class="res-group"><div class="res-legend">ON TONIGHT'S ORDER</div>` +
+        onOrder.map(x => flightRow(x, true)).join('') +
+        `<div class="res-note">Not yet rolled — scrubbing one returns the aircraft, the fuel and the slot.</div>` +
+        `</div>`;
+    }
+    if (airborne.length) {
       html += `<div class="res-group"><div class="res-legend">AIRBORNE NOW</div>` +
-        G.missions.map(m => {
-          const t = TARGETS.find(x => x.id === m.targetId);
-          return `<div class="res-flight"><span class="tgt">→ ${t.short}</span>` +
-            `<span class="eta">${m.eta > 1 ? `TOT ${m.eta}T` : 'TOT THIS TURN'}</span></div>`;
-        }).join('') + `</div>`;
+        airborne.map(x => flightRow(x, false)).join('') + `</div>`;
     }
 
     $('resources-list').innerHTML = html;
+
+    // Indexes are read off G.missions at render time and recallMission
+    // re-renders, so the list the next click reads is always the current one.
+    $('resources-list').querySelectorAll('.res-recall').forEach((b) => {
+      b.addEventListener('click', () => Game.recallMission(+b.dataset.mission));
+    });
 
     const why = $('resources-list').querySelector('.ton-why');
     if (why) why.addEventListener('click', () => {

@@ -1382,10 +1382,26 @@ button { font-family: var(--mono); }
 
 /* ---- what is already out ---- */
 .res-flight {
-  display: flex; justify-content: space-between; gap: 8px; font-size: 11px; padding: 3px 0;
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 8px; font-size: 11px; padding: 3px 0;
 }
-.res-flight .tgt { color: var(--dim); }
+.res-flight .tgt { color: var(--dim); margin-right: auto; }
 .res-flight .eta { color: var(--amber); font-variant-numeric: tabular-nums; }
+.res-note { font-size: 9px; letter-spacing: .5px; color: var(--dim); margin-top: 4px; }
+
+/* Scrubbing a package off tonight's order. Deliberately quiet — it is an undo,
+   not an order, and the panel above it is where the war is actually fought.
+   Sized past the 44px touch minimum on the cross axis via the padding, because
+   these rows stack in a scroll pane with ~200px of vertical room on a landscape
+   phone and a 20px-tall button between two others is a mis-tap waiting. */
+.res-recall {
+  flex: none; font: inherit; font-size: 9px; letter-spacing: 1.4px;
+  color: var(--dim); background: transparent;
+  border: 1px solid var(--line); border-radius: 2px;
+  padding: 6px 9px; cursor: pointer; min-height: 28px;
+}
+.res-recall:hover, .res-recall:focus-visible { color: var(--red); border-color: var(--red); }
+@media (pointer: coarse) { .res-recall { min-height: 34px; padding: 8px 11px; } }
 
 /* ============ air superiority ============ */
 /* The ladder the whole force structure hangs off. The two ticks are the
