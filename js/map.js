@@ -170,6 +170,19 @@ const MapView = (() => {
              'L0,4.7 L-2.4,5.5 L-2.4,4.8 L-1.1,3.4 L-1.1,1.4 L-5,2.6 L-5,1.4 L-1.1,-1.6 Z' });
       case 'oil':
         return el('circle', { class: 'tgt-core', r: 3.5 });
+      case 'infra':   // an arched span on two abutments — a bridge, read at 11px
+        // The class covers rail crossings AND generating plant, and a bridge is
+        // the glyph that carries both: a pylon reads as power and nothing else,
+        // while a span reads as "the thing underneath the war" generally. Drawn
+        // as one filled path in four subpaths (deck, two abutments, and the arch
+        // as a closed band) because .tgt-core is filled rather than stroked —
+        // the status colours in style.css work on fill, so a stroked glyph would
+        // stay red on a destroyed site.
+        return el('path', { class: 'tgt-core',
+          d: 'M-5.6,0.1 L5.6,0.1 L5.6,1.5 L-5.6,1.5 Z ' +
+             'M-5.6,1.5 L-4.2,1.5 L-4.2,4.3 L-5.6,4.3 Z ' +
+             'M4.2,1.5 L5.6,1.5 L5.6,4.3 L4.2,4.3 Z ' +
+             'M-4.3,0.1 A4.3,4.3 0 0 1 4.3,0.1 L3,0.1 A3,3 0 0 0 -3,0.1 Z' });
       default:
         return el('rect', { class: 'tgt-core', x: -3.5, y: -3.5, width: 7, height: 7 });
     }

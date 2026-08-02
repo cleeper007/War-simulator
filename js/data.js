@@ -18,6 +18,10 @@
 //          in game.js) — it does not open the door, but it helps once the
 //          nuclear gate is met.
 // packages: valid strike options {asset, qty, base (success), label}
+// feeds:   which covert gap type a package landed here throws leads off, when
+//          that is NOT simply the target's own type. Only the infrastructure
+//          class uses it — nothing hides behind a bridge, but a bridge is how
+//          you learn what was crossing it. See covertLead in game.js.
 // depth:   how far inside Iran the target sits, which is what a strike package
 //          actually costs in tanker tracks (see TANKER_COST). 1 = the Gulf
 //          littoral, a short leg fighters fly unrefuelled; 2 = the interior;
@@ -409,6 +413,204 @@ const TARGETS = [
     ],
   },
 
+  // ============================================================
+  // CIVIL INFRASTRUCTURE — THE DUAL-USE CLASS
+  // ------------------------------------------------------------
+  // The first aimpoints on this list where the militarily correct answer and
+  // the morally correct answer are not the same answer. Everything above is
+  // either unambiguously military — a SAM battery, a missile brigade, a
+  // frigate — or unambiguously ruinous, which is Bushehr NPP and is priced to
+  // be refused. These are neither. A rail bridge carries reload rounds to the
+  // brigades and it carries the city's water main. A power station runs the
+  // enrichment spur and it runs the dialysis ward. Both statements are true at
+  // once, both are true of the same building, and there is a live body of law
+  // and sixty years of argument about where the line sits. The 1991 Iraqi
+  // electrical campaign is the case study and it is still contested.
+  //
+  // That tension IS the feature. Nothing here resolves it for the player: the
+  // `desc` strings state the military value and the human cost in the same
+  // breath and stop, SecState Okafor argues one side of it and SecDef
+  // Whitfield the other (see advise() in ai.js), and the decision stays with
+  // the person it belongs to.
+  //
+  // WHAT THEY DO, in three parts, none of which needed a new system:
+  //
+  //   1. They cost abroad, through the existing `world` and `worldOnKill`
+  //      fields, and HOW that bill is split was the one number here that had to
+  //      be measured rather than argued. The obvious pricing is a heavy
+  //      per-strike charge — every span dropped is its own story — and it is
+  //      wrong, because this class takes two to three packages a target across
+  //      four targets, so a per-strike charge is paid eight to twelve times.
+  //      Measured by playing the real turn loop — twenty-five campaigns
+  //      spending one package a night here, against twenty-five identical ones
+  //      that never touched the class — a -3 charge roughly doubled how often a
+  //      war fell below the Gulf basing tier AND left it there: the median such
+  //      campaign was still under the tier when it ended, and the runs below it
+  //      lasted turns rather than a turn. That is not a price, it is a refusal
+  //      written to look like a choice, because losing the Gulf ramps takes
+  //      every deep target off the list at once.
+  //
+  //      So the per-package charge is -1 — the same as a SAM battery, the
+  //      cheapest thing on the folder — and the real bill lands on
+  //      `worldOnKill`, where the oil terminals already put theirs and for the
+  //      same reason. Nobody abroad files a protest over a cratered approach
+  //      ramp. They file it over a crossing that is out and a province that has
+  //      been dark for a week. Rail pays -4 there and the generating plants pay
+  //      -8, the same one-time bill as Kharg, because a stopped refinery and a
+  //      dark province are the same kind of photograph.
+  //
+  //      Re-measured at -1 the same way, the tier still gets crossed more often
+  //      than in the control — it should, it is a real cost — but the longest
+  //      unbroken run beneath it is under a single turn in both arms. A dip the
+  //      drift pulls back, not a collapse the campaign never returns from.
+  //
+  //      Which leaves this class the CHEAPEST thing on the folder to chip at
+  //      and the most expensive thing on it to finish. That asymmetry is the
+  //      whole design, and it is precisely what SecState warns about: the bill
+  //      arrives all at once, so a president can be most of the way into a
+  //      campaign they never decided to fight. Re-measure before retuning any
+  //      of these four numbers — the spreadsheet version of this question gives
+  //      the wrong answer, because most of what moves standing abroad over
+  //      thirty turns is Jerusalem and the basing tiers, not the target list.
+  //
+  //   2. They break Iran's will through `momentumOnKill`, which feeds
+  //      negotiationMomentum and therefore the odds Tehran signs (see doDiplo).
+  //      This is the honest reading of what a counter-infrastructure campaign
+  //      is actually for. It does not open the door — the nuclear gate still
+  //      does that — it changes what is on the other side of it.
+  //
+  //   3. They break Iran's ability to put things back together, which is the
+  //      one genuinely new mechanic and lives in INFRA_RESUPPLY below. Measured
+  //      against identical counterforce play — same packages, same aimpoints,
+  //      differing only in whether the class is standing — it holds mean
+  //      surviving SAM coverage roughly a fifth lower across a campaign. That
+  //      is the intended size: a second, indirect way to suppress air defense,
+  //      and never a substitute for going back to the site.
+  //
+  // DELIBERATELY NOT COVERT, and the comment is here because the reflex after
+  // v1.63 is to reach for the newest system. A rail bridge is the least
+  // concealable object a state owns. The imagery has existed for decades,
+  // every crossing of the Karun is in an atlas, and no collection deck is
+  // required to find a two-thousand-megawatt power station. The four covert
+  // sites are a dispersal brigade, an island swarm base, an undeclared
+  // enrichment hall and a continuity-of-government bunker — things a country
+  // actually hides. Filling the folder with gaps that have no intelligence
+  // story behind them would cheapen the tier that took v1.63 to build.
+  //
+  // What they are instead is a lead SOURCE, via `feeds`. Channel 2 of
+  // discovery is leads thrown off by strikes on RELATED targets, and breaking
+  // a line is exactly how that works in life: you drop the span, you watch
+  // what moves to repair it and what re-routes around it, and you learn where
+  // the thing on the far end was. Each of the four feeds a different gap, and
+  // the mapping is geographic rather than decorative — the Khuzestan
+  // crossings supply the western brigades, the Kerman trunk line supplies the
+  // fleet, the central grid runs the enrichment belt, the northern grid runs
+  // the Alborz. So an infrastructure campaign and a counterforce campaign come
+  // out of the same thirty turns holding different intelligence pictures,
+  // which is the point: this class is not four expensive buildings, it is a
+  // different way to fight the war.
+  //
+  // This turned out to be the biggest of the three, which was not obvious in
+  // advance. Across twenty-five campaigns a president spending one package a
+  // night here resolved close to twice as many covert sites as one who never
+  // touched the class, and finished with the enrichment program several points
+  // further gone — because the undeclared hall is one of the four gaps this
+  // feeds, and a counterforce campaign only ever gets leads on the types it is
+  // already bombing. The gaps such a campaign is worst placed to find are
+  // exactly the ones it never hears about. This is the way in.
+  // ============================================================
+  {
+    id: 'rail-karun', name: 'Karun River Crossings — Ahvaz', short: 'KARUN XINGS',
+    // Ahvaz, Khuzestan: the Trans-Iranian Railway's crossing of the Karun and
+    // the road bridges beside it. North of Abadan and well clear of it on the
+    // plot; the nearest icon is 40 units away, wider than any pair on the
+    // Bushehr coast already ships with.
+    type: 'infra', x: 339, y: 307, depth: 1,
+    // the western brigades — Kermanshah, Khorramabad — are supplied through
+    // Khuzestan, and what moves to keep them supplied is what gives away the
+    // one nobody has found
+    feeds: 'missile',
+    desc: 'The Trans-Iranian Railway where it crosses the Karun, and the road bridges beside it. Every reload round, every fuel bowser and every replacement radar that reaches the western brigades from the Gulf ports crosses here; there is no second route that does not add four days. The same spans carry Ahvaz\'s water mains and the trunk fibre south, and a city of a million drinks from the pumping stations at the far end of them. Unhardened, undefended, and a matter of a few aimpoints. Iranian engineers put bridges back faster than anyone expects; they do not put back what stops while the bridges are down.',
+    // -1 a package — a cratered approach is not news anywhere — and the bill on
+    // the night the crossing is actually out. See the pricing note above the
+    // class: a heavy per-strike charge here is paid three times over per target
+    // and costs the Gulf ramps outright.
+    world: -1, worldOnKill: -4, momentumOnKill: 0.05,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.82, label: 'F-35 strike package — 2 sorties, the rail spans' },
+      { asset: 'fighter', qty: 3, base: 0.80, label: 'Air strike — 3 F-15E sorties, spans and approaches' },
+      { asset: 'cruise', qty: 3, base: 0.84, label: 'TLAM salvo — 3 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.84, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, the whole crossing' },
+    ],
+  },
+  {
+    id: 'rail-sirjan', name: 'Sirjan Rail Junction — Kerman', short: 'SIRJAN JCT',
+    // where the Bandar Abbas trunk line turns inland for Kerman and Yazd.
+    // Open country: 70 units to the nearest icon and clear of every covert box.
+    type: 'infra', x: 571, y: 379, depth: 2,
+    // mines, torpedo bodies and anti-ship rounds come up this line from the
+    // deep-water port, and the traffic that re-routes when it is cut is how
+    // the island base stops being invisible
+    feeds: 'naval',
+    desc: 'The junction where the trunk line out of Bandar Abbas turns inland — marshalling yards, a locomotive depot and the only rail artery between Iran\'s deep-water port and everything north of it. Mines, torpedo bodies and anti-ship rounds move up this line; so does the grain that feeds three provinces, and so does everyone in them who has anywhere else to be. In open desert with nothing over it and nothing under it: the cheapest package on this list, and the one whose effects are hardest to see from the air.',
+    world: -1, worldOnKill: -4, momentumOnKill: 0.05,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.83, label: 'F-35 strike package — 2 sorties, yards and depot' },
+      { asset: 'fighter', qty: 3, base: 0.81, label: 'Air strike — 3 F-15E sorties' },
+      { asset: 'cruise', qty: 3, base: 0.85, label: 'TLAM salvo — 3 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.85, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, the whole junction' },
+    ],
+  },
+  {
+    id: 'power-yazd', name: 'Shahid Mofatteh Power Station — Yazd', short: 'YAZD POWER',
+    // on the Isfahan–Yazd road, northwest of the city where the plant actually
+    // sits. Sited 41 units off Kuh-e Siah and clear of that site's suspected
+    // box at (553,301) — checked against the fuzzed position, not the true one.
+    // label above the icon: centred, it grazed the east side of Kuh-e Siah's
+    // UNRESOLVED box, which is drawn at a fuzzed offset and so does not move
+    // when that site is finally resolved
+    type: 'infra', x: 505, y: 280, depth: 2, label: { dy: -14 },
+    // the covert hall's own desc says it is "fed by a power spur that goes
+    // nowhere else". This is where that spur comes from, and cutting it is how
+    // the analysts find out the spur exists.
+    feeds: 'nuclear',
+    energy: true,
+    desc: 'Two thousand megawatts of combined-cycle plant on the Isfahan road, and the eastern anchor of the central grid — including the spur that runs out to the enrichment belt and stops. The switchyard is the whole plant: transformers standing in the open, foreign-built, no longer sold to Iran and with nothing in the country to replace them. Burn those and generation here is finished for the war. So is the province — the hospital generators hold for a day, the pumps that move water across a desert do not, and it is July.',
+    // The same one-time bill as Kharg, and deliberately: a stopped refinery and
+    // a dark province are the same kind of photograph, and neither of them is
+    // news until it happens.
+    world: -1, worldOnKill: -8, momentumOnKill: 0.06,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.84, label: 'F-35 strike package — 2 sorties, the switchyard' },
+      { asset: 'fighter', qty: 3, base: 0.82, label: 'Air strike — 3 F-15E sorties' },
+      { asset: 'cruise', qty: 3, base: 0.86, label: 'TLAM salvo — 3 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.86, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, switchyard and turbine hall' },
+    ],
+  },
+  {
+    id: 'power-neka', name: 'Shahid Salimi Power Station — Neka', short: 'NEKA POWER',
+    // Mazandaran, on the Caspian shore. Walked ~25 units west of the true plant
+    // to clear the MSL SEMNAN suspected box at (548,149) — that box is drawn at
+    // a fuzzed offset and it and this label would otherwise sit on each other.
+    // Still inside the right province and on the right coast.
+    // and above the icon for the same reason: the centred label sat inside the
+    // vertical band of MSL SEMNAN's box
+    type: 'infra', x: 512, y: 116, depth: 3, label: { dy: -14 },
+    // the northern grid crosses the Alborz into the capital region, and a
+    // continuity bunker in the Qazvin corridor that has to start its own
+    // generators is a continuity bunker that starts radiating
+    feeds: 'command',
+    energy: true,
+    desc: 'Iran\'s largest thermal generating complex, on the Caspian shore, carrying the northern grid over the Alborz into the capital region. Take it down and Tehran runs on what the southern plants can push north, which is not enough — the ministries fail over to their own generators, and so does everything built to keep running after the ministries stop. The Caspian is the longest leg in the theater and the one approach Moscow watches. Below the plant is a town of forty thousand that exists because the plant does.',
+    world: -1, worldOnKill: -8, momentumOnKill: 0.06,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.72, label: 'F-35 strike package — 2 sorties (deep, the whole tanker plan)' },
+      { asset: 'fighter', qty: 3, base: 0.68, label: 'Air strike — 3 F-15E sorties (deep, unrefuelled leg)' },
+      { asset: 'cruise', qty: 3, base: 0.82, label: 'TLAM salvo — 3 cruise missiles' },
+      { asset: 'heavy', qty: 2, base: 0.80, label: 'HEAVY BOMBER STRIKE — 2 B-52H sorties, switchyard and boiler house' },
+    ],
+  },
+
   // ---- dispersed missile brigades (TELs) ----
   // These are not on the map when the war opens and they cannot be planned
   // against. Flattening a missile base does not kill the brigade — it kills the
@@ -488,6 +690,15 @@ const TARGET_REPAIR = {
   airbase:    12,   // fill the craters, sweep the ramp, fly again by morning
   missile:    10,   // the TELs were always hidden; the brigade rebuilds around them
   naval:       8,   // piers, cranes and fuel farms take longer than a runway does
+  // Bridges and switchyards. Slower than a naval base and faster than a
+  // refinery train, and the average hides two very different things: Iranian
+  // engineers throw a temporary span over a dropped bridge in days — they did
+  // it for eight years against a larger air force — while a burnt 400 kV
+  // transformer is a foreign order nobody will fill for a country under
+  // sanctions. One number covers both because the player is not being asked to
+  // learn a repair table, only that this class stays down longer than the
+  // military list does.
+  infra:       7,
   oil:         5,   // refinery trains and loading berths are the slowest of all
 };
 
@@ -686,6 +897,47 @@ const NAVAL_BMD = {
 // -3 should buy. Anything larger and the flotilla stops being a hard call and
 // becomes the opening move.
 const CASPIAN_REPAIR = 0.9;
+
+// ============================================================
+// RESUPPLY — WHAT THE INFRASTRUCTURE CLASS ACTUALLY BUYS
+// ------------------------------------------------------------
+// The one new mechanic in the dual-use class, and it is deliberately a
+// modifier on something that already exists rather than a system of its own.
+// Iran's national repair effort (see repairTargets in game.js) is already a
+// product of what the campaign has taken away — the command chain that sets
+// priorities, the fuel that runs the generators and the truck fleet, the
+// Caspian barges that bring the spares. Transport and power belong in exactly
+// that product: the airbase whose runway is filled by morning takes longer
+// when the line feeding it is down, and the SAM belt reconstitutes slower with
+// the grid out.
+//
+// AD_RECONSTITUTION is the specific reason this hook and not another one. The
+// belt coming back out of the national reserve after three quiet nights is the
+// invariant the whole air campaign is built on, and it runs on the same repair
+// effort as everything else. So breaking what rebuilds air defense is a second,
+// indirect way to suppress it — and the president now chooses between servicing
+// the site tonight and making every future site harder to bring back. Those are
+// different campaigns and they should not cost the same.
+//
+// MODEST ON PURPOSE. `weight` is the fraction shaved off the national effort
+// when the entire class is rubble: four targets, roughly six points each. A
+// steep modifier would make infrastructure the mandatory opening move, which
+// is the exact opposite of the point — this class only means anything if
+// declining it is a live option. At 0.25 the SAM belt reconstitutes at 5 a
+// night instead of 7 and damaged sites repair at three quarters speed: worth
+// something, worth roughly one extra night of servicing the list per week,
+// and never worth the world-opinion bill on its own.
+//
+// NO SEPARATE DIFFICULTY KNOB, and this is a decision rather than an
+// oversight. `diff().repair` already multiplies the same product, so a second
+// read through diff() here would scale the effect twice — on hard the harder
+// repair rate and a harder resupply penalty compounding into a number neither
+// was tuned for. What difficulty changes is how fast Iran rebuilds; what this
+// changes is how much of that Iran gets to do. One knob, applied once.
+const INFRA_RESUPPLY = {
+  // national repair effort *= 1 - weight * (fraction of the class destroyed)
+  weight: 0.25,
+};
 
 // Fallback full-effect damage for anything not carrying its own weight in
 // AIR_ASSETS. Individual packages override with `dmg`.

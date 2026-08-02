@@ -395,7 +395,16 @@ const Game = (() => {
     // enrichment program has a third hall in it. A v18 save restored here would
     // read 80% on a program its player finished, with a victory condition that
     // no longer fires and nothing on screen to say why.
-    const VERSION = 19;   // v1.63: the enrichment program has three halls
+    // v20: the target list has a civil infrastructure class in it, and with it
+    // a resupply modifier on the national repair effort. This is a bump on the
+    // CHANGING THE MEANING rule rather than the adding-to-it one: the same
+    // saved hp on the same SAM battery now evolves at a different rate
+    // overnight, because how fast Iran rebuilds is a product the bridges and
+    // the switchyards are now terms in. A v19 save restored here would resume a
+    // campaign whose repair arithmetic it was never played under — with four
+    // aimpoints at full condition that its player was never offered and never
+    // declined, which is also the half of it the player would actually see.
+    const VERSION = 20;   // v1.64: bridges, railways and the grid are on the list
     const FIELDS = [
       'turn', 'softCap', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -632,7 +641,18 @@ const Game = (() => {
   // lead. This is the channel that makes the SHAPE of a campaign decide what it
   // learns: a president who works the command nodes finds what the command nodes
   // were talking to, and a president who never touches them does not.
-  function covertLead(struckType) {
+  //
+  // `feeds` is the second way in, and it is what the civil infrastructure class
+  // contributes to the folder (see the design note above it in data.js). Nothing
+  // hides behind a rail bridge — but cutting one is a collection event all the
+  // same, because what re-routes around a broken line, and what moves to put the
+  // line back, is the far end of it announcing itself. So a rail junction feeds
+  // the naval gap and a power station feeds the enrichment gap, and an
+  // infrastructure campaign ends the war holding a different picture than a
+  // counterforce campaign does. The rate is unchanged: what this class buys is
+  // WHICH gaps a president gets leads on, including types they may never bomb.
+  function covertLead(struck) {
+    const struckType = struck.feeds || struck.type;
     const gaps = covertGaps().filter(t => !t.suspected && t.leadFrom === struckType);
     if (!gaps.length) return null;
     if (Math.random() > COVERT.leadChance * diff().covert) return null;
@@ -2403,7 +2423,7 @@ const Game = (() => {
         // strike on a type some gap in the folder feeds off can come back with a
         // lead — rolled once per target per night rather than once per weapon,
         // because what produces the intelligence is the visit, not the tonnage.
-        const lead = covertLead(target.type);
+        const lead = covertLead(target);
         if (lead) events.push(lead);
         // a successful hit plays the strike clip in the target's radar window —
         // the package decides which clip, so a torpedo lands as a torpedo
@@ -2463,6 +2483,17 @@ const Game = (() => {
     // back together, which is the reason to accept the diplomatic bill for it.
     const oilLeft = TARGETS.filter(t => t.type === 'oil').reduce((n, t) => n + t.hp / 100, 0) / 2;
     eff *= 0.55 + 0.45 * oilLeft;
+    // Transport and power (see INFRA_RESUPPLY). The same argument one line up
+    // and a different half of it: oil starves the machines, this breaks the way
+    // parts and crews reach them. Counted off the whole class rather than off
+    // named ids so adding a fifth bridge is a data change, and denominated on
+    // the class size for the same reason — a hardcoded /4 becomes a silent
+    // rebalance of every other entry the day someone adds one.
+    const infra = TARGETS.filter(t => t.type === 'infra');
+    if (infra.length) {
+      const left = infra.reduce((n, t) => n + t.hp / 100, 0) / infra.length;
+      eff *= 1 - INFRA_RESUPPLY.weight * (1 - left);
+    }
     // The northern lifeline (see CASPIAN_REPAIR). Spares that cannot come
     // overland through a war zone come across the Caspian, and the night the
     // flotilla goes down at Bandar-e Anzali the berths go with it and Moscow
@@ -2639,7 +2670,16 @@ const Game = (() => {
       const wall = atoWall();
       if (wall) return wall;
     }
-    if (G.warPowers.noOil && t.type === 'oil') return 'Prohibited by the War Powers resolution — no strikes on Iranian energy infrastructure.';
+    // The amendment the Hill actually passed says "Iranian energy
+    // infrastructure", and a two-thousand-megawatt power station is that in
+    // every sense a member of Congress means it. So the bar reads the `energy`
+    // flag as well as the oil type: the restricted vote takes the generating
+    // plants off the list along with the refineries and leaves the rail
+    // crossings on it, which is what the text of the resolution says and not a
+    // separate rule. A president who has built a campaign on the grid loses
+    // half of it mid-war — telegraphed by the amendment's own wording, and one
+    // more reason the vote is worth working before it happens.
+    if (G.warPowers.noOil && (t.type === 'oil' || t.energy)) return 'Prohibited by the War Powers resolution — no strikes on Iranian energy infrastructure.';
     if (G.warPowers.noDeep && (t.depth || 2) >= 3) return 'Prohibited by the War Powers resolution — outside the declared theater.';
     if (!canReach(t)) return 'Unreachable: with Gulf basing and overflight revoked there is no tanker track that puts a package this deep.';
     if (t.type === 'tel' && !t.located) return 'No fix. Dispersed launchers cannot be planned against until ISR finds them.';

@@ -503,6 +503,18 @@ const IranAI = (() => {
   function advise(G) {
     const nukeDeg = G.nukeDegraded();
     const adLeft = TARGETS.filter(t => t.type === 'airdefense' && t.status !== 'destroyed').length;
+    // The dual-use argument, and the two facts it is argued from. `reconstituted`
+    // is a battery the campaign has already killed once that is radiating again —
+    // the moment SecDef's case for going after what rebuilds it is at its
+    // sharpest, because the president is looking at proof that servicing the site
+    // is rented and not owned. `infraHit` and `powerKilled` are what SecState is
+    // reacting to, in two tiers, because a cut rail bridge and a dark province
+    // are not the same argument and must not share a sentence.
+    const infraSites = TARGETS.filter(t => t.type === 'infra');
+    const infraLeft = infraSites.filter(t => t.hp > 0).length;
+    const infraHit = infraSites.filter(t => t.hp < 100).length;
+    const powerKilled = infraSites.filter(t => t.energy && t.hp <= 0).length;
+    const reconstituted = TARGETS.some(t => t.type === 'airdefense' && t.killedOnce && t.hp > 0);
     // sites hit but not finished, worst first — the ones the repair crews own.
     // Sorted on the ASSESSED figure, because that is all anyone in this room
     // actually has; the true number is not available to the people talking.
@@ -601,6 +613,26 @@ const IranAI = (() => {
     } else if (nukeDeg >= 100) {
       secdef.line = 'Program is dead. Now break the sword.';
       secdef.text = 'The nuclear program is finished — half the job. Now break the sword: missile brigades, the swarm-boat navy, IRGC command. Victory is destroying their ability to fight, not their will to.';
+    // The counter-infrastructure argument, made at the one moment it is
+    // strongest: a battery this campaign already flattened is radiating again,
+    // so the president is looking at proof that servicing a site is damage they
+    // rented. It names the mechanism outright — INFRA_RESUPPLY is not something
+    // a player can infer from a condition bar — for the same reason the NSA's
+    // Israel line names the target list. It sits below "they are beaten" and
+    // above the generic tempo line, because it is a specific argument and that
+    // one is a slogan.
+    } else if (reconstituted && infraLeft && G.turn >= 4) {
+      secdef.line = 'Stop re-servicing the belt. Break what rebuilds it.';
+      secdef.text = 'We flattened that battery once already and it is radiating again tonight, and it will ' +
+        'happen a third time, because the ground was never the point — the reserve rolls a replacement in ' +
+        'from the interior every time we look away. You can go back and keep the wreckage smoking every ' +
+        'four nights for the rest of this war and pay for it in packages and aircrew, or you can go after ' +
+        'what moves the replacement. The crossings and the switchyards are on the folder. Nothing in that ' +
+        'country gets rebuilt without the railway and the grid, neither is hardened, neither is defended, ' +
+        'and both are where they have been on the imagery for forty years. It slows every repair crew in ' +
+        'Iran at once — the belt, the runways, the piers. Secretary Okafor will tell you what it costs ' +
+        'abroad and she will not be wrong about a word of it. She is also not the one who reads the ' +
+        'casualty list to the families.';
     } else if (G.turn >= 4) {
       secdef.line = 'Sustain the sortie rate. Give them no quiet night.';
       secdef.text = 'This is a war now, Mr. President — fight it like one. Sustain the sortie rate, service the full target list, and don\'t give them a night to reconstitute.';
@@ -634,6 +666,44 @@ const IranAI = (() => {
       secstate.urgent = true;
       secstate.line = 'Tehran might sign. Authorize the Omani channel.';
       secstate.text = 'Tehran is broken — this is the rare moment a backchannel might actually close. If you want the win signed instead of just shattered, authorize the Omani channel now.';
+    // The other side of the dual-use argument, in two tiers. It outranks the
+    // generic diplomacy lines because it is the one thing on State's table that
+    // is a response to something the president did rather than to the situation,
+    // and it sits below negotiationReady because a signed war still ends the
+    // argument. Both branches concede SecDef's point on the way past: an
+    // objection that pretends the military value is not there is not an
+    // argument, it is a mood, and the player would learn to skip it.
+    } else if (powerKilled) {
+      secstate.urgent = powerKilled >= 2;
+      secstate.line = powerKilled === 1
+        ? 'A province is dark. Understand what that buys and what it costs.'
+        : 'Two grids are down. I have run out of things to say in New York.';
+      secstate.text = 'I want it on the record what a generating station is, because the folder calls it ' +
+        'infrastructure and the wires abroad will not. It is the pumps that move water across a desert. ' +
+        'It is the cold chain, the sewage plants, and every hospital past the day its generator runs dry — ' +
+        'and the diesel for those generators comes up the roads we are also cutting. We did this to Iraq ' +
+        'in 1991 and the argument over whether it was lawful is still running, which is exactly my point: ' +
+        'it is not settled, it is arguable in both directions, and every foreign ministry I deal with has ' +
+        'already chosen which direction it likes. ' +
+        (powerKilled >= 2
+          ? 'With the second one down, the speech I can still give is that we were right. The one I can no ' +
+            'longer give is that we were proportionate, and that is the one that holds a coalition together.'
+          : 'I can hold the line on one plant. I cannot hold it on a campaign, and Whitfield is going to ' +
+            'ask you for the second one tomorrow night.');
+    } else if (infraHit) {
+      secstate.line = 'Those spans are dual-use, and the second use is a city.';
+      secstate.text = 'I am not going to stand here and tell you the crossings are not military. They are, ' +
+        'and Whitfield is right that most of what Tehran repairs goes over them — that is what makes this ' +
+        'hard rather than what makes it easy. The same span carries the reload rounds and the water main, ' +
+        'and there is no version of that strike that takes one and leaves the other; the law has been ' +
+        'arguing about exactly that since before either of us was in government and it has not landed. ' +
+        'What I can give you is the shape of the price, because the price is mine to pay. Hitting it is ' +
+        'cheap. Cheaper abroad than a SAM battery — nobody files a protest over a cratered approach ramp — ' +
+        'and it stays cheap for exactly as long as the crossing is still standing. The bill arrives the ' +
+        'night it is actually out, all at once, and it is the largest single charge on the folder. That is ' +
+        'the trap in this class: it costs nothing until it costs everything, so it is very easy to be most ' +
+        'of the way into a campaign you never decided to fight. Decide to fight it or stop now, but do not ' +
+        'drift into it a package at a time.';
     } else if (nukeDeg >= 75 && warStr <= 2) {
       secstate.line = 'Too early to talk. Keep breaking things.';
       secstate.text = 'They\'re not ready to fold yet — an overture now would be read as weakness and spun against us. Keep destroying what they fight with; I\'ll be ready when they break.';
