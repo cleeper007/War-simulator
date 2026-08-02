@@ -526,7 +526,15 @@ const IranAI = (() => {
     // fifteen-plus turns it became the second most common way to lose, with the
     // only counter being a coin flip. Standing the deck on the strait is now
     // worth what the prose has always said it was worth.
-    if (G.hormuz !== 'OPEN' && chance(nStr < 1 ? 0.65 : 0.18 + 0.22 * fwd)) {
+    // Continuous in both levers rather than a binary on the navy plus a token
+    // carrier term. The old shape was `nStr < 1 ? 0.65 : 0.18 + 0.22·fwd`, which
+    // meant every point of damage short of breaking the navy outright bought
+    // nothing at all, and a war with the fleet at 60% cleared the channel at the
+    // same rate as a war that had not touched it. Now sinking hulls and standing
+    // a deck on the strait both pay, and they compound: 0.15 with nothing done,
+    // 0.40 with a deck forward, ~0.85 once the navy is finished.
+    const clearOdds = 0.15 + 0.25 * fwd + 0.35 * Math.max(0, 1 - nStr / 2);
+    if (G.hormuz !== 'OPEN' && chance(clearOdds)) {
       events.push({
         title: 'Strait of Hormuz reopened by force',
         text: nStr < 1

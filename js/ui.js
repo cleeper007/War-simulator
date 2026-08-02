@@ -231,7 +231,7 @@ const UI = (() => {
     $('capacity-value').style.color = cap >= 60 ? 'var(--red)' : cap >= 30 ? 'var(--amber)' : 'var(--green)';
 
     // Every readout on this bar that can END the war names the line it is
-    // measured against, the way the Strait already counts CLOSED 3/7 and
+    // measured against, the way the Strait already counts its closed nights and
     // casualties count against what the country will absorb. A bare "58%" told
     // a new president nothing about the fact that 20 is impeachment — and
     // approval finishes the overwhelming majority of campaigns, so it was the
@@ -253,13 +253,16 @@ const UI = (() => {
     $('oil-label').textContent = G.oil >= 165 ? 'BRENT CRUDE — BREAKS AT $240'
       : G.oil >= 135 ? 'BRENT CRUDE — DOUBLES AT $165' : 'BRENT CRUDE — BITES AT $135';
 
-    // A closed Strait breaks the economy after five turns shut. Show the count
-    // against that limit the same way casualties are counted against theirs.
+    // A closed Strait breaks the economy after HORMUZ_LIMIT turns shut. Shown as
+    // a count against that limit the same way casualties are, and read from the
+    // constant so the readout can never quote a wall the check does not use —
+    // this line said /7 while the comment above it said five, and both were
+    // stale the moment the limit moved.
     const hz = $('hormuz-value');
     hz.textContent = G.hormuz === 'CLOSED' && G.hormuzClosedTurns > 0
-      ? `CLOSED ${G.hormuzClosedTurns}/7` : G.hormuz;
+      ? `CLOSED ${G.hormuzClosedTurns}/${Game.HORMUZ_LIMIT}` : G.hormuz;
     hz.className = 'stat-value big ' + (G.hormuz === 'CLOSED' ? 'crit' : G.hormuz === 'CONTESTED' ? 'warn' : 'good') +
-      (G.hormuz === 'CLOSED' && G.hormuzClosedTurns >= 3 ? ' pulsing' : '');
+      (G.hormuz === 'CLOSED' && G.hormuzClosedTurns >= Game.HORMUZ_LIMIT - 4 ? ' pulsing' : '');
 
     const w = $('world-value');
     w.textContent = Math.round(G.world);

@@ -103,6 +103,10 @@ const Game = (() => {
   // target list — was content most players never reached.
   const WAR_POWERS_TURN = 10;
 
+  // Nights the Strait can stay shut before the world economy breaks. Quoted by
+  // the HUD readout, so it lives here rather than in two places drifting apart.
+  const HORMUZ_LIMIT = 12;
+
   // ---- game state ----
   const G = {
     // Fifteen days at two turns a day. Sites that wear down and repair take two
@@ -3771,7 +3775,17 @@ const Game = (() => {
         ? buildResult('defeat', 'exhaustion')
         : buildResult('stalemate', 'time');
     }
-    if (G.hormuzClosedTurns >= 7 || G.oil >= 240) return buildResult('defeat', 'economy');
+    // The strait wall was 7 and it was calibrated against a game whose campaigns
+    // ended on turn 7 — it could barely fire, so nobody noticed it was brittle.
+    // With v1.65's campaigns running to twenty turns it became the single most
+    // common way competent play lost: HALF of scripted campaigns died here, and
+    // the median longest closed run was exactly 7, i.e. wars ran up to the wall
+    // and stopped on it. A closure is already punished hard and continuously —
+    // a $55 premium on the barrel, and the approval that costs every night — so
+    // the instant loss on top of it was charging twice for one Iranian decision.
+    // Twelve is still a strait shut for most of a week and a half, which is a
+    // genuine economic catastrophe rather than a bad fortnight.
+    if (G.hormuzClosedTurns >= HORMUZ_LIMIT || G.oil >= 240) return buildResult('defeat', 'economy');
     return null;
   }
 
@@ -4171,5 +4185,5 @@ const Game = (() => {
     // the uncertainty layer: everything the player sees goes through these
     estimate, condition, staleEstimates, targetDesc, breakoutEstimate, barred, canReach, tankersFor, tankerCapacity,
     casualtyLimit, difficulty: diff,
-    FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, HEAVY_TRANSIT_TURNS, WAR_POWERS_TURN, G };
+    FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, HEAVY_TRANSIT_TURNS, WAR_POWERS_TURN, HORMUZ_LIMIT, G };
 })();
