@@ -2077,6 +2077,71 @@ const UI = (() => {
   }
 
   // ============================================================
+  // THE WAR POWERS VOTE
+  // ------------------------------------------------------------
+  // The vote used to be event number eleven in the retaliation report, collapsed
+  // to one line between a SAM site and a tanker track — so the night the target
+  // list was shortened by law read exactly like the night a warehouse burned, and
+  // players went into turn 15 not knowing the oil complex had come off the board.
+  // It is the only event in the campaign that rewrites the rules for the fifteen
+  // turns after it, so it gets a dialog of its own, after the report.
+  //
+  // Three parts, and the order is a fold problem rather than a taste one. The
+  // amendments come SECOND, directly under the verdict, because they are the only
+  // part that changes tomorrow's tasking and the first draft put them under a
+  // seven-line paragraph — on a landscape phone that is the same disappearing act
+  // the report line was, in a dialog built to end it. The prose explains the
+  // amendments and so follows them; the record is the answer to "why?", which is
+  // the least urgent question in the room and the one worth scrolling for.
+  function showWarPowers(vote, onClose) {
+    // Same argument as showReport: the approval swing has already been spent
+    // against G, and the bar underneath was drawn before it.
+    renderHUD(Game.G);
+
+    const chips = chipsFor(vote);
+    let html = `<div class="wp-verdict ${vote.cls || ''}">` +
+      `<div class="wp-gavel" aria-hidden="true">⚖</div>` +
+      `<div class="wp-verdict-text">` +
+      `<div class="wp-result">${vote.title}</div>` +
+      `<div class="wp-chamber">JOINT RESOLUTION · BOTH CHAMBERS · DAY ${Math.ceil(Game.G.turn / 2)}</div>` +
+      `</div></div>`;
+
+    if (chips) html += `<div class="wp-chips">${chips}</div>`;
+
+    html += `<div class="wp-section"><div class="wp-label">STANDING RESTRICTIONS ON THE TARGET LIST</div>`;
+    if (vote.bars && vote.bars.length) {
+      html += `<ul class="wp-bars">` +
+        vote.bars.map(b => `<li>${b}</li>`).join('') +
+        `</ul><p class="wp-note dim">CENTCOM will refuse these aimpoints for the rest of the ` +
+        `campaign, and the objectives are scored against the list you were left with.</p>`;
+    } else {
+      html += `<p class="wp-none">None. The campaign is authorized through its conclusion, ` +
+        `and every aimpoint on the board remains available.</p>`;
+    }
+    html += `</div>`;
+
+    html += `<div class="wp-section"><div class="wp-label">FROM THE FLOOR</div>` +
+      `<p class="wp-prose">${evBody(vote)}</p></div>`;
+
+    if (vote.record && vote.record.length) {
+      html += `<div class="wp-section"><div class="wp-label">WHAT THE VOTE WAS WEIGHED AGAINST</div>` +
+        `<dl class="wp-record">` +
+        vote.record.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('') +
+        `</dl></div>`;
+    }
+
+    const body = $('wp-body');
+    body.innerHTML = html;
+    body.scrollTop = 0;
+
+    $('warpowers-modal').classList.remove('hidden');
+    $('btn-wp-ok').onclick = () => {
+      $('warpowers-modal').classList.add('hidden');
+      if (onClose) onClose();
+    };
+  }
+
+  // ============================================================
   // THE WATCH-FLOOR VOICE CARD
   // ------------------------------------------------------------
   // Bottom-right of the map, up for as long as the room is talking. Six clips
@@ -2575,5 +2640,5 @@ const UI = (() => {
   }
 
   return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport,
-    showEndgame, showPrimer, openLeaderCall, closeAllPanels, openPanel, voiceUp, voiceDown };
+    showWarPowers, showEndgame, showPrimer, openLeaderCall, closeAllPanels, openPanel, voiceUp, voiceDown };
 })();

@@ -2747,6 +2747,14 @@ const Game = (() => {
   //
   // Three outcomes. The middle one is the interesting one: the war continues
   // with the target list legally shortened.
+  //
+  // It is NOT read back inside the retaliation report. The vote is the one event
+  // in the campaign that rewrites the rules for the remaining fifteen turns, and
+  // stacked eleventh in a list of battle damage assessments it read as one more
+  // line to collapse — players finished the night not knowing the oil complex
+  // had just come off the list by law. It gets its own dialog
+  // (`UI.showWarPowers`), which is why the event carries `record` and `bars`:
+  // what the floor was weighing, and what it took away.
   // ============================================================
   function warPowersVote() {
     if (G.warPowers.done || G.turn < WAR_POWERS_TURN) return null;
@@ -2759,6 +2767,20 @@ const Game = (() => {
       + G.nukeDegraded() * 0.12
       + (G.hostageCrisis ? -8 : 0)
       + (G.coalition ? 5 : 0);
+
+    // What the floor was weighing, as the president can check it afterwards. The
+    // score itself stays off screen — a number would turn the vote into a dial to
+    // farm. These are the facts it is made of, in the order the score reads them.
+    const record = [
+      ['PUBLIC APPROVAL', Math.round(G.approval) + '%'],
+      ['AMERICAN DEAD', `${G.casualties.us} against ${casualtyLimit()} the country will bear`],
+      ['STANDING ABROAD', Math.round(G.world) + (G.coalition ? ' — coalition flying with us' : ' — no coalition')],
+      ['THE CASE MADE TO THE COUNTRY', G.addresses
+        ? Txt.plural(G.addresses, 'address') + ' from the Oval Office'
+        : 'never — no address to the nation'],
+      ['SOMETHING TO SHOW FOR IT', 'nuclear program ' + Math.round(G.nukeDegraded()) + '% degraded'],
+    ];
+    if (G.hostageCrisis) record.push(['HOSTAGES', 'Americans still held in Iran']);
 
     // Calibration. A strong war (approval 60, allies, few dead, the case made
     // on television) scores in the 80s and is authorized outright. An ugly but
@@ -2779,6 +2801,7 @@ const Game = (() => {
           'war spent this morning explaining that they always supported it. Whatever happens now, it is ' +
           'the country\'s war and not just yours.',
         dApproval: 8,
+        record, bars: [],
       };
     }
 
@@ -2801,6 +2824,14 @@ const Game = (() => {
           ' The war continues. The target list is now shorter than CENTCOM would like, and it is shorter ' +
           'by law rather than by choice.',
         dApproval: -3,
+        record,
+        // Worded as the target classes appear on the board, not as the amendment
+        // reads: this is the list the president has to plan around tomorrow, and
+        // it has to match what the strike modal will refuse (see legallyBarred).
+        bars: ['Iranian energy infrastructure — refineries, terminals, the export system, the oil lid.']
+          .concat(G.warPowers.noDeep
+            ? ['Anything outside the declared theater — the far northwest and the Caspian littoral.']
+            : []),
       };
     }
 
@@ -3741,13 +3772,15 @@ const Game = (() => {
 
           // What the night cost us. Tehran's salvo, what it did to the fleet and
           // to the aircrew still on the ground, and the political ground it took
-          // out from under the campaign — the basing and the Hill are here
-          // because they are reading the damage on this page.
-          const theirs = [...events, ...basing, ...flow, ...(wearyEv ? [wearyEv] : []),
-            ...(vote && !cutoff ? [vote] : [])];
+          // out from under the campaign — the basing is here because it is
+          // reading the damage on this page. The vote is NOT: it comes after this
+          // report, in a dialog of its own, because a resolution that shortens the
+          // target list for the rest of the war cannot be the eleventh collapsed
+          // line under nine battle damage assessments.
+          const theirs = [...events, ...basing, ...flow, ...(wearyEv ? [wearyEv] : [])];
           // the ticker and the after-action record still see the whole night —
           // the split is only in how it is read back to the president
-          const all = [...ours, ...theirs];
+          const all = [...ours, ...theirs, ...(vote && !cutoff ? [vote] : [])];
           UI.setTicker(IranAI.headlines(G, all));
           recordTurn(all);
           const result = cutoff ? buildResult('defeat', 'cutoff') : checkEnd();
@@ -3775,8 +3808,14 @@ const Game = (() => {
             // president has finished reading what Tehran did overnight.
             flushArrivalCalls(() => { if (!G.over) maybeLeaderCall(null); });
           });
-          if (!theirs.length) { close(); return; }
-          UI.showReport(`IRANIAN RETALIATION — DAY ${day}, TURN ${G.turn}`, theirs, close);
+          // The gavel falls last. The vote is scored on tonight's dead, so the
+          // president reads the salvo first and the roll call after it, and
+          // whichever dialog is last in the chain is the one holding `close`.
+          const gavel = (vote && !cutoff)
+            ? guard('warpowers', () => UI.showWarPowers(vote, close))
+            : close;
+          if (!theirs.length) { gavel(); return; }
+          UI.showReport(`IRANIAN RETALIATION — DAY ${day}, TURN ${G.turn}`, theirs, gavel);
         }));
       }
     }));

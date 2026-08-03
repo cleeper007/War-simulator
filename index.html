@@ -19,9 +19,9 @@
      stays invisible in the tab for as long as that row survives. Renaming the
      URL is the only thing it listens to. Stamp these with the badge on every
      bump, even when only the art changed. -->
-<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png?v=1.67">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1.67">
-<link rel="manifest" href="site.webmanifest?v=1.67">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png?v=1.68">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1.68">
+<link rel="manifest" href="site.webmanifest?v=1.68">
 <meta name="theme-color" content="#0a1626">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -35,7 +35,7 @@
      version-badge) renames every asset URL, which is the only thing that
      reliably forces the fetch.
      Bump the stamps and the badge together. -->
-<link rel="stylesheet" href="css/style.css?v=1.67">
+<link rel="stylesheet" href="css/style.css?v=1.68">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.67<span class="beta-tag">BETA</span></div>
+  <div class="version-badge">v1.68<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -439,6 +439,24 @@
   </div>
 </div>
 
+<!-- ============ WAR POWERS VOTE ============ -->
+<!-- Its own dialog rather than an event line in the turn report: this is the one
+     night the rules of the war change, and it used to arrive collapsed under the
+     battle damage. Shown after the retaliation report, which is the salvo the
+     floor was counting. data-esc for the same reason the report has it — one way
+     out, and that is the button. -->
+<div id="warpowers-modal" class="overlay hidden" data-esc="btn-wp-ok">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="wp-title">
+    <div class="modal-header">
+      <span class="panel-title" id="wp-title">THE WAR POWERS RESOLUTION</span>
+    </div>
+    <div class="modal-body" id="wp-body"></div>
+    <div class="modal-footer">
+      <button id="btn-wp-ok" class="btn-primary">ACKNOWLEDGE</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ ALLIED HEAD-OF-GOVERNMENT CALL ============ -->
 <!-- London straight off the coalition cable, Paris the turn after. No close
      button and no backdrop dismissal: the whole decision is take it or don't,
@@ -491,18 +509,18 @@
   </div>
 </div>
 
-<script src="js/text.js?v=1.67"></script>
-<script src="js/geodata.js?v=1.67"></script>
-<script src="js/data.js?v=1.67"></script>
-<script src="js/map.js?v=1.67"></script>
-<script src="js/ai.js?v=1.67"></script>
-<script src="js/audio.js?v=1.67"></script>
-<script src="js/ui.js?v=1.67"></script>
+<script src="js/text.js?v=1.68"></script>
+<script src="js/geodata.js?v=1.68"></script>
+<script src="js/data.js?v=1.68"></script>
+<script src="js/map.js?v=1.68"></script>
+<script src="js/ai.js?v=1.68"></script>
+<script src="js/audio.js?v=1.68"></script>
+<script src="js/ui.js?v=1.68"></script>
 <!-- after ui.js: the walkthrough drives the room through UI's exported openPanel
      / openStrikeModal, and ui.js reaches back for Tour.start() at click time -->
-<script src="js/tour.js?v=1.67"></script>
-<script src="js/specops.js?v=1.67"></script>
-<script src="js/csar.js?v=1.67"></script>
-<script src="js/game.js?v=1.67"></script>
+<script src="js/tour.js?v=1.68"></script>
+<script src="js/specops.js?v=1.68"></script>
+<script src="js/csar.js?v=1.68"></script>
+<script src="js/game.js?v=1.68"></script>
 </body>
 </html>
