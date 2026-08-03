@@ -1852,6 +1852,19 @@ const MapView = (() => {
     activeClips = Math.max(0, activeClips - 1);
     if (activeClips === 0) { const w = clipWaiters; clipWaiters = []; w.forEach(fn => fn()); }
   }
+  // How long a clip that never plays is given before it is written off. It is
+  // armed at append — BEFORE the file has loaded — so on a cold cache the
+  // download eats into it, which is why a clip re-arms against its own real
+  // length the moment metadata lands. Without that re-arm the constant is a
+  // guillotine sized for the short clips: the 8s IRGC set piece would be cut a
+  // second short of the block coming down, on exactly the slow connections
+  // where it looks most like a bug.
+  const CLIP_STALL_MS = 9000;
+  const CLIP_SLACK_MS = 2500;
+  // When the longest live clip's own net expires, as a timestamp. whenFootageDone
+  // backstops against this rather than a constant, or it would open the report
+  // over the top of a clip that the clip's own safety net was still happy to run.
+  let footageDeadline = 0;
   // Run cb once every strike clip has finished (or immediately if none are up).
   // The timeout is a hard safety net: a stuck clip must never hang the report.
   function whenFootageDone(cb) {
@@ -1859,7 +1872,7 @@ const MapView = (() => {
     let fired = false;
     const go = () => { if (fired) return; fired = true; cb(); };
     clipWaiters.push(go);
-    setTimeout(go, 9000);
+    setTimeout(go, Math.max(CLIP_STALL_MS, footageDeadline - Date.now() + 500));
   }
 
   // Overlay a clip on a scope card's radar window, fading out when it ends.
@@ -1886,7 +1899,18 @@ const MapView = (() => {
     clipEnders.add(finish);
     vid.addEventListener('ended', finish);
     vid.addEventListener('error', finish);   // genuine decode/load failure
-    setTimeout(finish, 9000);                // stall safety (e.g. backgrounded tab)
+    // stall safety (e.g. backgrounded tab), re-armed against the clip's own
+    // length once that is known — see CLIP_STALL_MS
+    const arm = ms => {
+      footageDeadline = Math.max(footageDeadline, Date.now() + ms);
+      return setTimeout(finish, ms);
+    };
+    let stall = arm(CLIP_STALL_MS);
+    vid.addEventListener('loadedmetadata', () => {
+      if (done || !isFinite(vid.duration)) return;
+      clearTimeout(stall);
+      stall = arm(vid.duration * 1000 + CLIP_SLACK_MS);
+    });
     wrap.appendChild(vid);
     // Try to play with sound; a rejected audible autoplay falls back to muted so
     // the footage still runs. Any sound in the clip plays when the browser allows.
@@ -1924,11 +1948,28 @@ const MapView = (() => {
   // The weapon can outrank the target: a torpedo hit is a column of water going
   // up under a hull, and no aimpoint footage says that.
   const TORPEDO_CLIP = 'video/torpedo-hit.mp4';
+  // Clips that play ONLY on the package that finishes the site, never on the
+  // ones that merely dent it. HIT_CLIPS above cannot express this — it fires on
+  // any hit, so a site whose footage is the whole block coming down would play
+  // that footage for a package that knocked 20 points off a wall, and the
+  // picture would be contradicting the BDA line printed under it. A kill clip is
+  // the site being erased, so it is gated on `destroyed` and shown once: nothing
+  // in here can be killed twice, since only the SAM belt returns from zero.
+  const KILL_CLIPS = {
+    'irgc-hq': 'video/irgc-hq-kill.mp4',
+  };
   // A hit on a field or a pier can catch whatever is parked alongside, so those
-  // two types draw from a pool rather than a single clip — the same base struck
+  // types draw from a pool rather than a single clip — the same base struck
   // twice should not look like the same footage twice. A target that also owns an
   // aimpoint clip (Tabriz, Bandar Abbas) throws it into its type's draw as one
   // more entry, so every clip a given base can show is equally likely.
+  //
+  // `ship` is a separate pool from `naval` rather than more entries in it,
+  // because a hull in open water and a quayside are not the same picture: the
+  // naval clips are piers, hardstand and whatever was moored alongside, and the
+  // ship clips are a sensor holding a moving hull with sea all the way to the
+  // edge of frame. Before this, every air-to-ship strike fell through to the
+  // generic clip, which is an inland aimpoint — the Dena went down in a desert.
   const POOLS = {
     airbase: [
       'video/f14-hit.mp4',
@@ -1940,10 +1981,21 @@ const MapView = (() => {
       'video/naval-hit-b.mp4',
       'video/naval-hit-c.mp4',
     ],
+    // Air-to-ship only. The submarine shot never reaches the draw — `hitClip`
+    // returns the torpedo clip before it looks a pool up at all, because a
+    // column of water going up under a hull is the one picture no aimpoint
+    // footage says.
+    ship: [
+      'video/ship-hit-a.mp4',
+      'video/ship-hit-b.mp4',
+      'video/ship-hit-c.mp4',
+      'video/ship-hit-d.mp4',
+    ],
   };
 
-  function hitClip(target, pkg) {
+  function hitClip(target, pkg, killed) {
     if (pkg && pkg.sub) return TORPEDO_CLIP;
+    if (killed && KILL_CLIPS[target.id]) return KILL_CLIPS[target.id];
     const own = HIT_CLIPS[target.id];
     const pool = POOLS[target.type];
     if (pool) {
@@ -1955,10 +2007,12 @@ const MapView = (() => {
 
   // Called by game.js only when BDA confirms a successful hit (destroyed/damaged).
   // Plays in the same window as the radar, then fades out to reveal the BDA state.
-  function playStrikeHit(target, pkg) {
+  // `killed` is the batch's verdict, not the package's — two sorties arrive as one
+  // formation and the second one is often what finishes the site.
+  function playStrikeHit(target, pkg, killed) {
     const entry = [...document.querySelectorAll('.scope-card')]
       .find(e => e._alive && e.dataset.tgt === target.id);
-    if (entry) overlayScopeClip(entry.querySelector('.scope-wrap'), hitClip(target, pkg),
+    if (entry) overlayScopeClip(entry.querySelector('.scope-wrap'), hitClip(target, pkg, killed),
       () => stopMissionMusic(entry));   // chatter cuts when the strike video ends
   }
 

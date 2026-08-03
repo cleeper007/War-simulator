@@ -2685,8 +2685,14 @@ const Game = (() => {
         const lead = covertLead(target);
         if (lead) events.push(lead);
         // a successful hit plays the strike clip in the target's radar window —
-        // the package decides which clip, so a torpedo lands as a torpedo
-        if (batchEvents.some(ev => ev.hit)) MapView.playStrikeHit(target, head.pkg);
+        // the package decides which clip, so a torpedo lands as a torpedo, and
+        // the batch's verdict decides whether a site with kill footage gets it.
+        // Read off `outcome` rather than hp: a target already flat when the
+        // package arrived resolves to a wasted sortie carrying neither field, so
+        // a second formation over rubble cannot replay the site's death.
+        if (batchEvents.some(ev => ev.hit))
+          MapView.playStrikeHit(target, head.pkg,
+            batchEvents.some(ev => ev.outcome === 'destroyed'));
         UI.renderAll(G);
         next();
       };
