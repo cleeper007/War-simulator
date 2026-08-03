@@ -998,7 +998,11 @@ const MapView = (() => {
     // ...and a covert site joins it the night the folder work resolves an
     // aimpoint. Same handling for the same reason: neither is ever a hidden
     // element sitting in the DOM with its name and true position in it.
-    if (t.dispersal || t.covert) {
+    // ...and a held aimpoint joins it the night the targeting cycle releases it.
+    // It is in here for the DOM plumbing rather than for secrecy — nobody is
+    // hiding Abadan — but the handling has to be identical or the marker is
+    // simply never built: buildTarget only runs over what was plotted at boot.
+    if (t.dispersal || t.covert || t.held) {
       const existing = document.getElementById(`tgt-${t.id}`);
       if (!onPlot(t)) { if (existing) existing.remove(); return; }
       if (!existing) buildTarget(t);

@@ -12,6 +12,22 @@ const Game = (() => {
   const wt = (t) => (t.weight != null ? t.weight : 1);
   const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
+  // Which aimpoints open the war off the tasking order (see JIPTL). Stamped
+  // once, at module load rather than in newWar, because `held` is a property of
+  // the ROSTER and not of a campaign — it must be true on every path that can
+  // reach plotted(), including a page that loads straight into a saved war.
+  // Only `released` is per-war state, and newWar clears that.
+  (() => {
+    const ids = new Set([...JIPTL.order, ...JIPTL.sortie]);
+    for (const t of TARGETS) t.held = ids.has(t.id);
+    // A typo in either list is otherwise silent and costs an afternoon: the id
+    // never matches, the target is simply never held, and the ramp quietly has
+    // one fewer step in it than the table says.
+    for (const id of ids) {
+      if (!TARGETS.some(t => t.id === id)) console.warn(`JIPTL: no such target "${id}"`);
+    }
+  })();
+
   // ---- how long the country lets you fight ----
   // The turn cap is not what ends most campaigns — this is. Iran kills Americans
   // every night its missile force is alive, so the casualty ceiling is the real
@@ -473,7 +489,7 @@ const Game = (() => {
     // played by someone who accepted a bargain this build does not offer, and
     // would resume mid-war having bought something else. The folder rates and
     // the heavy bomber turnaround moved underneath it in the same build.
-    const VERSION = 21;   // v1.66: Israel is an ally with its own aimpoints
+    const VERSION = 22;   // v1.69: the tasking order opens short and grows
     const FIELDS = [
       'turn', 'softCap', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -517,6 +533,11 @@ const Game = (() => {
             // night the player spent narrowing it (see workFolder).
             found: !!t.found, suspected: !!t.suspected, leads: t.leads || 0,
             worked: t.worked || 0,
+            // and whether the tasking order has caught up with it yet. Without
+            // this a reload hands back a board the player has already been
+            // given — the JIPTL ramp restarting at turn 9 with the whole
+            // interior off the plot again.
+            released: !!t.released,
           };
         }
         localStorage.setItem(KEY, JSON.stringify(data));
@@ -642,11 +663,96 @@ const Game = (() => {
   // rather than hidden with a class, for the same reason a dispersal site is:
   // a class leaves the name and the true position sitting in the inspector, and
   // the whole point is that the player does not have them.
+  // A held aimpoint is absent for a third reason, and a different one: nobody is
+  // hiding it and nobody has to hunt it — CENTCOM has not finished staffing the
+  // list yet (see JIPTL). Same absence, same reason for the absence being total
+  // rather than a class on a visible element, and deliberately a separate clause
+  // from the covert one so the two mechanics never get read as the same thing.
   const plotted = (t) => t.dispersal ? (t.dispersed && t.located && t.hp > 0)
     : t.covert ? !!t.found
+    : t.held ? !!t.released
     : true;
 
   const covertGaps = () => TARGETS.filter(t => t.covert && !t.found && t.hp > 0);
+
+  // ---- the tasking order grows ----
+  //
+  // Shaped like covertTurn() and called beside it at the turn boundary: it
+  // mutates the targets and RETURNS events rather than writing to the report,
+  // so the night's prose is assembled in one place.
+  //
+  // Both halves announce themselves. A target that simply materialises on the
+  // plot between one turn and the next is invisible to a player who is reading
+  // the report — which is every player, because the report is what the turn
+  // hands them — and "the map has more things on it than it did" is not a
+  // discovery a game should leave someone to make on their own.
+  function releaseTurn() {
+    const out = [];
+    // updateTarget is what actually puts the marker on the plot — `released`
+    // alone only makes it plannable. Same call damageTarget makes, and it is
+    // safe against the stubbed MapView the harnesses install.
+    const free = (t) => { t.released = true; MapView.updateTarget(t); return t; };
+
+    // Half one: the navy sails. All of it, on one night, as one event.
+    //
+    // The `- 1` is the whole reason this reads as an offset: releaseTurn runs
+    // at the END of turn N, so everything it frees is on the plot for turn
+    // N+1. `sortieTurn` is stated as the turn the player can first PLAN
+    // against the hulls, because that is the fact a designer tuning it cares
+    // about — the alternative is a constant that says 3 and behaves like 4.
+    if (G.turn >= JIPTL.sortieTurn - 1) {
+      const sailed = JIPTL.sortie
+        .map(id => TARGETS.find(t => t.id === id))
+        .filter(t => t && t.held && !t.released)
+        .map(free);
+      if (sailed.length) {
+        out.push({
+          cls: 'iran',
+          // NOT internal. A navy leaving harbour is the most public thing a
+          // navy does — Tehran wants it seen, and the wire would have it
+          // before CENTCOM finished the plot. Contrast the staff product
+          // below, which is nobody's business but the president's.
+          title: 'IRANIAN NAVY SORTIES — SURFACE FORCE PUTS TO SEA',
+          sum: `${Txt.plural(sailed.length, 'hull')} at sea`,
+          text: `Fifth Fleet reports the Iranian navy has left harbour. ` +
+            `${Txt.plural(sailed.length, 'hull')} — ${sailed.map(t => t.name.split(' — ')[0]).join(', ')} — ` +
+            `${Txt.are(sailed.length)} under way and outside the piers CENTCOM has been ` +
+            `working. They are on the plot now, and they are shooting positions rather ` +
+            `than buildings: nothing here repairs, and nothing here waits.`,
+        });
+      }
+    }
+
+    // Half two: the list itself. Two a night, plus whatever pushing the belt
+    // down has bought — the floor is what stops a player who ignores air
+    // defense from simply running out of war (see JIPTL).
+    const phase = airPhase();
+    const n = JIPTL.perTurn + (JIPTL.phaseBonus[phase] || 0);
+    const added = [];
+    for (const id of JIPTL.order) {
+      if (added.length >= n) break;
+      const t = TARGETS.find(x => x.id === id);
+      if (t && t.held && !t.released) added.push(free(t));
+    }
+    if (added.length) {
+      const earned = (JIPTL.phaseBonus[phase] || 0) > 0 && added.length > JIPTL.perTurn;
+      out.push({
+        cls: 'friendly',
+        internal: true,   // a staff product, not news — see the headlines rule
+        title: 'JIPTL UPDATE — AIMPOINTS ADDED TO THE TASKING ORDER',
+        sum: `${Txt.plural(added.length, 'aimpoint')} added`,
+        text: `The joint targeting cycle has released ${Txt.plural(added.length, 'new aimpoint')} ` +
+          `to tonight's document: ${added.map(t => t.name.split(' — ')[0]).join(', ')}. ` +
+          (earned
+            ? `The extra work is the air picture paying for itself — with the belt ` +
+              `where it is, collection is reaching further inland than the planners ` +
+              `could task against a week ago.`
+            : `Analysts are still working the interior; more will follow as the air ` +
+              `picture allows.`),
+      });
+    }
+    return out;
+  }
 
   // What a box on the plot is allowed to say about itself. The type is a genuine
   // hint and it is meant to be — a box that says nothing is scenery, and the
@@ -3623,6 +3729,11 @@ const Game = (() => {
       // and whatever Tehran gave away tonight simply by running the war with it
       const gaps = covertTurn();
 
+      // the tasking order grows — read AFTER tonight's BDA and tonight's repair
+      // crews, so a belt pushed down tonight pays for the extra aimpoints in
+      // the same report that shows it coming down
+      const staffed = releaseTurn();
+
       // fleet movement closes the allied half: decks that spent it repositioning
       // are on their new stations, and the second carrier is one leg closer
       const fleet = checkCarrierTransit();
@@ -3643,7 +3754,7 @@ const Game = (() => {
 
       const day = Math.ceil(G.turn / 2);
       const ours = [...bda, ...(israeli ? [israeli] : []), ...dispersals,
-        ...repairs, ...phase, ...objectives, ...gaps, ...fleet];
+        ...repairs, ...phase, ...objectives, ...gaps, ...staffed, ...fleet];
 
       MapView.whenFootageDone(guard('footage', () => {
         // An ally's package flies on the strategic plot before the report that
@@ -4171,6 +4282,7 @@ const Game = (() => {
       t.suspected = !!rec.suspected;
       t.leads = rec.leads || 0;
       t.worked = rec.worked || 0;
+      t.released = !!rec.released;
       syncStatus(t);
     }
     syncJointPackages(); // packages live on static TARGETS — rebuild from saved state
@@ -4216,6 +4328,10 @@ const Game = (() => {
       t.suspected = false;
       t.leads = 0;
       t.worked = 0;
+      // and the tasking order is short again. Same leak, same fix: a second
+      // campaign would otherwise open with the whole interior already staffed
+      // and no ramp in it at all.
+      t.released = false;
       syncStatus(t);
     }
 

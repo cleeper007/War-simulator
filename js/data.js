@@ -663,6 +663,68 @@ const TARGETS = [
       { asset: 'cruise', qty: 2, base: 0.60, label: 'TLAM salvo — 2 missiles (they will have moved)' },
     ],
   },
+
+  // ============================================================
+  // THE SORTIE — three hulls that are not at sea on night one
+  // ------------------------------------------------------------
+  // Released together on JIPTL.sortieTurn (see below), not drip-fed with the
+  // rest of the list. The IRIN does not surge its surface force the hour the
+  // first TLAM lands; it waits to see what kind of war this is, and then it
+  // sails. Making that one event rather than three arrivals is the point — the
+  // player should get a night where the Iranian navy visibly puts to sea, not
+  // three shrugs on three different turns.
+  //
+  // WEIGHTS. These are 0.4–0.5 rather than the 1.0 every declared naval site
+  // carries, and the reason is the victory gate. navalStrength() is a weighted
+  // mean, so three full-weight hulls would take the roster from 5.8 to 8.8 and
+  // quietly demand two more sites destroyed for the same `iranBroken` bar — on
+  // the component that is ALREADY the binding one (see the 0.5→0.8 note in
+  // game.js, and the ninety campaigns where the three gates never aligned).
+  // At 0.4–0.5 the gate moves by about one extra site, which is a fair price
+  // for three more hulls and not a silent re-tuning of the win condition.
+  {
+    id: 'ship-dena', name: 'IRIS Dena — Moudge-class frigate', short: 'DENA',
+    type: 'ship', x: 570, y: 520, depth: 1, weight: 0.5,
+    desc: 'The newest thing the Iranian navy builds for itself, and the only Iranian surface combatant that looks like a warship to a targeteer. Anti-ship missiles, a helicopter deck, and a crew that has practiced this. She is a hull at sea: one weapon that finds her ends her, and nothing repairs afterwards.',
+    world: -2,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.86, label: 'F-35 maritime strike — 2 sorties' },
+      { asset: 'fighter', qty: 2, base: 0.81, label: 'Air strike — 2 F/A-18E sorties' },
+      { asset: 'cruise', qty: 2, base: 0.83, label: 'TLAM salvo — 2 cruise missiles' },
+      { asset: 'cruise', qty: 1, base: 0.88, eta: 2, sub: true,
+        label: 'SUBMARINE ATTACK — 1 Mk-48 ADCAP heavyweight torpedo (2 turns to close the range)' },
+    ],
+  },
+  {
+    id: 'ship-tareq', name: 'IRIS Tareq — Kilo-class submarine', short: 'TAREQ (SSK)',
+    // Out in the Gulf of Oman rather than up in the Strait: at the obvious
+    // position she plotted 31 map units from Toledo, which is inside the 44px
+    // hit disc at every zoom (see syncHitDiscs) and put the Iranian submarine
+    // visually on top of the American one.
+    type: 'ship', x: 660, y: 600, depth: 1, weight: 0.5,
+    desc: 'A Russian-built diesel boat, quiet on the battery and the one Iranian platform that can genuinely reach the carrier without being seen first. Once she is off the pier the air plan is largely irrelevant to her — this is an ASW problem, and the answer to a submarine has always been another submarine.',
+    world: -2,
+    packages: [
+      // Deliberately the inverse of every other ship on the list: the aircraft
+      // are the bad option and the boat is the good one. A player who has kept
+      // Toledo unspent has an answer here that nobody else does.
+      { asset: 'cruise', qty: 1, base: 0.86, eta: 2, sub: true,
+        label: 'SUBMARINE ATTACK — 1 Mk-48 ADCAP heavyweight torpedo (2 turns to close the range)' },
+      { asset: 'f35', qty: 2, base: 0.44, label: 'ASW sweep — 2 F-35 sorties (she will be deep)' },
+      { asset: 'fighter', qty: 2, base: 0.40, label: 'ASW sweep — 2 F/A-18E sorties (she will be deep)' },
+    ],
+  },
+  {
+    id: 'ship-sina', name: 'IRGC-N Missile Boat Squadron — Sina class', short: 'SINA SQN',
+    type: 'ship', x: 470, y: 455, depth: 1, weight: 0.4,
+    desc: 'Fast attack craft out of the island bases, operating in numbers and staying close to the shipping they hide among. Individually trivial and collectively the reason the Strait is a problem — no single boat is worth a package, so they are worked as a squadron or not at all.',
+    world: -1,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.78, label: 'F-35 maritime strike — 2 sorties' },
+      { asset: 'fighter', qty: 2, base: 0.74, label: 'Air strike — 2 F/A-18E sorties' },
+      { asset: 'cruise', qty: 2, base: 0.66, label: 'TLAM salvo — 2 missiles (they scatter and re-form)' },
+    ],
+  },
 ];
 
 // Where a destroyed missile base's surviving launchers go, and how much of the
@@ -709,6 +771,72 @@ const TARGET_REPAIR = {
   // military list does.
   infra:       7,
   oil:         5,   // refinery trains and loading berths are the slowest of all
+};
+
+// ============================================================
+// WHAT IS NOT YET ON THE TASKING ORDER
+// ------------------------------------------------------------
+// A target list of two dozen aimpoints on night one is not a decision, it is a
+// wall. Every one of them is orderable, three packages a night can service
+// three of them, and a new player reads the whole board looking for the thread
+// to pull. There isn't one visible, so they pull at random and lose.
+//
+// So the JIPTL opens SHORT. What is on it at H-hour is the air campaign's
+// actual opening move — the SAM belt, the airfields, the naval bases, the
+// enrichment halls the war is nominally about — and the rest is added as
+// CENTCOM works the list. The player's first night has one obvious answer and
+// enough room to see why it is the answer.
+//
+// THIS IS NOT THE COVERT TIER, and the two must not be confused by anyone
+// reading either one. A covert site is a thing Tehran is HIDING and the player
+// HUNTS: leads, boxes, an intelligence slot, a folder that can be worked. A
+// held aimpoint is a thing CENTCOM simply has not finished staffing, it costs
+// the player nothing, and no play makes it arrive faster except the one below.
+// Different fiction, different vocabulary, different code path (`held`/
+// `released` here, `found`/`suspected`/`leads`/`worked` there).
+//
+// WHY THE BELT ACCELERATES IT. `perTurn` alone is a calendar — it declutters
+// night one and means nothing afterwards. `phaseBonus` is what makes the
+// opening a rule rather than a layout: targeting-quality intelligence on the
+// interior is something rollback BUYS. Push the belt down and the list opens
+// faster. That is the doctrine the whole air campaign is built on, and it is
+// worth more said in a mechanic than in another paragraph of advisor text.
+//
+// The floor is unconditional on purpose. A pure rollback gate would starve a
+// player who ignores air defense — nothing new to strike, no way to earn it —
+// which is a hard-lock dressed as a difficulty curve. Two a night regardless,
+// faster if you earn it.
+const JIPTL = {
+  // Everything NOT named here is on the board at H-hour. This list is the
+  // order the rest join it, front first — one place to read the whole ramp,
+  // and one place to edit it.
+  //
+  // The order is the priority a targeteer would actually work: what shoots at
+  // the fleet, then what the war is about, then the economy, then the civil
+  // grid. Fixed rather than shuffled, because random order swings the nuclear
+  // objective by six turns between campaigns and reads as noise in the harness
+  // rather than as difficulty.
+  order: [
+    'msl-khorramabad',  // finishes the missile picture; an Israeli priority
+    'arak',             // the nuclear objective needs it, and so does Jerusalem
+    'abadan',           // the economic lever's second half
+    'bushehr-npp',      // the politically expensive one
+    'rail-sirjan',
+    'power-yazd',
+    'power-neka',       // the civil grid last, which is also the right order
+  ],
+  perTurn: 2,
+  // Extra aimpoints per night once the sky is going your way. Keyed by
+  // airPhase(), so this reads the same number the HUD and the package picker
+  // read and cannot drift from them.
+  phaseBonus: { contested: 0, degraded: 1, superiority: 2 },
+
+  // The turn the Iranian navy is first on the plot — the night it sails is the
+  // one before, which is where the report announces it. Released as one event
+  // rather than through `order`, because four hulls sailing together is a beat
+  // and four hulls arriving on four different turns is bookkeeping.
+  sortieTurn: 3,
+  sortie: ['ship-mahdavi', 'ship-dena', 'ship-tareq', 'ship-sina'],
 };
 
 // ============================================================
