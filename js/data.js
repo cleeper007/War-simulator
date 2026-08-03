@@ -131,7 +131,7 @@ const TARGETS = [
     leadFrom: 'missile',
     tellAfter: 'msl-shiraz',
     region: 'Semnan corridor — Dasht-e Kavir margin',
-    desc: 'A brigade that never operated from a declared garrison: prepared hides, buried cabling and a road network built for exactly this. It has been firing since the first night of the war from an address CENTCOM did not have.',
+    desc: 'A brigade that never operated from a declared garrison — prepared hides and buried cabling. Firing since night one from an address CENTCOM did not have.',
     world: -2,
     packages: [
       { asset: 'f35', qty: 2, base: 0.70, label: 'F-35 strike package — 2 sorties' },
@@ -153,7 +153,7 @@ const TARGETS = [
     leadFrom: 'naval',
     tellAfter: 'naval-bandar',
     region: 'Lower Gulf islands — Abu Musa and the Tunbs',
-    desc: 'Fast-attack craft, mine stocks and anti-ship missile launchers dispersed onto the disputed islands, inside the shipping lanes rather than beside them. The hulls that keep appearing in the strait after Bandar Abbas stops sailing come from here.',
+    desc: 'Fast-attack craft, mines and anti-ship launchers dispersed onto the disputed islands, inside the shipping lanes. Where the hulls come from after Bandar Abbas stops sailing.',
     world: -2,
     packages: [
       { asset: 'f35', qty: 2, base: 0.80, label: 'F-35 strike package — 2 sorties' },
@@ -191,7 +191,7 @@ const TARGETS = [
     leadFrom: 'nuclear',
     tellAfter: 'natanz',
     region: 'Kuh-e Siah ridge — east of Isfahan',
-    desc: 'Centrifuge halls the declarations never mentioned, cut into a ridge line and fed by a power spur that goes nowhere else. Enrichment has continued here every night of this war. The breakout clock was never counting only Natanz and Fordow.',
+    desc: 'Undeclared centrifuge halls cut into a ridge line. Enrichment has continued here every night of the war — the breakout clock was never counting only Natanz and Fordow.',
     world: 0,
     packages: [
       { asset: 'stealth', qty: 1, base: 0.80, label: 'B-2 mission — GBU-57 penetrators' },
@@ -230,7 +230,7 @@ const TARGETS = [
     // war does not stop being coordinated and something is doing the coordinating
     tellAfter: 'irgc-hq',
     region: 'Alborz foothills — Qazvin corridor',
-    desc: 'A hardened continuity-of-government facility cut into the Alborz foothills, built to run the war after Tehran stops answering. Striking it does what the IRGC complex was supposed to do and did not: it takes the coordination away for good.',
+    desc: 'Hardened continuity-of-government site in the Alborz, built to run the war after Tehran stops answering. Killing it takes Iranian coordination away for good.',
     world: -2,
     packages: [
       { asset: 'stealth', qty: 1, base: 0.82, label: 'B-2 mission — GBU-57 penetrators' },
@@ -293,7 +293,7 @@ const TARGETS = [
   {
     id: 'ship-mahdavi', name: 'IRIS Shahid Mahdavi — Gulf of Oman', short: 'MAHDAVI',
     type: 'ship', x: 703, y: 586, depth: 1,
-    desc: 'IRGC-Navy forward base ship operating outside the Strait, carrying anti-ship missiles and drones well past the Gulf. A hull at sea, not a pier — she moves, and she is the closest Iranian shooter to the carrier box. One weapon that finds her ends her; there is no damaging a ship into repairing itself.',
+    desc: 'IRGC-Navy forward base ship outside the Strait, carrying anti-ship missiles and drones — the closest Iranian shooter to the carrier box. A hull at sea: one weapon that finds her ends her, and nothing repairs afterwards.',
     world: -2,
     packages: [
       { asset: 'f35', qty: 2, base: 0.85, label: 'F-35 maritime strike — 2 sorties' },
@@ -309,7 +309,7 @@ const TARGETS = [
   {
     id: 'ship-caspian', name: 'IRGC Caspian Flotilla — Bandar-e Anzali', short: 'CASPIAN FLOT',
     type: 'ship', x: 392, y: 72, depth: 3,
-    desc: 'Missile craft in the Caspian, 900 nm from the Gulf and beyond the fight — but a live hull all the same. The Caspian is a closed sea with Moscow on the far shore: putting American ordnance in it costs far more abroad than the tonnage is worth. No submarine has ever reached it and none ever will — this one is aircraft and cruise missiles or nothing. What the tonnage does not show: Anzali is the Iranian end of the barge traffic from Astrakhan, and putting the flotilla on the bottom of that harbour slows the spares Moscow sends across it for the rest of the war.',
+    desc: 'Missile craft in the Caspian, 900 nm from the fight but a live hull all the same. A closed sea with Moscow on the far shore: heavy diplomatic cost, no submarine reach, aircraft and cruise missiles only. Anzali is also the Iranian end of the Astrakhan barge traffic — sinking it slows Russian spares for the rest of the war.',
     // Was -8, which priced a handful of missile craft like an oil terminal and
     // made the flotilla a target nobody sane ever took. It is a real hull in a
     // sea Moscow watches, so it still costs more than any other warship on the
@@ -324,7 +324,7 @@ const TARGETS = [
   {
     id: 'tabriz-ab', name: 'Tabriz Air Base', short: 'TABRIZ AB',
     type: 'airbase', x: 260, y: 54, depth: 3,
-    desc: 'Second Tactical Air Base — MiG-29 and F-5 squadrons covering the northwestern approaches, and the dispersal field aircraft are flown to when the interior is hit. Far from the Gulf: a long way in and a long way back out.',
+    desc: 'MiG-29 and F-5 squadrons covering the northwest, and the dispersal field aircraft are flown to when the interior is hit. Far from the Gulf: a long way in and back out.',
     world: -2,
     packages: [
       { asset: 'f35', qty: 2, base: 0.71, label: 'F-35 strike package — 2 sorties (deep)' },
@@ -360,7 +360,7 @@ const TARGETS = [
   {
     id: 'arak', name: 'Arak Heavy-Water Reactor', short: 'ARAK IR-40',
     type: 'nuclear', x: 363, y: 199, depth: 2, hardened: true, israelPriority: true,
-    desc: 'The plutonium road to a bomb — a heavy-water research reactor that breeds weapons-grade material a uranium centrifuge never touches. The reactor hall is a hardened concrete shell; cruise missiles scar it, but only a penetrator reaches the core. Killing it closes the second path to a weapon.',
+    desc: 'The plutonium road to a bomb — a heavy-water reactor breeding material no centrifuge produces. Cruise missiles scar the hall; only a penetrator reaches the core. Killing it closes the second path to a weapon.',
     // Unfuelled and unambiguously weapons-related — the same free pass as the
     // enrichment halls. Bushehr NPP below is the exception that proves it.
     world: 0,
@@ -373,7 +373,7 @@ const TARGETS = [
   {
     id: 'bushehr-npp', name: 'Bushehr Nuclear Power Plant', short: 'BUSHEHR NPP',
     type: 'nuclear', x: 430, y: 415, depth: 1,
-    desc: 'A live civilian reactor on the Gulf coast, run under Russian contract with Russian technicians on site. It makes no bomb fuel — but cracking a fuelled core seeds a radiological plume across the Gulf and puts Moscow\'s people under American ordnance. The most diplomatically ruinous aimpoint in Iran, and militarily the least worth it.',
+    desc: 'A live civilian reactor with Russian technicians on site. It makes no bomb fuel — cracking a fuelled core seeds a plume across the Gulf and kills Russians. The most diplomatically ruinous aimpoint in Iran, and the least worth it.',
     // The one nuclear-typed site that still costs: it is a civil power plant
     // with foreign nationals in it, not a weapons program. Cratering the
     // switchyard is survivable abroad; killing the plant is the plume, and the
@@ -388,7 +388,7 @@ const TARGETS = [
   {
     id: 'naval-chabahar', name: 'Chabahar Naval Base — Konarak', short: 'NAV CHABAHAR',
     type: 'naval', x: 680, y: 540, depth: 1, label: { dy: -14 },
-    desc: 'Iran\'s deep-water port on the Gulf of Oman, east of Hormuz and wide open to the Indian Ocean. It is where the surface fleet runs to when the Gulf ports are held at risk, and the one base from which Iran reaches blue water. Far to the east, but on the coast and inside the carrier\'s reach.',
+    desc: 'Iran\'s deep-water port on the Gulf of Oman — where the surface fleet runs when the Gulf ports are held at risk, and the one base that reaches blue water. Far east, but inside the carrier\'s reach.',
     world: -2,
     packages: [
       { asset: 'f35', qty: 2, base: 0.80, label: 'F-35 strike package — 2 sorties' },
@@ -400,7 +400,7 @@ const TARGETS = [
   {
     id: 'nojeh-ab', name: 'Shahid Nojeh Air Base — Hamadan', short: 'NOJEH AB',
     type: 'airbase', x: 327, y: 159, depth: 2,
-    desc: 'Third Tactical Air Base in the western highlands — F-4 Phantom and Su-24 squadrons covering the approaches from Iraq, and a primary dispersal field for aircraft flown out of the interior when it is struck. Cratering the runways grounds the wing until the fill sets.',
+    desc: 'F-4 and Su-24 squadrons covering the approaches from Iraq, and a primary dispersal field for aircraft flown out of the interior. Cratering the runways grounds the wing until the fill sets.',
     world: -2,
     packages: [
       { asset: 'f35', qty: 2, base: 0.74, label: 'F-35 strike package — 2 sorties' },
@@ -412,7 +412,7 @@ const TARGETS = [
   {
     id: 'msl-khorramabad', name: 'Khorramabad Missile Base', short: 'MSL KHORRAMABAD',
     type: 'missile', x: 321, y: 221, depth: 2, israelPriority: true,
-    desc: 'An underground "missile city" tunnelled into the Zagros — launch cells and reload magazines behind blast doors deep in the rock, ranging every US base in Iraq and the northern Gulf. The tunnel portals are the only thing to hit, and hitting them buries launchers rather than destroying them. Reduces the weight of Iranian missile retaliation.',
+    desc: 'An underground "missile city" in the Zagros, ranging every US base in Iraq and the northern Gulf. Only the tunnel portals can be hit, which buries launchers rather than destroying them. Reduces the weight of Iranian retaliation.',
     world: -2,
     packages: [
       { asset: 'f35', qty: 2, base: 0.72, label: 'F-35 strike package — 2 sorties (tunnel portals)' },
@@ -539,7 +539,7 @@ const TARGETS = [
     // Khuzestan, and what moves to keep them supplied is what gives away the
     // one nobody has found
     feeds: 'missile',
-    desc: 'The Trans-Iranian Railway where it crosses the Karun, and the road bridges beside it. Every reload round, every fuel bowser and every replacement radar that reaches the western brigades from the Gulf ports crosses here; there is no second route that does not add four days. The same spans carry Ahvaz\'s water mains and the trunk fibre south, and a city of a million drinks from the pumping stations at the far end of them. Unhardened, undefended, and a matter of a few aimpoints. Iranian engineers put bridges back faster than anyone expects; they do not put back what stops while the bridges are down.',
+    desc: 'The Trans-Iranian Railway where it crosses the Karun. Everything the western brigades are resupplied with crosses here; the detour costs four days. The same spans carry Ahvaz\'s water mains, and a city of a million drinks from the far end of them. Cheap to drop, and Iranian engineers rebuild bridges fast.',
     // -1 a package — a cratered approach is not news anywhere — and the bill on
     // the night the crossing is actually out. See the pricing note above the
     // class: a heavy per-strike charge here is paid three times over per target
@@ -561,7 +561,7 @@ const TARGETS = [
     // deep-water port, and the traffic that re-routes when it is cut is how
     // the island base stops being invisible
     feeds: 'naval',
-    desc: 'The junction where the trunk line out of Bandar Abbas turns inland — marshalling yards, a locomotive depot and the only rail artery between Iran\'s deep-water port and everything north of it. Mines, torpedo bodies and anti-ship rounds move up this line; so does the grain that feeds three provinces, and so does everyone in them who has anywhere else to be. In open desert with nothing over it and nothing under it: the cheapest package on this list, and the one whose effects are hardest to see from the air.',
+    desc: 'The only rail artery between Bandar Abbas and everything north of it. Mines, torpedoes and anti-ship rounds move up this line — so does the grain feeding three provinces. Open desert, undefended: the cheapest package on the list.',
     world: -1, worldOnKill: -4, momentumOnKill: 0.05,
     packages: [
       { asset: 'f35', qty: 2, base: 0.83, label: 'F-35 strike package — 2 sorties, yards and depot' },
@@ -584,7 +584,7 @@ const TARGETS = [
     // the analysts find out the spur exists.
     feeds: 'nuclear',
     energy: true,
-    desc: 'Two thousand megawatts of combined-cycle plant on the Isfahan road, and the eastern anchor of the central grid — including the spur that runs out to the enrichment belt and stops. The switchyard is the whole plant: transformers standing in the open, foreign-built, no longer sold to Iran and with nothing in the country to replace them. Burn those and generation here is finished for the war. So is the province — the hospital generators hold for a day, the pumps that move water across a desert do not, and it is July.',
+    desc: 'The eastern anchor of the central grid, including the spur that runs to the enrichment belt. The switchyard is the whole plant — foreign-built transformers standing in the open, unreplaceable. Burn them and generation here is finished for the war. So is the province: the water pumps stop, and it is July.',
     // The same one-time bill as Kharg, and deliberately: a stopped refinery and
     // a dark province are the same kind of photograph, and neither of them is
     // news until it happens.
@@ -610,7 +610,7 @@ const TARGETS = [
     // generators is a continuity bunker that starts radiating
     feeds: 'command',
     energy: true,
-    desc: 'Iran\'s largest thermal generating complex, on the Caspian shore, carrying the northern grid over the Alborz into the capital region. Take it down and Tehran runs on what the southern plants can push north, which is not enough — the ministries fail over to their own generators, and so does everything built to keep running after the ministries stop. The Caspian is the longest leg in the theater and the one approach Moscow watches. Below the plant is a town of forty thousand that exists because the plant does.',
+    desc: 'Iran\'s largest thermal plant, carrying the northern grid over the Alborz into Tehran. Take it down and the capital runs on what the south can push north, which is not enough. The longest leg in the theater, on the shore Moscow watches — and below it a town of forty thousand that exists because the plant does.',
     world: -1, worldOnKill: -8, momentumOnKill: 0.06,
     packages: [
       { asset: 'f35', qty: 2, base: 0.72, label: 'F-35 strike package — 2 sorties (deep, the whole tanker plan)' },
@@ -633,7 +633,7 @@ const TARGETS = [
   {
     id: 'tel-west', name: 'Dispersed TEL Group — Zagros Foothills', short: 'TEL WEST',
     type: 'tel', x: 330, y: 245, depth: 2, dispersal: true,
-    desc: 'Transporter-erector-launchers operating out of culverts, road tunnels and orchard cover in the western highlands. They shoot and move inside fifteen minutes. There is nothing here to bomb twice — find them tonight and kill them tonight, or find them again next week.',
+    desc: 'Launchers hiding in culverts and road tunnels in the western highlands. They shoot and move inside fifteen minutes — find them tonight and kill them tonight, or find them again next week.',
     world: -1,
     packages: [
       { asset: 'f35', qty: 2, base: 0.73, label: 'Armed reconnaissance — 2 F-35 sorties' },
@@ -685,7 +685,7 @@ const TARGETS = [
   {
     id: 'ship-dena', name: 'IRIS Dena — Moudge-class frigate', short: 'DENA',
     type: 'ship', x: 570, y: 520, depth: 1, weight: 0.5,
-    desc: 'The newest thing the Iranian navy builds for itself, and the only Iranian surface combatant that looks like a warship to a targeteer. Anti-ship missiles, a helicopter deck, and a crew that has practiced this. She is a hull at sea: one weapon that finds her ends her, and nothing repairs afterwards.',
+    desc: 'The only Iranian surface combatant that looks like a warship to a targeteer — anti-ship missiles, a helicopter deck, a practiced crew. A hull at sea: one weapon that finds her ends her, and nothing repairs afterwards.',
     world: -2,
     packages: [
       { asset: 'f35', qty: 2, base: 0.86, label: 'F-35 maritime strike — 2 sorties' },
@@ -702,7 +702,7 @@ const TARGETS = [
     // hit disc at every zoom (see syncHitDiscs) and put the Iranian submarine
     // visually on top of the American one.
     type: 'ship', x: 660, y: 600, depth: 1, weight: 0.5,
-    desc: 'A Russian-built diesel boat, quiet on the battery and the one Iranian platform that can genuinely reach the carrier without being seen first. Once she is off the pier the air plan is largely irrelevant to her — this is an ASW problem, and the answer to a submarine has always been another submarine.',
+    desc: 'A Russian-built diesel boat, quiet on the battery and the one Iranian platform that can reach the carrier unseen. Off the pier she is an ASW problem — and the answer to a submarine is another submarine.',
     world: -2,
     packages: [
       // Deliberately the inverse of every other ship on the list: the aircraft
@@ -717,7 +717,7 @@ const TARGETS = [
   {
     id: 'ship-sina', name: 'IRGC-N Missile Boat Squadron — Sina class', short: 'SINA SQN',
     type: 'ship', x: 470, y: 455, depth: 1, weight: 0.4,
-    desc: 'Fast attack craft out of the island bases, operating in numbers and staying close to the shipping they hide among. Individually trivial and collectively the reason the Strait is a problem — no single boat is worth a package, so they are worked as a squadron or not at all.',
+    desc: 'Fast attack craft out of the island bases, hiding among the shipping. Individually trivial and collectively the reason the Strait is a problem — worked as a squadron or not at all.',
     world: -1,
     packages: [
       { asset: 'f35', qty: 2, base: 0.78, label: 'F-35 maritime strike — 2 sorties' },
@@ -1602,11 +1602,11 @@ const BREAKOUT = {
 // slow about it.
 const DIFFICULTY = {
   easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25, israel: 0.75, bmd: 1.35, covert: 1.3, softGate: false,
-    desc: 'A forgiving war. The country absorbs more, Iran reconstitutes slower, the enrichment clock runs long, the fleet sailed with a deep interceptor magazine, Jerusalem is willing to wait, and what Tehran kept off the books does not stay off it for long.' },
+    desc: 'A forgiving war. The country absorbs more, Iran reconstitutes slower, the enrichment clock runs long, the fleet sailed with a deep interceptor magazine and Jerusalem is willing to wait.' },
   normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1, israel: 1, bmd: 1, covert: 1, softGate: false,
     desc: 'The war as designed. Everything above and below is scaled from here.' },
   hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85, israel: 1.3, bmd: 0.7, covert: 0.75, softGate: true,
-    desc: 'The country has less patience, Iran repairs faster and fights better coordinated, the centrifuges are further along than you would like, the fleet sailed light on interceptors, Jerusalem has almost none, what Tehran kept off the books stays off them longer — and the staff will fly any package you order, into any threat, and hand you the casualty list afterwards.' },
+    desc: 'Less patience at home. Iran repairs faster, the centrifuges are further along, the fleet sailed light on interceptors and Jerusalem has no patience at all. The staff will fly any package you order and hand you the casualty list afterwards.' },
 };
 
 // These levels were once named for the chair you were sitting in. A save
@@ -1626,7 +1626,7 @@ const US_ASSETS = [
   // Mahdavi and FORD sits hard against the Saudi coast, and a name hung below
   // either hull runs into something.
   { id: 'csg-lincoln', name: 'USS Abraham Lincoln', short: 'LINCOLN', x: 750, y: 578, kind: 'carrier', sortie: true, labelAbove: true,
-    desc: 'The only carrier strike group in theater, on station in the Gulf of Oman inside the Ra\'s al Hadd–Gwadar line, roughly a hundred miles off the Makran coast. Everything Iran owns that shoots at ships reaches her here, and the air wing crosses the beach on one tanker cycle.' },
+    desc: 'The only carrier strike group in theater, on station in the Gulf of Oman. The air wing crosses the beach on one tanker cycle — and everything Iran owns that shoots at ships reaches her here.' },
   { id: 'csg-ford', name: 'USS Gerald R. Ford', short: 'FORD', x: -48, y: 604, kind: 'carrier', sortie: true, active: false, labelAbove: true,
     desc: 'Second carrier strike group — Sixth Fleet\'s deck, not Fifth Fleet\'s. She is in the eastern Mediterranean when the war opens and has to be sent for, and the only road from there to this war is the Suez Canal.' },
   { id: 'udeid', name: 'Al Udeid AB — Qatar', short: 'AL UDEID', x: 427, y: 543, kind: 'airbase', sortie: true,
@@ -1662,7 +1662,7 @@ const US_ASSETS = [
   // theater magazine everything else does — a submarine shot is not a free shot,
   // it is the same missile fired from somewhere nobody is looking.
   { id: 'ssn-toledo', name: 'USS Toledo — Gulf of Oman', short: 'TOLEDO (SSN)', x: 655, y: 545, kind: 'submarine',
-    desc: 'Los Angeles-class attack submarine on patrol in the Gulf of Oman. Four tubes of Mk-48 ADCAP, and nothing on the Iranian side has ever held her on sonar. Against a hull at sea she is the cheapest weapon in the theater — one torpedo out of her own load, no aircrew, no warning, nothing off the theater magazine — and the slowest, because she has to close inside firing range submerged before she shoots.' },
+    desc: 'Los Angeles-class attack submarine in the Gulf of Oman, four tubes of Mk-48. Against a hull at sea she is the cheapest weapon in the theater — no aircrew, no warning, nothing off the magazine — and the slowest, because she must close submerged first.' },
 
   // -- forward basing layer (projected from real coordinates; toggle in map header) --
   { id: 'arifjan', name: 'Camp Arifjan — Kuwait', short: 'ARIFJAN', x: 322, y: 401, kind: 'logistics',
