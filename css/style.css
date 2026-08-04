@@ -711,9 +711,10 @@ button { font-family: var(--mono); }
 .wp-none { color: var(--green); font-size: 12.5px; line-height: 1.45; margin: 0; }
 
 /* ============ endgame ============ */
-.grade-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
-.grade-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
-.grade-table td:last-child { text-align: right; font-size: 18px; }
+/* One colour table for the letters, reused by everything that needs a grade
+   colour: the row letter, the total mark, and the score bar — which picks it up
+   through `currentColor` rather than through five background rules of its own,
+   so there is never a second table to keep in step with this one. */
 .grade-A { color: var(--green); } .grade-B { color: #9fd94d; }
 .grade-C { color: var(--amber); } .grade-D { color: #ff8c4d; }
 .grade-F { color: var(--red); }
@@ -721,6 +722,68 @@ button { font-family: var(--mono); }
 .end-victory { color: var(--green); }
 .end-defeat { color: var(--red); }
 .end-stalemate { color: var(--amber); }
+.end-narrative { font-size: 12.5px; line-height: 1.6; margin-bottom: 14px; }
+
+/* THE ONE GRADE. The loudest thing on the screen, and deliberately the first:
+   this is what a player takes away from thirty turns. The tint on the left edge
+   is the outcome, the letter is the grade — a war can be lost with a C and won
+   with one, and the two facts are allowed to disagree in the same box. */
+.end-total {
+  display: flex; align-items: center; gap: 16px;
+  border: 1px solid var(--line); border-left-width: 3px;
+  background: var(--bg-panel2); padding: 12px 16px; margin-bottom: 14px;
+}
+.end-total.end-victory { border-left-color: var(--green); }
+.end-total.end-defeat { border-left-color: var(--red); }
+.end-total.end-stalemate { border-left-color: var(--amber); }
+.et-mark {
+  font-size: 52px; line-height: .9; letter-spacing: -1px;
+  min-width: 86px; text-align: center;
+}
+.et-body { flex: 1; min-width: 0; }
+.et-label { font-size: 9.5px; letter-spacing: 1.6px; color: var(--dim); }
+.et-score { font-size: 11.5px; margin: 3px 0 6px; font-variant-numeric: tabular-nums; }
+.et-score b { font-size: 15px; font-weight: 400; }
+.et-blurb { font-size: 12px; line-height: 1.5; }
+
+/* The readings, before the letters that judge them. This was a run-on dim
+   paragraph at the very bottom — six numbers glued together with middots, under
+   a turn-by-turn table long enough that nobody scrolled that far. */
+/* Three columns rather than auto-fit: there are exactly six readings and six
+   divides by three and by two, so the block is always a full rectangle. auto-fit
+   fitted five across at this modal width and left DIFFICULTY alone on a second
+   row beside an empty half — a ragged orphan in the middle of the screen. */
+.end-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 1px; background: var(--line); border: 1px solid var(--line);
+}
+.es-cell { background: var(--bg-panel); padding: 6px 9px; }
+.es-cell span { display: block; font-size: 9px; letter-spacing: 1.1px; color: var(--dim); }
+/* the reading never wraps away from its own label — "94" on one line and
+   "/250" on the next reads as two different numbers */
+.es-cell b { font-size: 14px; font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* One row per category: what it is, what it was WORTH, and how it scored. The
+   weight is on screen because the total above is a weighted mean, and a
+   president who disagrees with the grade is owed the arithmetic behind it.
+   The letter spans the row's three lines so it sits against the whole block
+   rather than floating beside the label. */
+.grade-list { margin-top: 2px; }
+.gr-row {
+  display: grid; grid-template-columns: 1fr 48px; column-gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--line);
+}
+.gr-row:last-child { border-bottom: 0; }
+.gr-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.gr-label { font-size: 12px; letter-spacing: .6px; }
+.gr-weight { font-size: 9.5px; letter-spacing: 1px; color: var(--dim); }
+.gr-letter {
+  grid-column: 2; grid-row: 1 / span 3; align-self: center;
+  font-size: 30px; line-height: 1; text-align: right;
+}
+.gr-note { font-size: 11px; line-height: 1.45; color: var(--dim); margin: 3px 0 7px; }
+.gr-bar { height: 3px; background: rgba(255, 255, 255, .07); }
+.gr-bar i { display: block; height: 100%; background: currentColor; }
 
 /* ============ map SVG ============ */
 .country { fill: var(--land); stroke: var(--land-line); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
@@ -1951,14 +2014,26 @@ button { font-family: var(--mono); }
   #strike-estimate { font-size: 11.5px; line-height: 1.5; }
 
   /* The endgame was the only modal with no short-viewport treatment at all,
-     and it is the longest thing in the game — the verdict, four grades, the
+     and it is the longest thing in the game — the verdict, six grades, the
      war-plan reveal and a turn-by-turn table. At full size roughly a quarter
      of it fitted, which put the entire after-action record behind a scroll the
-     player had no reason to suspect was there. */
+     player had no reason to suspect was there.
+     The total grade keeps most of its size here on purpose: it is the whole
+     point of the screen, and on ~200px of vertical room it is the only part
+     guaranteed to be above the fold. */
   .end-verdict { font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
-  .grade-table { margin: 8px 0; }
-  .grade-table td { padding: 4px 6px; font-size: 11.5px; }
-  .grade-table td:last-child { font-size: 15px; }
+  .end-narrative { font-size: 11.5px; margin-bottom: 10px; }
+  .end-total { gap: 11px; padding: 9px 11px; margin-bottom: 10px; }
+  .et-mark { font-size: 40px; min-width: 62px; }
+  .et-score { font-size: 11px; margin: 2px 0 4px; }
+  .et-blurb { font-size: 11px; line-height: 1.45; }
+  .end-stats { grid-template-columns: repeat(2, 1fr); }
+  .es-cell { padding: 5px 7px; }
+  .es-cell b { font-size: 12.5px; }
+  .gr-row { padding: 7px 0; grid-template-columns: 1fr 40px; column-gap: 9px; }
+  .gr-label { font-size: 11.5px; }
+  .gr-note { font-size: 10.5px; margin: 2px 0 6px; }
+  .gr-letter { font-size: 24px; }
   .end-reveal { padding: 8px 10px; margin: 8px 0; }
   .end-section { margin: 10px 0 5px; }
   .timeline-table { font-size: 10px; }

@@ -4391,23 +4391,145 @@ const Game = (() => {
     return null;
   }
 
-  function gradeFor(value, thresholds) {
-    // thresholds: [A,B,C,D] cutoffs, ascending badness
-    const letters = ['A', 'B', 'C', 'D'];
-    for (let i = 0; i < thresholds.length; i++) if (value <= thresholds[i]) return letters[i];
+  // ---- grading ----
+  //
+  // Every row on the after-action screen is a 0–100 SCORE first and a letter
+  // second, and the total is the weighted mean of the same scores put back
+  // through the same band table (see WAR_GRADE in data.js for the argument and
+  // the weights). Nothing here reads a letter to compute anything.
+  //
+  // `bandScore` maps a raw reading onto that scale so it lands inside the band
+  // its OWN cutoffs put it in: the cutoffs are still the thresholds these
+  // letters have always used — the interpolation between them is only what buys
+  // resolution — so a row and the number underneath it can never tell different
+  // stories. `cuts` are the four ascending-badness cutoffs [A,B,C,D]; `worst` is
+  // the reading that scores zero, which for most rows is the value at which the
+  // campaign is already lost. That is what keeps an F a range and not a cliff.
+  const SCORE_EDGES = [100, 85, 70, 55, 40, 0];
+
+  function bandScore(value, cuts, worst) {
+    if (!(value > 0)) return 100;
+    const edges = [0, cuts[0], cuts[1], cuts[2], cuts[3], Math.max(worst, cuts[3] + 1)];
+    for (let i = 1; i < edges.length; i++) {
+      if (value <= edges[i]) {
+        const span = edges[i] - edges[i - 1];
+        if (span <= 0) return SCORE_EDGES[i];
+        return SCORE_EDGES[i - 1] +
+          (SCORE_EDGES[i] - SCORE_EDGES[i - 1]) * (value - edges[i - 1]) / span;
+      }
+    }
+    return 0;
+  }
+
+  // The same, for readings where MORE is better — world opinion, approval, the
+  // share of the program that is gone. `cuts` descend; `best` is a perfect
+  // reading, and zero is the floor.
+  function bandScoreUp(value, cuts, best) {
+    return bandScore(best - value, cuts.map(c => best - c), best);
+  }
+
+  const clamp100 = (v) => Math.max(0, Math.min(100, v));
+
+  function letterFor(score) {
+    for (const [letter, floor] of WAR_GRADE.bands) if (score >= floor) return letter;
     return 'F';
+  }
+
+  // A total is a summary of thirty turns and deserves more resolution than five
+  // letters, so it carries a suffix. The suffix is nothing but the position
+  // inside its own band and therefore needs no thresholds of its own. F has
+  // none: there is no such thing as a good F.
+  function letterWithMark(score) {
+    const letter = letterFor(score);
+    if (letter === 'F') return 'F';
+    const i = WAR_GRADE.bands.findIndex(b => b[0] === letter);
+    const lo = WAR_GRADE.bands[i][1];
+    const hi = i === 0 ? 100 : WAR_GRADE.bands[i - 1][1];
+    const t = (score - lo) / (hi - lo);
+    return letter + (t >= 2 / 3 ? '+' : t < 1 / 3 ? Txt.MINUS : '');
+  }
+
+  const TOTAL_BLURB = {
+    A: 'A campaign that met its objectives and could still be defended afterwards. This is the war the plan was written for.',
+    B: 'The objectives that mattered were served, and the country was made to pay for them. A good war, not a clean one.',
+    C: 'Real damage done and real bills run up, with the ledger close to even. History will argue about this one.',
+    D: 'The objectives slipped and the costs did not. Whatever was bought here, it was not bought cheaply.',
+    F: 'By the measures this administration set for itself, almost none of it worked.',
+  };
+
+  // Rows carry their own weight so the screen can show what it weighted, and so
+  // a row that does not apply is simply absent rather than scored as a zero.
+  function row(key, label, score, note) {
+    const s = clamp100(score);
+    return { key, label, score: Math.round(s), letter: letterFor(s), weight: WAR_GRADE.weights[key], note };
+  }
+
+  function totalGrade(rows, kind, reason) {
+    let sum = 0, wsum = 0;
+    for (const r of rows) { sum += r.score * r.weight; wsum += r.weight; }
+    let score = wsum ? sum / wsum : 0;
+    score += WAR_GRADE.outcome[kind] || 0;
+    // The device was tested. Everything above this line is a footnote.
+    if (reason === 'breakout') score = Math.min(score, WAR_GRADE.breakoutCap);
+    score = clamp100(score);
+    const letter = letterFor(score);
+    return { score: Math.round(score), letter, mark: letterWithMark(score), blurb: TOTAL_BLURB[letter] };
   }
 
   function buildResult(kind, reason) {
     const deg = G.nukeDegraded();
-    const milGrade = deg >= 100 && G.stats.destroyed >= 5 ? 'A'
-      : deg >= 100 ? 'B' : deg >= 50 ? 'C' : deg >= 25 ? 'D' : 'F';
+
+    // MILITARY SUCCESS — the heaviest row on the screen. The old letter was
+    // `deg >= 100 && destroyed >= 5`, which handed an A to campaigns that had
+    // gutted the halls and left the missile force, the navy and the IRGC
+    // untouched: measured over 900 scripted campaigns it awarded 213 A's
+    // against 22 in which Iran was actually broken. Half the victory condition
+    // was not in the grade at all. `machine` reads warMachine() — the win
+    // check's own scoring, per its invariant — so the heaviest row and the
+    // condition for victory are now the same arithmetic.
+    const machine = G.warMachine();
+    const machinePct = machine.reduce((s, m) => s + m.pct, 0) / machine.length;
+    const milScore =
+      WAR_GRADE.mil.nuke * bandScoreUp(deg, [100, 80, 55, 30], 100) +
+      WAR_GRADE.mil.machine * bandScoreUp(machinePct, [100, 80, 60, 35], 100) +
+      WAR_GRADE.mil.effects * bandScoreUp(G.stats.destroyed, WAR_GRADE.effectsCuts, 20) -
+      G.stats.carriersLost * WAR_GRADE.carrierPenalty;
+
     // graded against what THIS country would bear, so the letter means the same
     // thing on every difficulty
     const lim = casualtyLimit();
-    const livesGrade = gradeFor(G.casualties.us, [lim * 0.1, lim * 0.2, lim * 0.4, lim * 0.8]);
-    const worldGrade = G.world >= 60 ? 'A' : G.world >= 48 ? 'B' : G.world >= 36 ? 'C' : G.world >= 25 ? 'D' : 'F';
-    const econGrade = gradeFor(G.stats.peakOil, [100, 125, 155, 190]);
+    const livesScore = bandScore(G.casualties.us, [lim * 0.1, lim * 0.2, lim * 0.4, lim * 0.8], lim * 1.6);
+
+    // DIPLOMATIC STANDING was world opinion and nothing else, which scored the
+    // thermometer and ignored every institution the number is supposed to
+    // represent. Who is still flying with you, off whose soil, is the part of a
+    // coalition a president can actually point at.
+    const allies = (G.coalition ? 34 : 0) + (G.basing.nato ? 22 : 0) +
+      (G.basing.gulf ? 30 : G.gulf.corridor ? 14 : 0) +
+      (G.israelPosture === 'coordinated' ? 14 : G.israelPosture === 'unilateral' ? 0 : 8);
+    const diploScore = 0.70 * bandScoreUp(G.world, [60, 48, 36, 25], 100) +
+      0.30 * bandScoreUp(allies, [80, 60, 40, 20], 100);
+
+    // ECONOMIC DAMAGE: the peak of the barrel, plus the nights the strait was
+    // shut. The second is not implied by the first — Tehran can close Hormuz
+    // and take the premium back off the table by reopening it, and a fortnight
+    // of closed shipping lanes is a fact about the world economy either way.
+    const econScore = 0.75 * bandScore(G.stats.peakOil, [100, 125, 155, 190], 240) +
+      0.25 * bandScore(G.hormuzClosedTurns, [0, 2, 4, 7], HORMUZ_LIMIT);
+
+    // THE HOME FRONT is new, and it is the row the campaign most often ends on:
+    // almost every defeat in this game is an approval collapse, and approval
+    // appeared nowhere in the grades. The vote is here rather than under
+    // DIPLOMATIC STANDING because the Hill is domestic politics, and the
+    // addresses are here because going on television is the only lever the
+    // president has over it.
+    const wp = G.warPowers.result;
+    const wpScore = wp === 'authorized' ? 100 : wp === 'restricted' ? 55 : wp === 'cutoff' ? 0 : 72;
+    // a ladder rather than a curve: the interesting step is the first one, from
+    // a president who never explained the war to one who did it once
+    const addrScore = [0, 55, 78, 92, 100][Math.min(G.addresses, 4)];
+    const homeScore = 0.60 * bandScoreUp(G.approval, [55, 45, 35, 25], 100) +
+      0.25 * wpScore + 0.15 * addrScore;
 
     const titles = {
       military: 'DECISIVE VICTORY — IRAN\'S WAR MACHINE BROKEN',
@@ -4452,40 +4574,62 @@ const Game = (() => {
           : 'a case the country had stopped listening to'}.`,
     };
 
+    const brokenGates = machine.filter(m => m.done).length;
     const grades = [
-      ['MILITARY SUCCESS', milGrade, `Nuclear program ${deg}% degraded · ${Txt.plural(G.stats.destroyed, 'target')} destroyed · ${Txt.plural(G.stats.aircraftLost, 'aircraft')} lost`],
-      ['AMERICAN LIVES', livesGrade, `${G.casualties.us} US service members killed` +
-        (G.stats.carriersLost ? ` · ${G.stats.carriersLost} carrier${G.stats.carriersLost > 1 ? 's' : ''} lost` : '')],
-      ['DIPLOMATIC STANDING', worldGrade, `World opinion ${Math.round(G.world)}/100`],
-      ['ECONOMIC DAMAGE', econGrade, `Peak oil price $${Math.round(G.stats.peakOil)}/bbl`],
+      row('military', 'MILITARY SUCCESS', milScore,
+        `Nuclear program ${deg}% degraded · Iran's war machine ${brokenGates}/3 broken · ` +
+        `${Txt.plural(G.stats.destroyed, 'target')} destroyed · ${Txt.plural(G.stats.aircraftLost, 'aircraft')} lost`),
+      row('lives', 'AMERICAN LIVES', livesScore,
+        `${G.casualties.us} of ${lim} tolerated US dead` +
+        (G.stats.carriersLost ? ` · ${Txt.plural(G.stats.carriersLost, 'carrier')} lost` : '')),
+      row('diplomatic', 'DIPLOMATIC STANDING', diploScore,
+        `World opinion ${Math.round(G.world)}/100 · ` +
+        (G.coalition ? 'coalition held' : 'no coalition') + ' · ' +
+        (G.basing.nato && G.basing.gulf ? 'all basing intact'
+          : G.basing.gulf ? 'NATO basing withdrawn'
+          : G.basing.nato ? 'Gulf basing withdrawn'
+          : G.gulf.corridor ? 'basing lost, northern corridor held' : 'basing lost')),
+      row('economic', 'ECONOMIC DAMAGE', econScore,
+        `Peak oil price $${Math.round(G.stats.peakOil)}/bbl · ` +
+        (G.hormuzClosedTurns ? `Hormuz shut ${Txt.plural(G.hormuzClosedTurns, 'turn')}` : 'Hormuz never closed')),
+      row('home', 'THE HOME FRONT', homeScore,
+        `Approval ${Math.round(G.approval)}% · ` +
+        (wp === 'authorized' ? 'Congress authorized the war'
+          : wp === 'restricted' ? 'Congress restricted the target list'
+          : wp === 'cutoff' ? 'Congress cut off the war'
+          : 'the vote never came') + ' · ' +
+        (G.addresses ? `${Txt.plural(G.addresses, 'address')} to the country` : 'never addressed the country')),
     ];
     // Personnel recovery is only graded if the war ever put aircrew on the
     // ground — a campaign that never lost an aircraft is not scored on it.
     if (G.stats.downedCrews > 0) {
+      const crews = G.stats.downedCrews;
       const saved = G.stats.aircrewRescued, taken = G.stats.aircrewCaptured;
-      const prGrade = taken === 0 && saved > 0 ? 'A'
-        : taken === 0 ? 'B'
-        : saved > 0 ? 'C'
-        : G.downed ? 'D' : 'F';
-      grades.splice(1, 0, ['PERSONNEL RECOVERY', prGrade,
-        `${saved} aircrew recovered · ${taken} taken into Iranian custody` +
-        (G.downed ? ' · 1 crew still evading when the war ended' : '')]);
+      // the ladder is the letter this row has always given; the ratio is only
+      // the resolution inside it
+      const prBase = taken === 0 && saved > 0 ? 92 : taken === 0 ? 76
+        : saved > 0 ? 62 : G.downed ? 47 : 20;
+      grades.splice(1, 0, row('recovery', 'PERSONNEL RECOVERY',
+        prBase + 8 * (saved / crews) - 8 * (taken / crews),
+        `${saved} of ${Txt.plural(crews, 'downed crew')} recovered · ${taken} taken into Iranian custody` +
+        (G.downed ? ' · 1 crew still evading when the war ended' : '')));
     }
     if (G.raid !== 'none') {
-      grades.splice(1, 0,
-        G.raid === 'success'
-          ? ['SPECIAL OPERATIONS', 'A', 'Leadership decapitation raid succeeded — regime command chain shattered']
+      grades.splice(1, 0, G.raid === 'success'
+        ? row('specops', 'SPECIAL OPERATIONS', 96,
+          'Leadership decapitation raid succeeded — regime command chain shattered')
         : G.raid === 'pyrrhic'
-          ? ['SPECIAL OPERATIONS', 'C', 'Leadership target killed — the entire task force was lost taking him']
-        : ['SPECIAL OPERATIONS', 'F', G.hostageCrisis
+          ? row('specops', 'SPECIAL OPERATIONS', 60,
+            'Leadership target killed — the entire task force was lost taking him')
+        : row('specops', 'SPECIAL OPERATIONS', G.hostageCrisis ? 6 : 14, G.hostageCrisis
           ? 'Leadership raid failed — operators captured and paraded on Iranian state TV'
-          : 'Leadership raid failed — the task force was lost on Iranian soil']);
+          : 'Leadership raid failed — the task force was lost on Iranian soil'));
     }
 
     G.over = true;
     return {
       kind, title: titles[reason], verdict: verdicts[reason], narrative: narratives[reason],
-      grades,
+      grades, total: totalGrade(grades, kind, reason),
       timeline: G.timeline,
       // the war plan Tehran was actually running, revealed at the end whether or
       // not the player ever paid to find out during it

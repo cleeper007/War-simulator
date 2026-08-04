@@ -14,10 +14,14 @@ const Txt = (() => {
   const INVARIANT = ['aircraft', 'personnel'];
 
   // A sibilant takes -es: "3 addresses", not "3 addresss" — which is what the
-  // ADDRESS THE NATION panel printed for eight months. This regex is the whole
-  // English rule that matters on this board (s/x/z/ch/sh). Nothing counted here
-  // is an irregular stem or ends in a consonant + y, so those stay out of it.
+  // ADDRESS THE NATION panel printed for eight months.
   const SIBILANT = /(s|x|z|ch|sh)$/i;
+
+  // Consonant + y takes -ies: "6 categories", not "6 categorys" — which is what
+  // the after-action screen printed the first night it counted its own graded
+  // categories. A VOWEL + y is a plain -s ("2 turkeys"), which is why the class
+  // is spelled out rather than written as \w.
+  const CONSONANT_Y = /[^aeiou]y$/i;
 
   // Stems no rule reaches. Keyed on the last word, so "American life" inflects
   // as "American lives" and the adjective comes along for free.
@@ -34,6 +38,7 @@ const Txt = (() => {
     const head = word.slice(word.lastIndexOf(' ') + 1);
     if (INVARIANT.includes(head)) return word;
     if (IRREGULAR[head]) return word.slice(0, word.length - head.length) + IRREGULAR[head];
+    if (CONSONANT_Y.test(head)) return word.slice(0, -1) + 'ies';
     return word + (SIBILANT.test(head) ? 'es' : 's');
   };
 

@@ -2570,17 +2570,61 @@ const UI = (() => {
   }
 
   // ---- endgame ----
+  //
+  // Read top to bottom: what the war got graded, what happened, what it cost,
+  // how each part of it scored, what Tehran was doing, and then the whole thing
+  // turn by turn. The single grade goes FIRST and largest because it is the one
+  // thing a player takes away from the screen — the old layout opened with a
+  // seven-line verdict and put six independent letters under it, which asked
+  // the president to do the weighting themselves and gave them no weights.
   function showEndgame(result) {
     $('end-title').textContent = result.title;
     const vCls = result.kind === 'victory' ? 'end-victory' : result.kind === 'defeat' ? 'end-defeat' : 'end-stalemate';
-    let html = `<div class="end-verdict ${vCls}">${result.verdict}</div>`;
-    html += `<p class="dim">${result.narrative}</p>`;
-    html += '<table class="grade-table">';
-    for (const [label, grade, note] of result.grades) {
-      html += `<tr><td>${label}<br><span class="dim" style="font-size:11px">${note}</span></td>` +
-        `<td class="grade-${grade}">${grade}</td></tr>`;
+
+    let html = '';
+    const T = result.total;
+    if (T) {
+      html += `<div class="end-total ${vCls}">` +
+        `<div class="et-mark grade-${T.letter}">${T.mark}</div>` +
+        `<div class="et-body">` +
+          `<div class="et-label">TOTAL WAR GRADE</div>` +
+          `<div class="et-score"><b>${T.score}</b><span class="dim">/100 · weighted across ` +
+            `${Txt.plural(result.grades.length, 'category')}, military heaviest</span></div>` +
+          `<div class="et-blurb">${T.blurb}</div>` +
+        `</div></div>`;
     }
-    html += '</table>';
+
+    html += `<div class="end-verdict ${vCls}">${result.verdict}</div>`;
+    html += `<p class="dim end-narrative">${result.narrative}</p>`;
+
+    // The numbers the verdict is made of, before the grades that judge them.
+    const S = result.stats;
+    html += '<div class="end-stats">' + [
+      ['APPROVAL', Math.round(S.approval) + '%'],
+      ['OIL', '$' + Math.round(S.oil)],
+      ['US DEAD', `${S.casualties}<span class="dim">/${S.limit}</span>`],
+      ['TARGETS DESTROYED', S.destroyed],
+      ['DURATION', Txt.turns(S.turns)],
+      ['DIFFICULTY', S.difficulty],
+    ].map(([k, v]) => `<div class="es-cell"><span>${k}</span><b>${v}</b></div>`).join('') + '</div>';
+
+    // One row per category, each showing what it was worth. The weight is on
+    // screen because the total is a weighted mean and a player who disagrees
+    // with the grade is owed the arithmetic.
+    const wsum = result.grades.reduce((s, g) => s + g.weight, 0) || 1;
+    html += '<div class="end-section">ASSESSMENT</div>';
+    html += '<div class="grade-list">';
+    for (const g of result.grades) {
+      html += `<div class="gr-row">` +
+        `<div class="gr-head"><span class="gr-label">${g.label}</span>` +
+          `<span class="gr-weight">${Math.round(100 * g.weight / wsum)}% of grade</span></div>` +
+        `<div class="gr-letter grade-${g.letter}">${g.letter}</div>` +
+        `<div class="gr-note">${g.note}</div>` +
+        `<div class="gr-bar grade-${g.letter}" role="img" aria-label="scored ${g.score} out of 100">` +
+          `<i style="width:${Math.max(2, g.score)}%"></i></div>` +
+      `</div>`;
+    }
+    html += '</div>';
 
     // What Tehran was actually doing the whole time. Shown at the end whether
     // or not the player ever spent a slot finding out — and if they didn't, the
@@ -2605,11 +2649,6 @@ const UI = (() => {
       html += '</table>';
     }
 
-    html += `<p class="dim">Final: ` +
-      `approval ${Math.round(result.stats.approval)}% · oil $${Math.round(result.stats.oil)} · ` +
-      `${result.stats.casualties} of ${result.stats.limit} tolerated US dead · ` +
-      `${Txt.plural(result.stats.destroyed, 'target')} destroyed · ${Txt.turns(result.stats.turns)} · ` +
-      `${result.stats.difficulty}</p>`;
     $('end-body').innerHTML = html;
     $('end-modal').classList.remove('hidden');
   }

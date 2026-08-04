@@ -1817,6 +1817,69 @@ const DIFFICULTY = {
 // rather than silently dropping to normal.
 const DIFFICULTY_ALIAS = { advisor: 'easy', general: 'normal', president: 'hard' };
 
+// ============================================================
+// THE TOTAL WAR GRADE
+// ------------------------------------------------------------
+// The after-action screen graded four to six things separately and left the
+// president to add them up. They do not add up: a campaign could show an A
+// beside an F and say nothing about which of them the war was for. It matters
+// enormously — a war that gutted the program and broke the missile force is a
+// better presidency than one that held the barrel at $95 and left Natanz
+// spinning — and no arrangement of independent letters says so.
+//
+// So every row now carries a 0–100 SCORE as well as a letter, the letter is cut
+// from the score by one shared band table, and the total is the weighted mean
+// of those same scores put back through the same table. Rows and total cannot
+// disagree about what a B is, which is the same drift warMachine() exists to
+// prevent between the objectives panel and the win check.
+//
+// `weights` is the whole argument of the screen. MILITARY SUCCESS is worth more
+// than the next three rows together, because this is a grade for a war and not
+// for a term in office. Rows that do not apply — no aircrew ever went down, no
+// raid was ever launched — are dropped and the remainder renormalise, so a
+// campaign is never scored on a question it was never asked.
+//
+// `outcome` is a bounded adjustment rather than a row of its own, because how
+// the war ENDED is largely made of the numbers the rows already score; what it
+// adds that they cannot is that signing an armistice and being impeached out of
+// the same board state are not the same presidency.
+//
+// `breakoutCap` is the one hard rule. The war exists to prevent exactly one
+// thing. If the device is tested, every other number on the page is a footnote
+// — which is what that ending's own prose already says — and the total is an F
+// however well the rest of it went.
+const WAR_GRADE = {
+  // score floor for each letter, descending. Under the last floor is F.
+  bands: [['A', 85], ['B', 70], ['C', 55], ['D', 40]],
+
+  // Deliberately not round: military is 40 of a nominal 100 and the whole
+  // political half of the board — approval, world opinion, the barrel — is 32
+  // between the three of them. A president who wins ugly outgrades one who
+  // loses gracefully, and the table is where that is written down.
+  weights: {
+    military: 40, lives: 14, diplomatic: 12, economic: 10, home: 10,
+    recovery: 8, specops: 6,
+  },
+
+  // What MILITARY SUCCESS is made of. `machine` reads warMachine() and nothing
+  // else — the win check's own scoring — so the heaviest row on the screen and
+  // the condition for victory are the same arithmetic. `effects` is the air
+  // campaign's raw productivity, the only part of the row that rewards work on
+  // targets the victory gate never asks about.
+  mil: { nuke: 0.50, machine: 0.35, effects: 0.15 },
+  // targets destroyed, cut for A/B/C/D. Measured over 900 scripted campaigns:
+  // median 4, the competent personas 12–14, the ceiling 20.
+  effectsCuts: [13, 8, 4, 1],
+
+  outcome: { victory: 8, stalemate: 0, defeat: -8 },
+  breakoutCap: 39,
+
+  // A supercarrier is not just its crew. The sailors are already counted under
+  // AMERICAN LIVES; this is the fleet that no longer exists, charged once
+  // against the military row where a lost deck actually belongs.
+  carrierPenalty: 12,
+};
+
 // ---- US assets shown on the map ----
 // sortie: can generate fixed-wing strike sorties (flight animations launch
 // from the nearest sortie-capable base); atacms: hosts Army long-range fires
