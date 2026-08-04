@@ -62,8 +62,9 @@ const Tour = (() => {
         'NEXT opens it on an air defense site — the right first move.' },
     { sel: '#strike-packages', modal: true,
       title: 'PICK A PACKAGE',
-      text: 'Each row is a way to hit it. Greyed rows are grounded: that aircraft has not been ' +
-        'released yet, or it cannot reach from where it sits.' },
+      text: 'Each row is a way to hit it, and only what can fly tonight is listed. Anything ' +
+        'missing — a tier the SAM belt has not released, a wing still in CONUS — is in the ' +
+        'resources panel with the reason.' },
     // NEXT here is ABORT, deliberately and in as many words. The two were always
     // the same action — closing the dialog is what moves the walkthrough off the
     // steps that live inside it — but with the button reading NEXT, a player who

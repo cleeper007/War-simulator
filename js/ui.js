@@ -1727,6 +1727,36 @@ const UI = (() => {
   // and can be folded; anything else is a designation and is left alone.
   const lcFirst = (s) => /^[A-Z][a-z]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 
+  // Nothing this target has can be tasked tonight, so the list of packages is a
+  // list of reasons instead — deduplicated, in package order, so the first line
+  // is what the target's best option is waiting on. Two tiers held by the same
+  // intact belt is one sentence and not two.
+  //
+  // The magazine and the tanker plan get written out here because on a package
+  // row they were a three-word tag hung off a label that carried the rest of the
+  // meaning ("Wild Weasel sweep — 3 F-16CM sorties … — MAGAZINE SHORT"). Alone
+  // in an otherwise empty dialog a tag is not an explanation, so each of them
+  // has to say what ran out and when it comes back.
+  //
+  // Precedence matches what the rows did: a gate wins over MAGAZINE SHORT,
+  // because a tier that is not in theater has generated no sorties either and
+  // the magazine is the wrong thing to go and fix. See Game.pkgBlock.
+  const MAG_SHORT = 'MAGAZINE SHORT — nothing left in the theater magazine holds a full ' +
+    'package against this target. Sorties are generated back at the turn.';
+  const NO_TANKERS = 'NO TANKER TRACKS — tonight\'s tanker plan is spent, and nothing that ' +
+    'reaches this target flies unrefuelled. The tracks come back with tomorrow\'s plan.';
+
+  function heldReasons(held) {
+    const out = [];
+    const push = (s) => { if (!out.includes(s)) out.push(s); };
+    for (const h of held) {
+      if (h.gate) { push(h.gate); continue; }
+      if (!h.stock) push(MAG_SHORT);
+      if (!h.fuel) push(NO_TANKERS);
+    }
+    return out;
+  }
+
   function openStrikeModal(G, target) {
     currentTarget = target;
     selectedPkg = null;
@@ -1754,76 +1784,87 @@ const UI = (() => {
       return;
     }
 
+    // ---- what is actually on the menu ----
+    // Only packages that can be tasked tonight are drawn. Through v1.70 every
+    // package a target had was rendered whatever its state — greyed, with the
+    // reason beside it — so the first thing a turn-one SAM site taught was which
+    // two thirds of its own menu to ignore: a Wild Weasel sweep the belt has not
+    // released, a heavy strike sitting in Fairford, a magazine one sortie short.
+    // Three refusals and one choice, on the screen where the choice is made.
+    //
+    // Nothing is lost by dropping them, because not one of those reasons is a
+    // fact about THIS target and every one of them is already standing in the
+    // resources panel, where it belongs: a tier the ladder has not released sits
+    // under NOT RELEASED with the percentage it is waiting on, a force still in
+    // CONUS sits under NOT IN THEATER with its ETA, a magazine that no longer
+    // holds a package says so on its own row, and the tanker plan and the
+    // tasking order are the two gauges at the top of the box. The panel is where
+    // a player asks why there are so few options; this dialog is where they pick
+    // one.
+    //
+    // What IS lost is the answer when there are no options at all — a dialog
+    // that opens empty says nothing about anything. So the partition is kept and
+    // the refusals are written out in full when they are all there is.
+    const flyable = [], held = [];
+    target.packages.forEach((pkg) => {
+      // the submarine shot is counted out of the boat's tubes, not the theater
+      // magazine — same gate, different magazine, and it says which
+      const have = Game.pkgStock(pkg);
+      const { cost, ok: fuel } = Game.tankersFor(target, pkg);
+      const stock = have >= pkg.qty;
+      // the air-superiority ladder outranks both magazines: a tier that has not
+      // been released is not short of anything, it is simply not flying tonight
+      const gate = Game.pkgBlock(target, pkg);
+      if (stock && fuel && !gate) flyable.push({ pkg, have, cost });
+      else held.push({ gate, stock, fuel });
+    });
+
+    if (!flyable.length) {
+      box.innerHTML = heldReasons(held).map(r => `<div class="pkg-blocked">${r}</div>`).join('');
+      $('strike-modal').classList.remove('hidden');
+      return;
+    }
+
     // The packages are mutually exclusive plans against the same target, so the
     // list is a radiogroup and not a stack of buttons. That mapping buys two
     // things a row of buttons does not: the group is ONE tab stop, so the trap
     // installed at MODAL KEYBOARD AND SCREEN-READER BEHAVIOUR carries the player
     // ✕ → packages → AUTHORIZE → ABORT instead of making them tab past five
     // packages to reach the button, and a screen reader announces "2 of 4"
-    // instead of leaving them to count what they have already passed.
+    // instead of leaving them to count what they have already passed. That count
+    // is now the count of things that can fly, which is what it always claimed.
     //
     // Rows stay divs: the styling is written for divs, and a radio has no native
     // element that would survive this markup without restructuring it.
     box.setAttribute('role', 'radiogroup');
     box.setAttribute('aria-label', 'Strike packages');
 
-    // The rows a keyboard can land on, in DOM order. A package that cannot fly is
-    // still rendered and still announced — it names the thing that has to change
-    // before it can — but it is not a choice, so it stays out of both the tab
-    // ring and the arrow walk.
+    // The rows a keyboard can land on, in DOM order — now every row there is.
     const choosable = [];
 
-    target.packages.forEach((pkg) => {
-      // the submarine shot is counted out of the boat's tubes, not the theater
-      // magazine — same gate, different magazine, and it says which
-      const have = Game.pkgStock(pkg);
-      const { cost, ok: fuelOk } = Game.tankersFor(target, pkg);
-      const stockOk = have >= pkg.qty;
-      // the air-superiority ladder outranks both magazines: a tier that has not
-      // been released is not short of anything, it is simply not flying tonight
-      const gate = Game.pkgBlock(target, pkg);
-      const ok = stockOk && fuelOk && !gate;
+    flyable.forEach(({ pkg, have, cost }) => {
       const div = document.createElement('div');
-      div.className = 'pkg-option' + (ok ? '' : ' unavailable') + (gate ? ' pkg-gated' : '');
+      div.className = 'pkg-option';
       div.setAttribute('role', 'radio');
       div.setAttribute('aria-checked', 'false');
-      // aria-disabled rather than omitting the row: the reason it cannot fly is
-      // the most useful thing on the screen for a player who has to go and fix
-      // it, and a radio that announces itself as unavailable says that. What it
-      // does not get is a tabindex — see `choosable`.
-      if (!ok) div.setAttribute('aria-disabled', 'true');
-      // When a package can't fly, the reason matters: an empty magazine, an
-      // empty tanker plan and an intact SAM belt are three different problems
-      // with three different answers.
-      //
-      // A gated tier is short of a magazine too — a force that is not in theater
-      // has generated no sorties — but MAGAZINE SHORT is the wrong answer to it
-      // and points at the wrong fix: an empty magazine refills next turn, while a
-      // wing in Missouri and a grounded squadron both wait on something the
-      // player has to go and DO. The gate already says which, so it wins.
-      const why = stockOk || gate ? '' : ' — MAGAZINE SHORT';
-      const fuelWhy = !fuelOk ? ' — NO TANKER TRACKS' : '';
+      div.tabIndex = -1;
       div.innerHTML = `<span class="pkg-name">${pkg.label}</span>` +
-        (gate ? `<span class="pkg-detail pkg-gate">${gate}</span>` : '') +
         `<span class="pkg-detail">Requires ${pkg.qty}× ` +
         `${pkg.sub ? SUB_WEAPON_NAME : lcFirst(ASSET_NAMES[pkg.asset])} ` +
         // "1 tanker track of 10 left" reads as "1 out of 10" and means the
         // opposite — the cost is 1 and the plan has 10. Separate the two.
-        `(available: ${have})${why} · ${cost ? `${plural(cost, 'tanker track')} ` +
-        `· ${G.tankers} left tonight${fuelWhy}` : 'no tanker requirement'}` +
+        `(available: ${have}) · ${cost ? `${plural(cost, 'tanker track')} ` +
+        `· ${G.tankers} left tonight` : 'no tanker requirement'}` +
         (pkg.sub ? ' · <span class="est-good">no theater magazine spent</span>' : '') + '</span>';
-      if (ok) {
-        choosable.push({ div, pkg });
-        div.addEventListener('click', () => choose(div, pkg, true));
-      }
+      choosable.push({ div, pkg });
+      div.addEventListener('click', () => choose(div, pkg, true));
       box.appendChild(div);
     });
 
     // Roving tabindex: the group holds a single tab stop, and before anything is
-    // selected it sits on the first package that can actually fly. When every
-    // package is barred there is no stop at all, which is correct — the dialog
-    // is then a list of things to read and two buttons.
-    if (choosable.length) choosable[0].div.tabIndex = 0;
+    // selected it sits on the first package. There is always at least one — the
+    // empty case returned above.
+    choosable[0].div.tabIndex = 0;
 
     // The one place a package becomes the selected one, whatever asked for it: a
     // click, Enter, Space, or an arrow walking the list. Selection, the estimate
