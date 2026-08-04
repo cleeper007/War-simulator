@@ -117,10 +117,21 @@ const IranAI = (() => {
   // out. The floor is deliberately not zero: a broken arm firing what it has
   // left is still a strike on an American base, and still a bad night.
   const bite = (str) => Math.max(0.25, str / 2);
+  // What a salvo costs a HOST GOVERNMENT scales too — a broken arm dribbling
+  // rounds at Al Udeid should not move Doha the way the opening barrage did, or
+  // a president who has already won the missile war farms the coalition gauges
+  // off Iran's last few launchers. But the curve is much shallower and the floor
+  // is more than twice as high, because what Riyadh and Abu Dhabi are reacting to
+  // is the fact of a missile landing on their territory, and that fact does not
+  // decay to a quarter just because fewer of them arrived.
+  const civilBite = (str) => Math.max(0.55, bite(str));
   const scaled = (ev, str) => {
     const k = bite(str);
     if (ev.dApproval) ev.dApproval = -Math.max(1, Math.round(Math.abs(ev.dApproval) * k));
     if (ev.dOil) ev.dOil = Math.max(1, Math.round(ev.dOil * k));
+    const c = civilBite(str);
+    if (ev.dResolve) ev.dResolve = Math.round(ev.dResolve * c);
+    if (ev.dStrain) ev.dStrain = Math.round(ev.dStrain * c);
     return ev;
   };
 
@@ -168,8 +179,14 @@ const IranAI = (() => {
     missileBase: (str) => {
       const base = pick(['udeid', 'asad', 'dhafra']);
       const names = { udeid: 'Al Udeid Air Base in Qatar', asad: 'Ain al-Asad Air Base in Iraq', dhafra: 'Al Dhafra Air Base in the UAE' };
+      // Whose soil it landed on. The random pick was always choosing a host
+      // government as well as a base and it never mattered before: a salvo on Al
+      // Udeid is a Qatari problem and pushes Doha toward the exit, the same salvo
+      // on Al Dhafra hardens Abu Dhabi, and Al Asad is in Iraq and moves neither.
+      const host = { udeid: { dStrain: GULF.dove.struck }, dhafra: { dResolve: GULF.hawk.struck }, asad: {} }[base];
       const c = Math.round(rand(2, 8) * bite(str));
       return scaled({
+        ...host,
         title: `Ballistic missile strike on ${names[base]}`,
         // the zero branch is reachable: a light salvo inside the Aegis basket
         // can be thinned to nothing, and "0 Americans were killed" is the wrong
@@ -188,18 +205,42 @@ const IranAI = (() => {
       text: 'Anti-ship missile batteries are active, minelayers are operating at night, and Tehran has declared the Strait closed to "hostile" shipping. A fifth of the world\'s oil is now blocked.',
       hormuz: 'CLOSED', dOil: 26,
     }),
+    // The one Iranian event that chooses a CAPITAL rather than a target, and
+    // since v1.72 that choice is a lever on the coalition rather than flavour.
+    //
+    // The interesting entry is Abqaiq, which moves both gauges at once: the
+    // burning stabilisation towers harden Kuwait City and Abu Dhabi and terrify
+    // Riyadh, because it is Riyadh's export that is on fire. That is Tehran
+    // playing the split rather than playing the oil price, and it is the reason
+    // the two gauges are separate numbers instead of one slider.
     allyStrike: (israelInPlay, str) => {
-      // once Israel is in the war, Tehran's salvos go there by preference
-      const pool = israelInPlay
-        ? ['Israeli port infrastructure at Haifa', 'Israeli port infrastructure at Haifa', 'Saudi oil facilities at Abqaiq']
-        : ['Saudi oil facilities at Abqaiq', 'Israeli port infrastructure at Haifa', 'Emirati facilities near Abu Dhabi'];
+      const HAIFA = { name: 'Israeli port infrastructure at Haifa', dPressure: ISRAEL.westward };
+      const ABQAIQ = {
+        name: 'Saudi oil facilities at Abqaiq',
+        // both, and the dove side larger: it is their plant
+        dStrain: GULF.dove.struck, dResolve: Math.round(GULF.hawk.struck * 0.7),
+      };
+      const ABU_DHABI = { name: 'Emirati facilities near Abu Dhabi', dResolve: GULF.hawk.struck };
+      const DOHA = { name: 'Qatari gas processing at Ras Laffan', dStrain: GULF.dove.struck };
+
+      // Once Israel is in the war Tehran's salvos go there by preference. Failing
+      // that, the plan decides: a STRAIT STRANGLER is fighting the war at the
+      // pump and goes after Gulf energy, which is also the fastest way to break
+      // the council; ATTRITION is playing for the American casualty count and
+      // treats these as a sideshow. Reading the pool back is one of the tells
+      // `assess-intent` is buying.
+      const strangling = posture().hormuz > 1.2;
+      const pool = israelInPlay ? [HAIFA, HAIFA, ABQAIQ]
+        : strangling ? [ABQAIQ, DOHA, ABQAIQ, ABU_DHABI, HAIFA]
+        : [ABQAIQ, HAIFA, ABU_DHABI, DOHA];
       const tgt = pick(pool);
       return scaled({
-        title: `Iranian missiles strike ${tgt.split(' at ')[0]}`,
-        text: `A missile and drone salvo hit ${tgt}. Allied capitals are demanding either decisive US action or immediate de-escalation.`,
+        title: `Iranian missiles strike ${tgt.name.split(' at ')[0].split(' near ')[0]}`,
+        text: `A missile and drone salvo hit ${tgt.name}. Allied capitals are demanding either decisive US action or immediate de-escalation.`,
         dOil: 8, dWorld: -3, dApproval: -1,
-        // a salvo that landed on Israel is an argument in Jerusalem
-        dPressure: tgt.startsWith('Israeli') ? ISRAEL.westward : 0,
+        dPressure: tgt.dPressure || 0,
+        dStrain: tgt.dStrain || 0,
+        dResolve: tgt.dResolve || 0,
       }, str);
     },
     massBarrage: (str) => {
@@ -213,6 +254,10 @@ const IranAI = (() => {
             : 'Casualty reports are still coming in. ') +
           'CENTCOM assesses this as the opening of a general war.',
         casualties: c, dApproval: -4, dOil: 12, flashAsset: 'udeid',
+        // Everyone at once, and it argues in both directions in the same room:
+        // the barrage is the hawks' whole case and the doves' whole case, which
+        // is why it is the only event that fires both gauges hard.
+        dStrain: GULF.dove.struck, dResolve: GULF.hawk.struck,
         attack: { kind: 'mixed', bases: ['udeid', 'asad', 'dhafra'], count: 4 },
       }, str);
     },
@@ -386,6 +431,13 @@ const IranAI = (() => {
       if (before > 0) ev.casualties = Math.round(before * (1 - frac));
       if (ev.dOil) ev.dOil = Math.round(ev.dOil * (1 - frac));
       if (ev.dApproval) ev.dApproval = Math.round(ev.dApproval * (1 - frac));
+      // A salvo the screen caught in the midcourse is a salvo the host government
+      // did not photograph, so the coalition damage is scaled with everything
+      // else. This is the umbrella's second job and the better argument for
+      // keeping it up: the interceptors are holding the alliance together as well
+      // as the ramp, and a war that lets the cells run dry loses both at once.
+      if (ev.dResolve) ev.dResolve = Math.round(ev.dResolve * (1 - frac));
+      if (ev.dStrain) ev.dStrain = Math.round(ev.dStrain * (1 - frac));
       const saved = before - (ev.casualties || 0);
       // read by the report's digest and by the campaign sim; the prose below is
       // what the president actually sees
@@ -835,7 +887,21 @@ const IranAI = (() => {
       nsa.text = 'The clock and the casualty count are the real enemies. Every turn their war machine survives is a turn it spends killing Americans — tempo is mercy.';
     }
 
-    if (!G.basing.gulf) {
+    // The council before it votes. This outranks the tier warnings below because
+    // it is the one that is still actionable: once the ramps are gone the advice
+    // is "get the number up", and by then the number the president needed to
+    // watch was this one, three turns ago.
+    if (G.basing.gulf && G.gulf.caveats >= GULF.caveatMax) {
+      cjcs.urgent = true;
+      cjcs.line = `Gulf tier now folds at ${Game.gulfFoldThreshold('gulf')}, not ${BASING_TIERS.gulf.at}.`;
+      cjcs.text = `The council has filed everything it is going to file. Riyadh and Doha have walked the ` +
+        `Gulf basing threshold from ${BASING_TIERS.gulf.at} up to ${Game.gulfFoldThreshold('gulf')} — ` +
+        `standing abroad is at ${Math.round(G.world)}, and the next thing they pass is not a caveat, it is ` +
+        `the withdrawal. ` +
+        (G.gulf.corridor
+          ? 'Amman and Kuwait City are holding the northern corridor open on their own account, so we keep the deep targets when it goes. We keep nothing else.'
+          : 'If it goes we lose the northern tracks and everything past the interior with them. The hawks would hold a corridor for us — they have not been asked.');
+    } else if (!G.basing.gulf) {
       cjcs.urgent = true;
       cjcs.line = 'Gulf ramps lost. This is diplomatic, not targeting.';
       cjcs.text = 'We have lost the Gulf ramps and with them the northern tanker tracks. Al Udeid and Al ' +
@@ -933,6 +999,16 @@ const IranAI = (() => {
     else if (G.israelPosture === 'coordinated') h.push('IAF SQUADRONS FLYING WITH CENTCOM AS ISRAEL JOINS THE CAMPAIGN OPENLY');
     if (!G.basing.gulf) h.push('GULF STATES CLOSE AIRSPACE TO US STRIKE OPERATIONS — "NOT FROM OUR SOIL"');
     else if (!G.basing.nato) h.push('ANKARA CLOSES INCIRLIK AS EUROPEAN ALLIES SUSPEND PARTICIPATION');
+    // The council's argument is public — it is conducted in communiqués. What
+    // the crawl reports is the split rather than the gauge: a press wire knows
+    // which capitals walked out of a meeting, not how close either camp is to a
+    // number the president is reading off a panel.
+    if (G.gulf.caveats > 0 && G.basing.gulf) {
+      h.push(`GCC COMMUNIQUÉ NARROWS US OPERATING RIGHTS FOR THE ${Txt.ordinal(G.gulf.caveats).toUpperCase()} TIME — KUWAIT AND UAE DISSENT`);
+    }
+    if (G.gulf.corridor) h.push('AMMAN AND KUWAIT CITY CONFIRM NORTHERN CORRIDOR STAYS OPEN TO US STRIKE PACKAGES');
+    if (G.gulf.strain >= GULF.fly) h.push('RIYADH AND DOHA PRESS WASHINGTON FOR AN END STATE — "THIS CANNOT RUN ANOTHER MONTH"');
+    else if (G.gulf.resolve >= GULF.fly * 0.8) h.push('GULF HAWKS URGE WASHINGTON TO FINISH THE MISSILE FORCE WHILE THE CARRIER IS THERE');
     if (!G.warPowers.done && G.turn >= Game.WAR_POWERS_TURN - 2) {
       h.push('WAR POWERS VOTE LOOMS: CONGRESS TO DECIDE WHETHER THE CAMPAIGN CONTINUES');
     } else if (G.warPowers.result === 'restricted') {

@@ -510,8 +510,15 @@ const MapView = (() => {
     world.appendChild(el('rect', { x: -2000, y: -2000, width: 5000, height: 5000, fill: 'var(--water)' }));
 
     // countries (real borders; the Caspian shows as water between them)
+    //
+    // Each path carries its own name in a data attribute so the Gulf council can
+    // be READ off the plot. That is most of why the two camps are worth building:
+    // "Doha and Riyadh have gone amber and Kuwait has gone blue" is a glance, and
+    // the same fact in the sidebar is two gauges and a roster the player has to
+    // open a panel to reach.
     for (const c of COUNTRY_PATHS) {
       const p = el('path', { class: `country ${c.cls || ''}`, d: c.d, 'fill-rule': 'evenodd' });
+      p.dataset.country = c.name;
       world.appendChild(p);
     }
     for (const c of COUNTRY_LABELS) {
@@ -1013,6 +1020,22 @@ const MapView = (() => {
     // the icon should read that way
     const fix = t.dispersal && t.located ? ' tel-fix' : '';
     g.setAttribute('class', `target ${t.status || 'intact'}${fix}`);
+  }
+
+  // The Gulf council, painted on the plot. Takes a {countryName: mood} map from
+  // ui.js — one reading, computed once, so the panel and the map can never
+  // describe different capitals. Every mood is a class and every colour lives in
+  // the stylesheet, because this is the same country fill the rest of the map is
+  // drawn with and it has to stay theme-able alongside it.
+  const GULF_MOODS = ['gulf-hawk', 'gulf-committed', 'gulf-dove', 'gulf-strained',
+    'gulf-caveat', 'gulf-closed'];
+  function setGulfMood(mood) {
+    if (!world) return;
+    for (const p of world.querySelectorAll('path.country[data-country]')) {
+      const m = mood[p.dataset.country];
+      p.classList.remove(...GULF_MOODS);
+      if (m) p.classList.add(`gulf-${m}`);
+    }
   }
 
   function setHormuz(status) {
@@ -3461,7 +3484,7 @@ const MapView = (() => {
     setTimeout(finish, 12000); // watchdog: a throttled tab must never stall the war
   }
 
-  return { render, updateTarget, syncCovert, setHormuz, flashAsset, animateStrike, playStrikeHit,
+  return { render, updateTarget, syncCovert, setHormuz, setGulfMood, flashAsset, animateStrike, playStrikeHit,
     whenFootageDone, updateTransit, animateIranianAttacks, alliedStrike,
     setTargetClickHandler, setFastForward,
     setCarrierPosture, setCarrierIngress, setAssetActive, raidOpen,

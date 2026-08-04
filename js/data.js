@@ -1513,7 +1513,210 @@ const TANKER_BASE = 4;
 // mission. Both are recoverable: get the number back up and the ramps reopen.
 const BASING_TIERS = {
   nato: { at: 30, tankers: 2, fighters: 2, name: 'NATO and Saudi basing' },
+  // `at` is the FLOOR, not the whole story: the doves raise it every time they
+  // file a caveat, so where this tier folds is something the war negotiates
+  // rather than something world opinion decides on its own. See GULF below and
+  // gulfFoldThreshold in game.js.
   gulf: { at: 15, tankers: 2, fighters: 2, name: 'Gulf state basing and overflight' },
+};
+
+// ============================================================
+// THE GULF IS NOT ONE CAPITAL
+// ------------------------------------------------------------
+// Through v1.71 the whole Gulf was a boolean. BASING_TIERS.gulf flipped off a
+// single world-opinion threshold and the event prose said "Doha, Abu Dhabi and
+// Manama have jointly suspended..." — seven governments, one switch, thrown by a
+// number that has nothing to do with any of them. They were a CONSEQUENCE of
+// standing abroad and never an actor in the war.
+//
+// They are two camps now, and the split is the one the region actually has.
+//
+// The HAWKS (Kuwait City, Manama, Abu Dhabi, Amman) want Iran's ability to
+// reach them taken away while an American carrier is in the water to do it.
+// Kuwait remembers 1990 and sits inside the missile brigades' range; Manama is a
+// Sunni monarchy over a Shia majority with the Fifth Fleet alongside; Abu Dhabi
+// has spent twenty years buying the air defenses this war is a test of. Amman is
+// not GCC at all — its stake is the western corridor through Muwaffaq Salti and
+// a drone route it wants closed.
+//
+// The DOVES (Riyadh, Doha, Muscat) want it over. Riyadh has a détente with
+// Tehran it is not eager to burn and the export terminal that gets hit when it
+// does. Doha shares the largest gas field on earth WITH Iran and hosts the
+// largest American base in the theater, which is a sentence that explains the
+// whole of Qatari policy. Muscat is the channel, and a channel that takes sides
+// stops being one.
+//
+// The gift in that split — and the reason it is worth building — is that the
+// doves hold the big ramps. Al Udeid is Qatari, Prince Sultan is Saudi. The
+// hawks hold the near ones: Ali Al Salem, the Bahraini waterfront, Al Dhafra,
+// Salti. So the camp that wants the war shortest is the camp that can shorten
+// it, and the camp that wants it fought is the camp with less to fight from.
+//
+// TWO GAUGES, NOT SEVEN. Nobody reads seven bars on a landscape phone, and the
+// interesting unit was never the country — it was the argument. Both climb, both
+// discharge at 100 and rebuild from `after` the way Jerusalem's does, because a
+// coalition that has spent its patience once is not a coalition with none left.
+//
+// NEITHER GAUGE MAY READ world opinion. That was the first draft and it was
+// wrong: world is already the master variable, already drives BASING_TIERS, and
+// keying the camps off it too would have been the same number wearing a second
+// hat — more arithmetic, no more decisions, and a campaign that fails in one
+// direction faster. These read what the capitals can actually see: the barrel,
+// the strait, whose soil the salvo landed on, what the tasking order has been
+// servicing, and how long this has gone on.
+const GULF = {
+  // ---- the roster ----
+  // `country` matches COUNTRY_PATHS in geodata.js exactly — it is what the map
+  // tints. `holds` is what they can withdraw, and is prose, not a mechanic: the
+  // tiers stay bloc-wide (per-state basing is a bigger change than this one).
+  //
+  // Keep `holds` under ~26 characters. The roster row is name-left / holding-
+  // right on one line and the holding ellipsises rather than wrapping, and the
+  // width that has to survive is a landscape phone's ~217px scroll pane. The
+  // first draft gave Kuwait "Ali Al Salem, Arifjan and Buehring" and Jordan
+  // "Muwaffaq Salti and the western corridor", both of which clipped there — an
+  // ellipsised holding is the one fact the roster exists to carry, cut off.
+  states: [
+    { id: 'kuwait', name: 'Kuwait', capital: 'Kuwait City', camp: 'hawk',
+      country: 'Kuwait', holds: 'Ali Al Salem, two camps' },
+    { id: 'bahrain', name: 'Bahrain', capital: 'Manama', camp: 'hawk',
+      country: 'Bahrain', holds: 'the Fifth Fleet waterfront' },
+    { id: 'uae', name: 'the UAE', capital: 'Abu Dhabi', camp: 'hawk',
+      country: 'United Arab Emirates', holds: 'Al Dhafra' },
+    { id: 'jordan', name: 'Jordan', capital: 'Amman', camp: 'hawk',
+      country: 'Jordan', holds: 'Muwaffaq Salti, the west' },
+    { id: 'saudi', name: 'Saudi Arabia', capital: 'Riyadh', camp: 'dove',
+      country: 'Saudi Arabia', holds: 'Prince Sultan', energy: true },
+    { id: 'qatar', name: 'Qatar', capital: 'Doha', camp: 'dove',
+      country: 'Qatar', holds: 'Al Udeid', energy: true },
+    { id: 'oman', name: 'Oman', capital: 'Muscat', camp: 'dove',
+      country: 'Oman', holds: 'the channel to Tehran' },
+  ],
+
+  fly: 100,          // both gauges resolve here
+  after: 30,         // discharged, not reset — the next argument is already running
+  // ...but the doves discharge FURTHER, and the reason is the difference between
+  // the two things being measured. The hawks' gauge is appetite, and an appetite
+  // that has just been fed is back within sight of full. A caveat is a decision
+  // the council actually took after weeks of argument, and a council that has
+  // just decided something does not reopen it next Tuesday. Measured: at the
+  // shared 30 a thirty-turn war filed 2.8 caveats and lost Gulf basing in ~95% of
+  // long campaigns against a 60% baseline with the mechanic switched off, which
+  // made a full-length war a scheduled loss of the ramps rather than a risk.
+  doveAfter: 10,
+
+  // ---- the hawks: what makes them buy in ----
+  // The trap this shape avoids: a gauge that climbed when the president NEGLECTED
+  // the missile force would have paid the player for leaving TELs alive, which is
+  // a farm and not a mechanic. So it climbs off two things they can see and the
+  // president cannot fake — Iran shooting at THEM, and American ordnance actually
+  // landing on the arm that does the shooting.
+  hawkStart: [10, 26],
+  hawk: {
+    ambient: 2,        // the threat is next door and it has not moved
+    struck: 13,        // a salvo that landed on hawk soil
+    serviced: 6,       // per priority aimpoint CENTCOM actually killed this turn
+    strait: 2,         // their sea lane too
+    idle: -4,          // a night the tasking order flew nothing at all
+  },
+  // What they want serviced. Derived from type rather than flagged per target
+  // (unlike israelPriority) so a missile target added later inherits it — what
+  // the hawks care about is the CLASS, not a list somebody maintained once.
+  priorityTypes: ['missile', 'tel'],
+  priorityIds: ['irgc-hq'],
+
+  // ---- the doves: what makes them want out ----
+  // These are the retuned numbers, and the first draft is worth recording
+  // because the failure was the one this project keeps re-learning. At
+  // ambient 2.2 / grind 0.35 / oil 0.09, measured over 150 campaigns: the median
+  // competent campaign filed 2.7 caveats out of a possible 3 and lost Gulf basing
+  // 100% of the time. That is not a pressure a president manages, it is a
+  // schedule with a gauge drawn on it — the exact complaint the comment above
+  // syncBasing already makes about world opinion without drift.
+  //
+  // The compounding term was most of it. `grind` is multiplied by the turn count,
+  // so it was worth +7/turn by turn 20 on its own and pinned every long war at
+  // the cap regardless of how it was fought. It is capped now: the council gets
+  // more impatient as the war runs long and then stops getting more impatient,
+  // because past a point the argument is already fully made.
+  //
+  // Target shape, and what it now measures: one caveat in a typical competent
+  // campaign, two in a long ugly one, three rare. That keeps the fold threshold
+  // near where good play leaves standing abroad, which is what makes it a live
+  // question instead of an outcome.
+  dovStart: [14, 34],
+  dove: {
+    ambient: 1.6,      // it is week two and nobody has said how this ends
+    grind: 0.18,       // × turns elapsed: the argument gets louder on its own...
+    grindMax: 4,       // ...up to here, and then it is simply the standing view
+    struck: 12,        // a salvo that landed on dove soil — their war now
+    oil: 0.06,         // × dollars over `oilFloor`
+    oilFloor: 110,
+    hormuzShut: 5,     // × 1 contested, × 2 closed
+    civil: 1.8,        // per destroyed dual-use site — including the ones Israel did
+    // A theater the president has actually calmed has to be able to walk this
+    // back, or the only strategy is to outrun it. Worth more than the ambient
+    // climb on purpose: a quiet barrel and an open strait is a NET fall.
+    calm: -7,
+    calmOil: 105,
+  },
+
+  // ---- what a full dove gauge costs ----
+  // A caveat, not a walkout. It takes a tanker track tonight (a ramp that will
+  // host aircraft but not launch them is worth exactly that much) and it raises
+  // where the whole tier folds, so each one brings the existing cliff closer to
+  // wherever world opinion happens to be standing. Three is the cap: at four the
+  // tier folds above the coalition baseline and the war is unplayable for a
+  // reason nothing on screen explains.
+  caveatMax: 3,
+  caveatStep: 6,
+  caveatTankers: 1,
+
+  // ---- what a full hawk gauge pays ----
+  // A ladder, in order, once each. Ordered cheapest-first deliberately: the
+  // fourth fire is worth less than the first, so banking resolve for the
+  // corridor (below) stays a live choice rather than something a patient player
+  // always wins by default.
+  gifts: [
+    { id: 'tanker', tankers: 1, title: 'KUWAIT OPENS ALI AL SALEM TO OFFENSIVE TASKING',
+      text: 'Kuwait City has quietly dropped the caveat it has carried since the war opened: the ramp at Ali Al Salem is available for strike operations and not only for airlift. CENTCOM gains a tanker track it did not have to ask Riyadh for.' },
+    { id: 'patriots', bmd: 0.18, title: 'EMIRATI AIR DEFENSE FOLDS INTO THE THEATER PICTURE',
+      text: 'Abu Dhabi has put its own batteries on the American track and released the interceptor stock behind them. The escort screen stops being the only magazine in the theater for the first time since the war opened.' },
+    { id: 'fighters', fighters: 2, title: 'BAHRAIN AND THE UAE COMMIT SQUADRONS',
+      text: 'Manama and Abu Dhabi are flying. Two allied squadrons come onto the tasking order under CENTCOM control — not a gesture, a share of the night.' },
+  ],
+  // and after the ladder is spent, they keep paying, smaller
+  giftRepeat: { bmd: 0.10 },
+
+  // ---- the northern corridor ----
+  // The order that makes banking hawk goodwill worth doing. Deep reach currently
+  // dies with the bloc — canReach is one boolean — and this is the insurance
+  // against that: Amman and Kuwait City keep the northwestern tracks open on
+  // their own account, whatever Doha and Riyadh have filed. It spends the whole
+  // gauge, so it is genuinely a choice against the gift ladder rather than a
+  // thing to collect on the way past.
+  corridorAt: 58,
+  corridorApproval: -3,
+
+  // ---- the summit ----
+  // The dove-facing lever, and like asking Jerusalem to hold it is billed at
+  // HOME rather than abroad: a wartime president spending a week reassuring Gulf
+  // monarchies is a week of coverage about what the monarchies want. Same
+  // depreciation, same reason — the second reassurance is worth less than the
+  // first and both sides know it.
+  summitMax: 3,
+  summitRelief: -30,
+  summitDecay: 0.6,
+  summitApproval: 3,
+  summitRamp: 1.6,
+
+  // ---- Patriots forward ----
+  // Priced in the fleet's own magazine, because that is the honest bill: there
+  // is one interceptor stock in the theater and putting it over Manama and Abu
+  // Dhabi is taking it off Al Udeid and Al Dhafra. It buys the hawks outright.
+  patriotBmd: 0.22,
+  patriotResolve: 26,
+  patriotMax: 2,
 };
 
 // ============================================================

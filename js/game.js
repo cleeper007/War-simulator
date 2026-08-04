@@ -261,6 +261,19 @@ const Game = (() => {
     // squadrons actually withdrawn per tier, so recovery returns exactly those
     basingDebt: { nato: 0, gulf: 0 },
 
+    // ---- the two arguments inside the coalition ----
+    // See GULF in data.js. `resolve` is the hawks' appetite and `strain` is the
+    // doves' patience running out; both climb, both fire at GULF.fly and rebuild
+    // from GULF.after. `caveats` is how many times the doves have narrowed what
+    // may be flown off their soil — it raises where the whole Gulf tier folds.
+    // `tankers` is the NET of hawk gifts and dove caveats, folded into
+    // tankerCapacity; `corridor` is the northwestern reach bought off the hawks,
+    // which survives the bloc folding and is the only thing that does.
+    gulf: {
+      resolve: 18, strain: 24, caveats: 0, gifts: [], tankers: 0,
+      corridor: false, summits: 0, patriots: 0,
+    },
+
     // ---- the Hill ----
     // One vote, mid-war, on whether this campaign continues and on what terms.
     warPowers: { done: false, result: null, noOil: false, noDeep: false },
@@ -489,7 +502,10 @@ const Game = (() => {
     // played by someone who accepted a bargain this build does not offer, and
     // would resume mid-war having bought something else. The folder rates and
     // the heavy bomber turnaround moved underneath it in the same build.
-    const VERSION = 22;   // v1.69: the tasking order opens short and grows
+    // The Gulf is two camps with two gauges, and where the Gulf basing tier
+    // folds is no longer a constant — a save written before the caveats existed
+    // would resume with a threshold the rest of the state disagrees with.
+    const VERSION = 23;
     const FIELDS = [
       'turn', 'softCap', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -504,7 +520,7 @@ const Game = (() => {
       'bombersOrdered', 'bomberEta', 'bombersArrived', 'deployTurn',
       'heaviesOrdered', 'heavyEta', 'heaviesArrived', 'forceFlow', 'airPhaseSeen',
       'milestones', 'difficulty', 'iranPosture', 'postureKnown', 'breakout', 'intel',
-      'tankers', 'tankerCap', 'basing', 'basingDebt', 'warPowers', 'addresses', 'threat',
+      'tankers', 'tankerCap', 'basing', 'basingDebt', 'gulf', 'warPowers', 'addresses', 'threat',
       'timeline', 'adapt', 'adaptSeen', 'turnStartHp', 'tlamPool', 'torpedoes',
       'bmdPool', 'bmdRearm',
     ];
@@ -1020,6 +1036,11 @@ const Game = (() => {
     if (G.basing.nato) n += BASING_TIERS.nato.tankers;
     if (G.basing.gulf) n += BASING_TIERS.gulf.tankers;
     if (G.coalition) n += 1;
+    // the net of what the hawks have opened and what the doves have closed off,
+    // and the one place either camp touches the nightly plan directly. Floored
+    // against the tier itself: three caveats may take the Gulf's own tracks away
+    // and no more, or the doves could reach past their own ramps into the deck's.
+    n += Math.max(-BASING_TIERS.gulf.tankers, G.gulf.tankers);
     // the tanker wings that came in with the force flow. This is the single
     // biggest reason a war in week three is heavier than a war in week one:
     // the plan stops being written around four tracks a night.
@@ -1043,10 +1064,21 @@ const Game = (() => {
   // Two thresholds, both recoverable. Crossing one costs squadrons, tanker
   // tracks, and — at the bottom — the reach to touch anything deep at all.
   // ============================================================
+  // Where the Gulf tier folds. The floor in BASING_TIERS is where it sits with
+  // the doves quiet; every caveat Riyadh, Doha and Muscat file walks it up toward
+  // wherever world opinion happens to be standing. This is the whole of what a
+  // full dove gauge does to the campaign, and it is deliberately a threshold move
+  // rather than a nightly tick: a cliff that is coming closer is something a
+  // president can read off the same bar they were already reading.
+  function gulfFoldThreshold(key) {
+    const tier = BASING_TIERS[key];
+    return key === 'gulf' ? tier.at + G.gulf.caveats * GULF.caveatStep : tier.at;
+  }
+
   function syncBasing() {
     const events = [];
     for (const [key, tier] of Object.entries(BASING_TIERS)) {
-      const should = G.world > tier.at;
+      const should = G.world > gulfFoldThreshold(key);
       if (should === G.basing[key]) continue;
       G.basing[key] = should;
       if (!should) {
@@ -1066,11 +1098,19 @@ const Game = (() => {
           dTanker: -tier.tankers,
         } : {
           cls: 'world', title: 'GULF STATES REVOKE ACCESS AND OVERFLIGHT',
-          text: 'Doha, Abu Dhabi and Manama have jointly suspended American offensive operations from their ' +
-            'territory and closed their airspace to strike packages. Al Udeid and Al Dhafra are hosting ' +
-            'aircraft that are not permitted to fly. Without the northern tanker tracks there is no longer ' +
-            'a way to put a manned package over the far northwest of Iran at all — Tabriz and the Caspian ' +
-            'are off the target list until this is repaired.',
+          // Riyadh and Doha carry this sentence now, and the hawks are named as
+          // having lost the argument rather than made it — the tier is bloc-wide,
+          // and a GCC that has voted is a GCC the dissenters are inside.
+          text: 'Riyadh and Doha have carried the council. American offensive operations are suspended from ' +
+            'Gulf territory and the airspace is closed to strike packages; Kuwait City and Abu Dhabi argued ' +
+            'against and are bound by it anyway. Al Udeid and Al Dhafra are hosting aircraft that are not ' +
+            'permitted to fly. ' +
+            (G.gulf.corridor
+              ? 'The northwestern corridor stands — Amman and Kuwait City are holding it open on their own ' +
+                'account, and it is the only reason there is still a way to put a package over Tabriz.'
+              : 'Without the northern tanker tracks there is no longer a way to put a manned package over ' +
+                'the far northwest of Iran at all — Tabriz and the Caspian are off the target list until ' +
+                'this is repaired.'),
           dTanker: -tier.tankers,
         });
       } else {
@@ -1088,8 +1128,10 @@ const Game = (() => {
     return events;
   }
 
-  // Deep strike needs the northern tracks, and those come with the Gulf ramps.
-  const canReach = (t) => G.basing.gulf || (t.depth || 2) < 3;
+  // Deep strike needs the northern tracks, and those come with the Gulf ramps —
+  // or with the corridor the hawks were paid to hold open regardless, which is
+  // the entire point of banking their goodwill instead of spending it (see GULF).
+  const canReach = (t) => G.basing.gulf || G.gulf.corridor || (t.depth || 2) < 3;
 
   // ============================================================
   // DISPERSAL — THE MISSILE HUNT
@@ -2129,6 +2171,164 @@ const Game = (() => {
     };
   }
 
+  // ============================================================
+  // THE TWO ARGUMENTS INSIDE THE COALITION
+  // ------------------------------------------------------------
+  // See the design note above GULF in data.js. Two camps, two gauges, and the
+  // same shape as Jerusalem's clock throughout — drivers are a list of
+  // [amount, why] so the panel can explain a number the president is being
+  // judged on, and the gauges are ONLY ever moved through them.
+  // ============================================================
+  const gulfStates = (camp) => GULF.states.filter(s => s.camp === camp);
+
+  // What the hawks want serviced: the arm that can reach them. Read off the type
+  // rather than a per-target flag, so a missile site added to data.js later is on
+  // their list the day it lands. Restricted to what CENTCOM can actually plot —
+  // charging the president for leaving a covert box alone is charging them for a
+  // decision they were never offered, which is the same rule israelPriorities
+  // documents one screen up.
+  const gulfPriorities = () => TARGETS.filter(t =>
+    (GULF.priorityTypes.includes(t.type) || GULF.priorityIds.includes(t.id)) && plotted(t));
+
+  // Tonight's movement on the hawks' gauge. Everything here is something a
+  // capital in the region can see from its own territory: what Iran did to them,
+  // what American ordnance landed on, and whether the strait is shut.
+  function gulfHawkDrivers() {
+    const d = GULF.hawk;
+    const out = [[d.ambient, 'The threat next door has not moved']];
+
+    const serviced = gulfPriorities().filter(t => G.struckThisTurn.includes(t.id)).length;
+    if (serviced) {
+      out.push([d.serviced * serviced,
+        `${Txt.plural(serviced, 'missile-force aimpoint')} serviced tonight`]);
+    }
+    if (G.hormuz !== 'OPEN') out.push([d.strait, 'The strait is their sea lane too']);
+    // A night with nothing on the tasking order reads in Kuwait City and Abu
+    // Dhabi as a president losing their nerve, and it is the only term here the
+    // president controls completely.
+    if (!G.strikesThisTurn) out.push([d.idle, 'Nothing flew tonight']);
+    return out;
+  }
+
+  // ...and the doves'. The barrel, the strait, the calendar, and the photographs.
+  function gulfDoveDrivers() {
+    const d = GULF.dove;
+    const out = [
+      [d.ambient, 'Nobody has told them how this ends'],
+      [Math.min(d.grindMax, d.grind * G.turn),
+        'Every night this runs is a night they are asked about it'],
+    ];
+
+    if (G.oil > d.oilFloor) {
+      out.push([d.oil * (G.oil - d.oilFloor), `The barrel is at $${Math.round(G.oil)}`]);
+    }
+    if (G.hormuz !== 'OPEN') {
+      out.push([d.hormuzShut * (G.hormuz === 'CLOSED' ? 2 : 1),
+        `The strait is ${G.hormuz.toLowerCase()}`]);
+    }
+    // The dual-use class, and deliberately not restricted to the sites CENTCOM
+    // chose: a coordinated Israel's wildcard nights land on this same list, which
+    // is the second consequence that surcharge always should have had. What
+    // Riyadh is reacting to is the photograph, not the tasking order behind it.
+    const civil = TARGETS.filter(t => t.type === 'infra' && t.hp <= 0).length;
+    if (civil) {
+      out.push([d.civil * civil, `${Txt.plural(civil, 'civil site')} down inside Iran`]);
+    }
+    if (G.oil <= d.calmOil && G.hormuz === 'OPEN') {
+      out.push([d.calm, 'The barrel is calm and the tankers are moving']);
+    }
+    return out;
+  }
+
+  const gulfRate = (drivers) => drivers.reduce((n, [amt]) => n + amt, 0);
+
+  // Turns until this gauge fires at tonight's rate, or null if it is falling or
+  // creeping too slowly to matter. Same rule as israelEta and for the same
+  // reason: a null means two different things and they must not share a sentence.
+  function gulfEta(which) {
+    const rate = gulfRate(which === 'hawk' ? gulfHawkDrivers() : gulfDoveDrivers());
+    if (rate <= 0.4) return null;
+    const left = GULF.fly - (which === 'hawk' ? G.gulf.resolve : G.gulf.strain);
+    const n = Math.ceil(left / rate);
+    return n > 30 ? null : Math.max(1, n);
+  }
+
+  // What the next summit costs and buys. Depreciating on both sides, exactly
+  // like asking Jerusalem to hold — the second reassurance is worth less than the
+  // first and both capitals know it.
+  function gulfSummitCost() {
+    const n = G.gulf.summits;
+    return {
+      approval: Math.round(GULF.summitApproval * Math.pow(GULF.summitRamp, n)),
+      relief: Math.round(-GULF.summitRelief * Math.pow(GULF.summitDecay, n)),
+      left: Math.max(0, GULF.summitMax - n),
+    };
+  }
+
+  // ---- the camps act ----
+  // Called once a turn, after Tehran's salvo has been applied so tonight's
+  // strike on Abqaiq is in tonight's argument, and before syncBasing so a caveat
+  // filed tonight is checked against the tier tonight.
+  function gulfTurn() {
+    const events = [];
+    G.gulf.resolve = clamp(G.gulf.resolve + gulfRate(gulfHawkDrivers()), 0, GULF.fly);
+    G.gulf.strain = clamp(G.gulf.strain + gulfRate(gulfDoveDrivers()), 0, GULF.fly);
+
+    // The doves file a caveat. Not a walkout — a narrowing, which takes a track
+    // tonight and moves the cliff the whole tier stands on.
+    if (G.gulf.strain >= GULF.fly && G.gulf.caveats < GULF.caveatMax) {
+      G.gulf.caveats++;
+      G.gulf.strain = GULF.doveAfter;
+      G.gulf.tankers -= GULF.caveatTankers;
+      const n = G.gulf.caveats;
+      events.push({
+        cls: 'world',
+        title: `GULF PARTNERS FILE ${Txt.ordinal(n).toUpperCase()} OPERATING CAVEAT`,
+        sum: `${Txt.plural(n, 'caveat')} on the ramps`,
+        text: `Riyadh, Doha and Muscat have jointly narrowed what may be flown off their territory. ` +
+          `It is not a withdrawal and they are careful to say so: the ramps stay open, the aircraft stay ` +
+          `bedded down, and one more tanker track comes off tonight's plan. What it actually costs is ` +
+          `further out. Gulf basing now falls the moment American standing abroad drops below ` +
+          `${gulfFoldThreshold('gulf')} rather than ${BASING_TIERS.gulf.at}` +
+          (n >= GULF.caveatMax
+            ? ' — and that is as far as this council will go. There is no fourth caveat; the next thing they file is the withdrawal itself.'
+            : ', and the council meets again.'),
+        dTanker: -GULF.caveatTankers,
+      });
+    } else if (G.gulf.strain >= GULF.fly) {
+      // Capped out. The gauge stays pinned rather than discharging into nothing,
+      // so the panel keeps reading FULL and the president is not told an
+      // argument was settled when it was only exhausted.
+      G.gulf.strain = GULF.fly;
+    }
+
+    // The hawks pay. A ladder, once each, then a smaller standing dividend.
+    if (G.gulf.resolve >= GULF.fly) {
+      G.gulf.resolve = GULF.after;
+      const gift = GULF.gifts.find(g => !G.gulf.gifts.includes(g.id));
+      if (gift) {
+        G.gulf.gifts.push(gift.id);
+        if (gift.tankers) G.gulf.tankers += gift.tankers;
+        if (gift.fighters) { G.alliedFighters += gift.fighters; syncFleetCaps(); }
+        if (gift.bmd) G.bmdPool = Math.min(bmdCapacity(), G.bmdPool + Math.round(bmdCapacity() * gift.bmd));
+        events.push({
+          cls: 'friendly', title: gift.title, sum: 'Hawks commit',
+          text: gift.text, dTanker: gift.tankers || 0,
+        });
+      } else {
+        G.bmdPool = Math.min(bmdCapacity(), G.bmdPool + Math.round(bmdCapacity() * GULF.giftRepeat.bmd));
+        events.push({
+          cls: 'friendly', title: 'GULF PARTNERS RELEASE FURTHER INTERCEPTOR STOCK',
+          sum: 'Hawks resupply the screen',
+          text: 'Kuwait City and Abu Dhabi have released another tranche of interceptors to the theater ' +
+            'stock. There is nothing ceremonial left to give and both governments know it; what they have ' +
+            'is rounds, and rounds are what the screen is short of.',
+        });
+      }
+    }
+    return events;
+  }
+
   const resKey = (asset) => asset === 'fighter' ? 'fighters' : asset;
   const assetProfile = (asset) => AIR_ASSETS[asset] || AIR_ASSETS.cruise;
 
@@ -2996,6 +3196,12 @@ const Game = (() => {
     // a suspected box the player clicks on, and it has to say which of the two
     // problems it is — there is nothing wrong with the weapon or the tanker plan.
     if (t.covert && !t.found) return 'No aimpoint. The analysts have activity in this area and nothing precise enough to task a package against. Work the target folder from the Intelligence panel.';
+    // Belt, not braces. `plotted` already keeps a held aimpoint off the board and
+    // out of every caller's hands, so nothing should arrive here holding one —
+    // but every OTHER absence on the list routes its refusal through this
+    // function, and leaving the one gap is how the next entry point re-opens it.
+    // Tour.demoTarget was that entry point once already.
+    if (t.held && !t.released) return 'Not on the tasking order. The joint targeting cycle has not released this aimpoint yet — it is being staffed, and it will appear on the plot when it is.';
     return null;
   }
 
@@ -3155,6 +3361,87 @@ const Game = (() => {
         });
         break;
       }
+      // ---- the Gulf council ----
+      // Three orders, all on the diplomatic slot, and each one buys from a
+      // different camp at a price that camp can actually charge. Deliberately
+      // NOT a second budget: the argument at the top of renderAllied applies
+      // here word for word, and there is less to spend it on than Jerusalem has.
+
+      // The dove-facing lever, billed at home for the same reason asking
+      // Jerusalem to hold is — a week of the president reassuring Gulf monarchies
+      // is a week of coverage about what Gulf monarchies want out of an American
+      // war. Depreciating, and there is no fourth.
+      case 'gcc': {
+        const cost = gulfSummitCost();
+        if (cost.left <= 0) return;
+        G.gulf.summits++;
+        G.gulf.strain = clamp(G.gulf.strain - cost.relief, 0, GULF.fly);
+        G.approval = clamp(G.approval - cost.approval, 0, 100);
+        events.push({
+          cls: 'friendly', title: 'GCC summit — the council is held together',
+          text: `You fly to Riyadh and sit through two days of it. What you get is real: the caveat papers ` +
+            `already drafted go back in the folder, the pressure for an American end state comes off ` +
+            `${cost.relief} points, and Doha stops briefing against the campaign for a while. What it costs ` +
+            `is the photograph — an American president in a Gulf palace explaining a war, at home, in week ` +
+            `two. ` +
+            (cost.left - 1 <= 0
+              ? 'It is also the last one that works. There is no third summit; the next council meets without you.'
+              : `${Txt.plural(cost.left - 1, 'further summit')} would be worth having, each less than this one.`),
+          dApproval: -cost.approval,
+        });
+        break;
+      }
+
+      // The hawk-facing lever, and the only order in the game priced in the
+      // fleet's own magazine. That is the honest bill: there is one interceptor
+      // stock in the theater, and putting it over Manama and Abu Dhabi is taking
+      // it off Al Udeid and Al Dhafra. It buys the hawks outright and it makes
+      // the next Iranian salvo worse — which is exactly the trade a president
+      // makes when they decide the alliance matters more than tonight.
+      case 'patriots': {
+        if (G.gulf.patriots >= GULF.patriotMax) return;
+        const spend = Math.round(bmdCapacity() * GULF.patriotBmd);
+        if (G.bmdPool < spend) return;
+        G.gulf.patriots++;
+        G.bmdPool -= spend;
+        G.gulf.resolve = clamp(G.gulf.resolve + GULF.patriotResolve, 0, GULF.fly);
+        events.push({
+          cls: 'friendly', title: 'Patriot batteries released to Manama and Abu Dhabi',
+          text: `Two batteries and the rounds behind them come off the American track and go to the hosts. ` +
+            `${Txt.plural(spend, 'interceptor')} out of the theater stock, which is the screen's stock — ` +
+            `Al Udeid and Al Dhafra are thinner tonight than they were this morning, and Tehran does not ` +
+            `have to be told. What you have bought is the hawks: Manama and Abu Dhabi have what they have ` +
+            `been asking twenty years for, and they will spend the rest of this war remembering who gave ` +
+            `it to them.`,
+        });
+        break;
+      }
+
+      // The order the whole hawk gauge exists to make possible. Deep reach dies
+      // with the bloc — canReach is one boolean — and this is the insurance
+      // against that, bought with the goodwill the gift ladder would otherwise
+      // have spent on tankers and interceptors. Spending the gauge to zero is the
+      // point: it is a real choice against the ladder and not a thing collected
+      // on the way past.
+      case 'corridor': {
+        if (G.gulf.corridor || G.gulf.resolve < GULF.corridorAt) return;
+        G.gulf.corridor = true;
+        G.gulf.resolve = 0;
+        G.approval = clamp(G.approval + GULF.corridorApproval, 0, 100);
+        events.push({
+          cls: 'friendly', title: 'Amman and Kuwait City guarantee the northern corridor',
+          text: 'Jordan and Kuwait have signed a bilateral arrangement outside the council: the ' +
+            'northwestern tanker tracks and the overflight behind them stay open to American strike ' +
+            'packages regardless of what the GCC files. It is not popular in either capital and both ' +
+            'governments will spend something at home for it. What it means for this campaign is that ' +
+            'Tabriz and the Caspian stay on the target list even if Riyadh and Doha close the Gulf — the ' +
+            'one thing the council can take away that you have now bought back in advance. Their goodwill ' +
+            'is spent to the last point. They will rebuild it; they have not got it now.',
+          dApproval: GULF.corridorApproval,
+        });
+        break;
+      }
+
       case 'address': {
         if (G.addressCooldown > 0) return;
         G.addressCooldown = 2;
@@ -3498,6 +3785,14 @@ const Game = (() => {
     // set piece, and after the night's own climb — Tehran's answer moves TOMORROW
     // night's launch decision, not the one that already flew.
     if (ev.dPressure) G.israelPressure = clamp(G.israelPressure + ev.dPressure, 0, ISRAEL.fly);
+    // Whose soil the salvo landed on. Same rule as dPressure — the event that
+    // knows carries it, rather than the gauges trying to infer it from a title —
+    // and applied here so a set piece and an AI-written salvo move the coalition
+    // identically. A strike on Abqaiq or Doha is the one that carries BOTH: it
+    // hardens the room and it frightens the host, which is exactly the argument
+    // Tehran is trying to start.
+    if (ev.dResolve) G.gulf.resolve = clamp(G.gulf.resolve + ev.dResolve, 0, GULF.fly);
+    if (ev.dStrain) G.gulf.strain = clamp(G.gulf.strain + ev.dStrain, 0, GULF.fly);
     if (ev.hormuz) { G.hormuz = ev.hormuz; MapView.setHormuz(G.hormuz); }
     if (ev.flashAsset) MapView.flashAsset(ev.flashAsset);
   }
@@ -3874,6 +4169,12 @@ const Game = (() => {
             if (G.world < baseline) G.world = Math.min(baseline, G.world + 2.5);
           }
 
+          // the two arguments inside the coalition. Run BEFORE syncBasing, so a
+          // caveat filed tonight is checked against tonight's world opinion and
+          // not tomorrow's — and after the salvo above, so tonight's strike on
+          // Abqaiq is in tonight's argument rather than next week's.
+          const gulf = gulfTurn();
+
           // standing abroad is a permission slip, and it is checked nightly
           const basing = syncBasing();
 
@@ -3894,7 +4195,7 @@ const Game = (() => {
           // report, in a dialog of its own, because a resolution that shortens the
           // target list for the rest of the war cannot be the eleventh collapsed
           // line under nine battle damage assessments.
-          const theirs = [...events, ...basing, ...flow, ...(wearyEv ? [wearyEv] : [])];
+          const theirs = [...events, ...gulf, ...basing, ...flow, ...(wearyEv ? [wearyEv] : [])];
           // the ticker and the after-action record still see the whole night —
           // the split is only in how it is read back to the president
           const all = [...ours, ...theirs, ...(vote && !cutoff ? [vote] : [])];
@@ -4363,6 +4664,15 @@ const Game = (() => {
     G.israelJointAvailable = false;
     syncJointPackages();   // TARGETS outlives the war; the joint option must not
 
+    // The council's temper is not a constant either, and the two camps are rolled
+    // independently: a war can open with the hawks already leaning in and Riyadh
+    // still calm, or the reverse, and those are different opening problems.
+    G.gulf = {
+      resolve: rand(GULF.hawkStart[0], GULF.hawkStart[1]),
+      strain: rand(GULF.dovStart[0], GULF.dovStart[1]),
+      caveats: 0, gifts: [], tankers: 0, corridor: false, summits: 0, patriots: 0,
+    };
+
     // The coastal SAM belt is never found at full strength. The sweep that put
     // it there IS the "covert action" Tehran is retaliating for in the opening
     // brief, and targetDesc says so wherever Bandar Abbas is read: a site
@@ -4472,6 +4782,10 @@ const Game = (() => {
     // Jerusalem: the gauge is state, the ETA and the drivers are readings off it,
     // so the panel, the advisors and the sim can never quote different numbers.
     israelStatus, israelEta, israelClock, israelDrivers, israelHoldCost, israelPriorities,
+    // the two camps, on the same terms: the gauges are state, everything here is
+    // a reading off them, and the panel is not allowed a second copy of any of it
+    gulfHawkDrivers, gulfDoveDrivers, gulfEta, gulfSummitCost, gulfPriorities,
+    gulfStates, gulfFoldThreshold,
     airDefenseWeight, orderCarrier, toggleCarrierPosture, carrierFactor, carrierExposure, navalForward,
     carrierFixed: cvFixed,
     // the escort screen's interceptor magazine: ai.js fires it, the panel and

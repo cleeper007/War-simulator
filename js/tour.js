@@ -81,10 +81,23 @@ const Tour = (() => {
       title: 'BRING IN MORE FIREPOWER',
       text: 'Not everything is in theater yet. Order it forward from here — including the B-2, ' +
         'the only aircraft that reaches Fordow.' },
+    // The folder replaced "assess Tehran's intent" here rather than joining it,
+    // because a card listing all six taskings is a menu and this one has to be a
+    // recommendation. Naming the folder was defensible to leave out while the
+    // covert tier resolved after most campaigns had ended; v1.66 moved the
+    // median box to turn 6-7 and the aimpoint to 8-9, which puts it inside the
+    // war the player is actually fighting and makes it the only route to four
+    // sites, one of them an enrichment hall.
+    //
+    // The last sentence is the one that earns its words. The complaint the
+    // persistence rule answers was never "the odds are low", it was "the slot
+    // vanished and nothing happened" — and a player who reads one blank night as
+    // a wasted tasking stops working the folder exactly when it was about to pay.
     { sel: '#intel-panel', panel: 'intel',
       title: 'INTELLIGENCE TASKING',
-      text: 'Hunt the missile launchers, assess Tehran\'s intent, or re-look a target you have ' +
-        'already hit.' },
+      text: 'Hunt the missile launchers, re-look a target you have hit, or work the target folder — ' +
+        'the only way a hidden site becomes an aimpoint. A night that finds nothing still improves ' +
+        'the next one.' },
     { sel: '#diplo-panel', panel: 'diplo',
       title: 'DIPLOMATIC ACTIONS',
       text: 'Steady the home front, work the coalition, or lean on Tehran. This shelf and ALLIES ' +
@@ -170,10 +183,27 @@ const Tour = (() => {
     go(i + 1);
   }
 
+  // ANYTHING THE PLOT WILL NOT DRAW IS NOT SOMETHING TO OPEN A DIALOG ON. This
+  // filtered on status alone, which was right while everything on the list was
+  // on the board and wrong from the moment anything was not: a held aimpoint, an
+  // unfound covert site and an unlocated launcher group are all absent by design,
+  // and Game.plotted is the one place that knows it. The air defense branch never
+  // hit the problem — no SAM site is covert, dispersed or held — but the fallback
+  // behind it did, and it is exactly the branch that fires late in a war with the
+  // whole belt down, which is when a player is most likely to reopen the room.
+  //
+  // Two things went wrong through it, and neither is the walkthrough's to fix
+  // downstream. openStrikeModal prints the name and the description BEFORE it
+  // asks barred(), so an unfound covert site was named on screen — the one thing
+  // the middle tier exists to withhold, and the reason syncCovert draws a box
+  // with no id and no click handler. And barred() had no clause for `held` at
+  // all, because nothing could reach one: the walkthrough was the only path in
+  // the game that could hand openStrikeModal an aimpoint CENTCOM had not
+  // released, and it opened live and orderable.
   function demoTarget() {
     if (typeof TARGETS === 'undefined') return null;
-    return TARGETS.find(t => t.type === 'airdefense' && t.status !== 'destroyed')
-      || TARGETS.find(t => t.status !== 'destroyed');
+    const live = TARGETS.filter(t => t.status !== 'destroyed' && Game.plotted(t));
+    return live.find(t => t.type === 'airdefense') || live[0] || null;
   }
 
   const closeStrike = () => {

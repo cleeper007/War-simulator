@@ -185,7 +185,8 @@ const UI = (() => {
   // rendered, how much of it is still live.
   const ACTION_PANELS = {
     fleet: 'fleet-buttons', csar: 'csar-buttons', diplo: 'diplo-buttons',
-    allied: 'allied-buttons', intel: 'intel-buttons', specops: 'specops-buttons',
+    allied: 'allied-buttons', gulf: 'gulf-buttons', intel: 'intel-buttons',
+    specops: 'specops-buttons',
   };
   function renderBadges() {
     for (const key in ACTION_PANELS) {
@@ -1321,6 +1322,143 @@ const UI = (() => {
     wireActions('#allied-buttons');
   }
 
+  // ---- the Gulf council ----
+  // Two gauges and a seven-name roster. The roster is the part that earns its
+  // space: the gauges say how each camp feels, and only the roster says WHO is in
+  // which camp and what they are holding, which is the fact the whole mechanic
+  // turns on — the states that want the war shortest are the states with the big
+  // ramps under them. A player who never opens this panel should still be able to
+  // read "GULF 2 CAVEATS" off the shut header and know something is being spent.
+  function gulfBar(pct, tone, label) {
+    return `<div class="israel-gauge"><div class="israel-gauge-fill" ` +
+      `style="width:${pct}%;background:${tone}"></div></div>` +
+      `<div class="israel-gauge-meta">${label}</div>`;
+  }
+
+  function gulfWhy(drivers) {
+    return `<ul class="israel-why">` + drivers.slice()
+      .sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]))
+      .map(([amt, label]) => {
+        const n = Math.round(amt * 10) / 10;
+        return `<li>${n === 0 ? '' : `${signed(n)} — `}${label}</li>`;
+      }).join('') + `</ul>`;
+  }
+
+  function renderGulf(G) {
+    const used = G.diploUsed;
+    const resolve = Math.round(G.gulf.resolve);
+    const strain = Math.round(G.gulf.strain);
+    const caveats = G.gulf.caveats;
+
+    // The shut header carries the thing that is being spent. Caveats outrank the
+    // gauges once there are any: a threshold that has moved is a fact, and a
+    // gauge is only a forecast.
+    // Inflect, THEN shout. Txt appends the suffix to the last word as typed, so
+    // plural(2, 'CAVEAT') is "2 CAVEATs" — the same class of bug Txt exists to
+    // prevent, arrived at from the other side. Every counted noun in this panel
+    // is built lowercase and uppercased afterwards for that reason.
+    $('gulf-status').textContent = caveats
+      ? `GULF ${plural(caveats, 'caveat').toUpperCase()} · FOLDS AT ${Game.gulfFoldThreshold('gulf')}`
+      : `GULF ${strain}% STRAIN · ${resolve}% RESOLVE`;
+
+    // The roster. Camp, capital, and what each government is actually holding —
+    // which is the sentence that makes the split legible in one read.
+    $('gulf-roster').innerHTML = ['hawk', 'dove'].map(camp => {
+      const label = camp === 'hawk' ? 'PRESS THE WAR' : 'END IT';
+      return `<div class="gulf-camp gulf-camp-${camp}">` +
+        `<div class="gulf-camp-head">${label}</div>` +
+        Game.gulfStates(camp).map(s =>
+          `<div class="gulf-state"><span class="gulf-state-name">${s.capital}</span>` +
+          `<span class="gulf-state-holds">${s.holds}</span></div>`).join('') +
+        `</div>`;
+    }).join('');
+
+    const summit = Game.gulfSummitCost();
+    const strainEta = Game.gulfEta('dove');
+    const resolveEta = Game.gulfEta('hawk');
+    const spend = Math.round(Game.bmdCapacity() * GULF.patriotBmd);
+
+    const actions = [
+      {
+        id: 'gcc', name: 'GCC summit — hold the council together',
+        current: summit.left <= 0
+          ? 'The council will meet without you now.'
+          : `Strain ${signed(-summit.relief)}, approval ${signed(-summit.approval)}. ${plural(summit.left, 'summit')} left.`,
+        extra: gulfBar(strain, strain >= 75 ? 'var(--red)' : 'var(--amber)',
+          `RIYADH · DOHA · MUSCAT ${strain}%` +
+          (caveats ? ` · ${plural(caveats, 'caveat').toUpperCase()} FILED` : '') +
+          (strainEta === null ? ' · HOLDING'
+            : caveats >= GULF.caveatMax ? ' · NEXT IS THE WITHDRAWAL'
+            : ` · NEXT CAVEAT ${turns(strainEta)}`)),
+        desc: (summit.left <= 0 ? '' :
+          'Buys down the pressure for an American end state. Billed at home rather than abroad, and ' +
+          'depreciating — the second reassurance is worth less than the first and both sides know it. ' +
+          'What the doves file when this fills is a caveat, not a walkout: one tanker track tonight, and ' +
+          'the threshold the whole Gulf tier folds at walks up toward wherever standing abroad is ' +
+          `standing. It is at ${Game.gulfFoldThreshold('gulf')} now. What is filling it:`) +
+          gulfWhy(Game.gulfDoveDrivers()),
+        disabled: summit.left <= 0,
+      },
+      {
+        id: 'patriots', name: 'Patriots forward — Manama and Abu Dhabi',
+        current: G.gulf.patriots >= GULF.patriotMax
+          ? 'Both batteries are already released.'
+          : G.bmdPool < spend
+            ? 'Not enough left in the cells to release any.'
+            : `Resolve +${GULF.patriotResolve}, ${plural(spend, 'interceptor')} off the screen.`,
+        // The hawk bar is the one gauge in the game where FULL is good news, so
+        // it runs blue-to-green rather than amber-to-red. A president who has
+        // learned that a filling bar is a warning has to be able to see at a
+        // glance that this one is not.
+        extra: gulfBar(resolve, resolve >= 75 ? 'var(--green)' : 'var(--blue)',
+          `KUWAIT · MANAMA · ABU DHABI · AMMAN ${resolve}%` +
+          (resolveEta === null ? ' · FLAT' : ` · COMMITS IN ${turns(resolveEta)}`)),
+        desc: 'Priced in the fleet\'s own magazine, because that is the honest bill — there is one ' +
+          'interceptor stock in the theater and putting it over the hosts is taking it off Al Udeid and ' +
+          'Al Dhafra. Every time this gauge fills the hawks pay: a tanker track, then interceptors, then ' +
+          'squadrons, then rounds every time after. What is filling it:' +
+          gulfWhy(Game.gulfHawkDrivers()),
+        disabled: G.gulf.patriots >= GULF.patriotMax || G.bmdPool < spend,
+      },
+      {
+        id: 'corridor', name: 'Northern corridor — Amman and Kuwait City',
+        current: G.gulf.corridor
+          ? 'Corridor guaranteed. Deep reach survives the council.'
+          : resolve < GULF.corridorAt
+            ? `Needs ${GULF.corridorAt}% resolve. They are at ${resolve}%.`
+            : 'Spends the hawks\' goodwill to the last point.',
+        desc: G.gulf.corridor ? '' :
+          'The one thing the council can take away that can be bought back in advance. When Gulf basing ' +
+          'folds, the northwestern tanker tracks go with it and Tabriz and the Caspian come off the target ' +
+          'list — unless Jordan and Kuwait are holding the corridor on their own account. It costs the ' +
+          'whole gauge, so it is a real choice against what the hawks would otherwise have paid you in ' +
+          'tankers, interceptors and squadrons.',
+        disabled: G.gulf.corridor || resolve < GULF.corridorAt,
+      },
+    ];
+
+    $('gulf-buttons').innerHTML = actionButtons(actions, used);
+    wireActions('#gulf-buttons');
+    // the plot carries the same split, so the panel and the map cannot disagree
+    MapView.setGulfMood(gulfMood(G));
+  }
+
+  // What each of the seven countries is coloured on the strategic plot. One
+  // reading, computed here and handed to the map, so there is no second copy of
+  // "who is angry" for the two displays to drift apart on.
+  function gulfMood(G) {
+    const mood = {};
+    for (const s of Game.gulfStates('hawk')) {
+      mood[s.country] = G.gulf.resolve >= 60 ? 'committed' : 'hawk';
+    }
+    for (const s of Game.gulfStates('dove')) {
+      mood[s.country] = !G.basing.gulf ? 'closed'
+        : G.gulf.caveats >= GULF.caveatMax ? 'caveat'
+        : G.gulf.strain >= 60 ? 'strained' : 'dove';
+    }
+    return mood;
+  }
+
   // one control for every order the player can give, so a tasking looks like a
   // tasking wherever it is rendered
   // Which action explainers are open. Unlike the advisors' `advOpen` this is NOT
@@ -1565,6 +1703,7 @@ const UI = (() => {
     renderAdvisors(G);
     renderDiplo(G);
     renderAllied(G);
+    renderGulf(G);
     renderIntel(G);
     SpecOps.renderPanel(G);
     renderBadges();
@@ -2608,6 +2747,20 @@ const UI = (() => {
       { cls: 'friendly', title: 'FIRST, TAKE THE SKY',
         text: 'Click any target to plan a strike. Most of your force is grounded until the SAM belt ' +
           'comes down, so hit air defenses first. STRIKE ASSETS shows what has been released.' },
+      // The board opens SHORT as of v1.69, and a player who reads night one as
+      // the whole war mis-plans everything downstream of it — Arak arrives on
+      // the ramp, so the nuclear objective is not even fully visible yet.
+      //
+      // The ramp itself is self-explaining after one turn: the JIPTL UPDATE
+      // event lands in the report every night and says what was added. What the
+      // report CANNOT say at the moment it matters is that rolling the belt back
+      // makes it arrive faster — by the time that sentence fires, the player has
+      // already either earned it or not. So the incentive is the half worth a
+      // card, and it lands next to the card that gives the same order for a
+      // different reason.
+      { cls: '', title: 'THE TARGET LIST IS STILL OPENING',
+        text: 'Tonight\'s board is not the whole list. CENTCOM releases more aimpoints every night — ' +
+          'and more of them once the belt is down.' },
       // The tasking order is the currency the whole campaign is priced in as of
       // v1.28, and it is the first thing a new player runs into — three packages
       // on night one, and the fourth costs. Discovering that from a refusal on
