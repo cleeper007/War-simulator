@@ -2929,7 +2929,7 @@ const UI = (() => {
       // card, and it lands next to the card that gives the same order for a
       // different reason.
       { cls: '', title: 'THE TARGET LIST IS STILL OPENING',
-        text: 'Tonight\'s board is not the whole list. CENTCOM releases more aimpoints every night — ' +
+        text: 'Tonight\'s board is not the whole list. CENTCOM releases more aimpoints every night, ' +
           'and more of them once the belt is down.' },
       // The tasking order is the currency the whole campaign is priced in as of
       // v1.28, and it is the first thing a new player runs into — three packages
@@ -2939,8 +2939,8 @@ const UI = (() => {
         text: 'A fourth still flies, as a degraded LATE FRAG, and it comes off tomorrow\'s plan. ' +
           'Surge for a night that matters, not for every night.' },
       { cls: '', title: 'THE NUCLEAR SITES NEED THE B-2',
-        text: 'Fordow and Natanz are buried, and only the B-2 reaches them. It is still in Missouri — ' +
-          'call it forward from THEATER FORCES, one turn out.' },
+        text: 'Fordow and Natanz are buried, and only the B-2 reaches them. It is still in Missouri, ' +
+          'so call it forward from THEATER FORCES, one turn out.' },
       { cls: '', title: 'TWO FREE ACTIONS EVERY TURN',
         text: 'One INTELLIGENCE tasking, one DIPLOMATIC action, both free. Watch the bottom bar: a war ' +
           'being won on the map is routinely lost at home.' },
@@ -2948,7 +2948,7 @@ const UI = (() => {
         text: 'Close the Strait, bleed you with missiles, or sprint for a bomb. Read it off what Tehran ' +
           'actually does, and fight the war in front of you.' },
     ];
-    showReport('HOW TO PLAY — THE WAY THIS WAR IS FOUGHT', panels, null, { prose: true });
+    showReport('HOW TO PLAY: THE WAY THIS WAR IS FOUGHT', panels, null, { prose: true });
     // The brief is the reference; the walkthrough is the orientation. Offering
     // it from inside the brief rather than beside it keeps HOW TO PLAY a single
     // door, and keeps the written version as the thing that always works — it is

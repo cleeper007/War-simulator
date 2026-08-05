@@ -2175,11 +2175,24 @@ button { font-family: var(--mono); }
    turned upright is still a phone turned upright. */
 #tour { position: fixed; inset: 0; z-index: 200; pointer-events: none; }
 
+/* THE SEAL. One transparent sheet over the whole window, under the card and
+   over everything else, including the strike dialog the card rides inside on
+   two of the steps. The walkthrough is a demonstration and must not be able to
+   spend the turn's diplomatic action or authorize a strike, and the dim above
+   it cannot do that job: a box-shadow is not hit-testable, so through v1.73
+   every click landed in the room underneath.
+
+   It is not a trap, and the distinction is the whole argument: END WALKTHROUGH
+   and Escape sit on top of this and are live on every card. The keyboard half
+   is the Tab branch of tour.js's key handler. */
+#tour-block {
+  position: absolute; inset: 0;
+  pointer-events: auto;
+  touch-action: none;      /* or the map still pans under it on a phone */
+}
+
 /* The dim is one element's box-shadow with an absurd spread, rather than four
-   filler divs or an SVG mask: one rect to keep in sync instead of four, and a
-   shadow is not hit-testable, so every click still reaches the room underneath.
-   That last part is the point — a walkthrough that swallows clicks is one a
-   player can be stuck inside.
+   filler divs or an SVG mask: one rect to keep in sync instead of four.
 
    No transition on the geometry. The rAF loop in tour.js rewrites these four
    values every frame to track a panel animating open, and a transition chasing

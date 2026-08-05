@@ -7,26 +7,42 @@
 // carries the count" means nothing to somebody who has not yet found STRIKE
 // ASSETS among eight shut drawers.
 //
-// It runs on the live war, and it spends nothing. The strike dialog it opens is
-// the real one, on a target the player picked, and the walkthrough presses ABORT
-// on the way out. A sandbox turn would be more code and would teach a room that
-// is not the room.
+// It runs on the live war and it spends nothing, because THE BOARD IS SEALED
+// FOR THE DURATION. Through v1.73 the dim was a box-shadow and nothing else,
+// which is not hit-testable, so every click went straight through it into the
+// room underneath — and a player being shown the diplomatic shelf pressed
+// something on it to see what it did, spent the turn's one action, and got a
+// live confirmation dialog over the top of the card that was explaining the
+// shelf. The same door was open on AUTHORIZE STRIKE, two steps earlier, on a
+// dialog the walkthrough had opened itself. A walkthrough that can lose you the
+// war is not a walkthrough. `#tour-block` now swallows every pointer event and
+// the Tab branch of the key handler holds focus on the card, so the only live
+// controls anywhere on screen are BACK, NEXT and END WALKTHROUGH.
 //
-// NOTHING HERE TRAPS THE PLAYER, and that is the design constraint the rest
+// The strike dialog it opens is still the real one, on an air defense site it
+// picks itself, and it picks a package too so the estimate is on screen to be
+// read rather than described. Both are UI state — `currentTarget`, `selectedPkg`
+// and what those two render — and neither is charged against `G`; the
+// walkthrough presses ABORT on the way out regardless. A sandbox turn would be
+// more code and would teach a room that is not the room.
+//
+// SEALED IS NOT TRAPPED, and that distinction is the design constraint the rest
 // falls out of:
 //
 //   - Every card carries END WALKTHROUGH in the same place, and Escape does the
-//     same thing whenever it is the walkthrough's to end.
-//   - The dim is a box-shadow, which is not hit-testable, so every click still
-//     reaches the room underneath. A walkthrough that swallows clicks is one you
-//     can be stuck inside.
+//     same thing whenever it is the walkthrough's to end. Those two are the exit,
+//     they are live on every step, and having them is what buys the right to
+//     seal everything else.
 //   - No step waits on the player doing something. NEXT is the only thing that
-//     has to be pressed to get through the whole card stack; the first card asks
-//     for a target and then opens one itself off NEXT rather than standing there
-//     until the map is clicked.
-//   - The loop is a watchdog as much as a positioner: if the player closes the
-//     strike dialog out from under a step that lives inside it, the walkthrough
-//     moves on rather than pointing at a widget that is gone.
+//     has to be pressed to get through the whole card stack; the first card
+//     opens the strike dialog itself off NEXT rather than standing there until
+//     the map is clicked, which it now has to, because the map cannot be clicked.
+//   - BACK is symmetric with NEXT and never skips a card. Walking back into the
+//     dialog steps reopens the dialog, because the alternative — stepping over
+//     them to the map — was a BACK button that threw the player to step one.
+//   - The loop is a watchdog as much as a positioner: if the strike dialog goes
+//     away from under a step that lives inside it, the walkthrough moves on
+//     rather than pointing at a widget that is gone.
 // ============================================================
 const Tour = (() => {
   const $ = (id) => document.getElementById(id);
@@ -55,32 +71,37 @@ const Tour = (() => {
   // watchdog reads, and what moves the card into the dialog's focus trap.
   // `opens` marks the card whose NEXT has to have a strike dialog open behind it
   // before the next card, which lives inside one, can point at anything.
+  // `pick` marks the card that needs a package selected behind it, because the
+  // box it points at does not exist until one is.
   const STEPS = [
     { sel: '#map-panel', opens: true,
       title: 'THE MAP IS THE ORDER FORM',
       text: 'Every marker is an Iranian target, and clicking one opens the strike dialog. ' +
-        'NEXT opens it on an air defense site — the right first move.' },
+        'NEXT opens it on an air defense site, which is the right first move.' },
     { sel: '#strike-packages', modal: true,
       title: 'PICK A PACKAGE',
       text: 'Each row is a way to hit it, and only what can fly tonight is listed. Anything ' +
-        'missing — a tier the SAM belt has not released, a wing still in CONUS — is in the ' +
-        'resources panel with the reason.' },
-    // NEXT here is ABORT, deliberately and in as many words. The two were always
-    // the same action — closing the dialog is what moves the walkthrough off the
-    // steps that live inside it — but with the button reading NEXT, a player who
-    // took the card's advice and pressed ABORT watched the tutorial advance on
-    // its own and read it as a misfire. Same behaviour, no longer a surprise.
-    { sel: estimateOrFooter, modal: true, next: 'ABORT',
+        'missing, whether a tier the SAM belt has not released or a wing still in CONUS, ' +
+        'is in the resources panel with the reason.' },
+    // This button read ABORT for one version, because the walkthrough's NEXT and
+    // the dialog's ABORT were the same action and a player who pressed ABORT
+    // themselves watched the tutorial advance on its own. Sealing the board
+    // settled it the other way: ABORT is not pressable during the walkthrough,
+    // so a button labelled ABORT was naming a control the player could not reach
+    // and breaking the one promise the card stack makes, which is that NEXT is
+    // the only thing you ever have to press.
+    { sel: estimateOrFooter, modal: true, pick: true,
       title: 'NOTHING IS SPENT UNTIL YOU AUTHORIZE',
-      text: 'Pick a package and the estimate reads back the odds and the risk to aircrew. ' +
-        'ABORT costs you nothing.' },
+      text: 'A package is picked here, and the estimate reads back the odds and the risk to ' +
+        'aircrew before anything flies. Nothing is charged until you authorize, and ABORT ' +
+        'costs you nothing.' },
     { sel: '#resources-panel', panel: 'resources',
       title: 'THREE PACKAGES A NIGHT',
       text: 'STRIKE ASSETS carries the count. Additional sorties still fly, degraded, and they ' +
         'come off tomorrow\'s plan.' },
     { sel: '#fleet-panel', panel: 'fleet',
       title: 'BRING IN MORE FIREPOWER',
-      text: 'Not everything is in theater yet. Order it forward from here — including the B-2, ' +
+      text: 'Not everything is in theater yet. Order it forward from here, including the B-2, ' +
         'the only aircraft that reaches Fordow.' },
     // The folder replaced "assess Tehran's intent" here rather than joining it,
     // because a card listing all six taskings is a menu and this one has to be a
@@ -96,9 +117,9 @@ const Tour = (() => {
     // a wasted tasking stops working the folder exactly when it was about to pay.
     { sel: '#intel-panel', panel: 'intel',
       title: 'INTELLIGENCE TASKING',
-      text: 'Hunt the missile launchers, re-look a target you have hit, or work the target folder — ' +
-        'the only way a hidden site becomes an aimpoint. A night that finds nothing still improves ' +
-        'the next one.' },
+      text: 'Hunt the missile launchers, re-look a target you have hit, or work the target folder, ' +
+        'which is the only way a hidden site becomes an aimpoint. A night that finds nothing still ' +
+        'improves the next one.' },
     { sel: '#diplo-panel', panel: 'diplo',
       title: 'DIPLOMATIC ACTIONS',
       text: 'Steady the home front, work the coalition, or lean on Tehran. This shelf and ALLIES ' +
@@ -131,7 +152,13 @@ const Tour = (() => {
     root = document.createElement('div');
     root.id = 'tour';
     root.className = 'hidden';
+    // The blocker is the first child and the card is the last, so the card
+    // paints over it and keeps its own clicks. It lives inside `root` rather
+    // than beside it deliberately: `root` is what gets hidden, reparented and
+    // torn down, and a seal that can outlive its teardown makes the game
+    // unplayable. One element, one lifetime, no second cleanup path to forget.
     root.innerHTML =
+      '<div id="tour-block"></div>' +
       '<div id="tour-ring"></div>' +
       '<div id="tour-card" role="region" aria-live="polite" aria-label="Walkthrough">' +
         '<div class="tour-step" id="tour-count"></div>' +
@@ -151,14 +178,22 @@ const Tour = (() => {
     $('tour-end').addEventListener('click', endTour);
   }
 
-  // BACK has to step over the dialog steps once the dialog is shut, or it does
-  // nothing at all: step four closed the strike dialog on its way in, so a plain
-  // i-1 lands on a step that lives inside it, the watchdog sees no dialog and
-  // bounces straight forward to four again. The button looked dead. From the
-  // first sidebar card, back is the map.
+  // BACK IS SYMMETRIC WITH NEXT: every card NEXT walked through, BACK walks
+  // back through, in the same order and without skipping one. Step four closed
+  // the strike dialog on its way in, so backing out of it lands on a card that
+  // lives inside a dialog that is no longer there — and the first fix for that
+  // was to step over those cards entirely, which made BACK on step four jump to
+  // step one. Two cards vanished, and the button that was supposed to undo one
+  // move undid three. Reopen the dialog instead; it is the walkthrough's own and
+  // opening it costs nothing.
+  //
+  // The old skip survives as the fallback, for the case where the dialog cannot
+  // be reopened at all — nothing left on the plot to demonstrate on. Without it
+  // the watchdog would see a modal step with no modal and bounce straight
+  // forward again, which is the dead button all over again.
   function onBack() {
     let n = i - 1;
-    if (n >= 0 && STEPS[n].modal && !strikeOpen()) {
+    if (n >= 0 && STEPS[n].modal && !strikeOpen() && !openDemo()) {
       while (n >= 0 && STEPS[n].modal) n--;
     }
     go(Math.max(0, n));
@@ -169,19 +204,37 @@ const Tour = (() => {
   // map instead and advance when the player clicked a target, with NEXT as the
   // escape hatch; one button doing the whole walkthrough is less to explain, and
   // a card that advances on its own while you are reading it reads as a misfire.
-  // A player who clicks a target anyway gets the same dialog, and the
-  // walkthrough owns it either way — it presses ABORT on the way out, which
-  // spends nothing.
+  // Since the board is sealed this is also the only way in: the map is not
+  // clickable while the walkthrough is running.
   function onNext() {
     const st = STEPS[i];
-    if (st && st.opens) {
-      if (strikeOpen()) ownsModal = true;
-      else {
-        const t = demoTarget();
-        if (t && !Game.G.over) { UI.openStrikeModal(Game.G, t); ownsModal = true; }
-      }
-    }
+    if (st && st.opens) openDemo();
     go(i + 1);
+  }
+
+  // The demonstration dialog, and the walkthrough owns it either way — it
+  // presses ABORT on the way out, which spends nothing. Reports whether there is
+  // one on screen to point at, which is what BACK reads.
+  function openDemo() {
+    if (strikeOpen()) { ownsModal = true; return true; }
+    const t = demoTarget();
+    if (!t || Game.G.over) return false;
+    UI.openStrikeModal(Game.G, t);
+    ownsModal = true;
+    return strikeOpen();
+  }
+
+  // The estimate box does not exist until a package is chosen, and the player
+  // cannot choose one — the board is sealed. So the walkthrough chooses, and the
+  // card that talks about reading the odds has the odds behind it rather than an
+  // empty footer and a sentence describing a screen the player has not seen.
+  // `choose` in openStrikeModal is UI state to the last line: selection classes,
+  // the estimate, the AUTHORIZE gate. Nothing here reaches `G`.
+  function pickDemoPackage() {
+    const est = $('strike-estimate');
+    if (!est || !est.classList.contains('hidden')) return;
+    const row = document.querySelector('#strike-modal .pkg-option');
+    if (row) row.click();
   }
 
   // ANYTHING THE PLOT WILL NOT DRAW IS NOT SOMETHING TO OPEN A DIALOG ON. This
@@ -342,6 +395,7 @@ const Tour = (() => {
     i = n;
     const st = STEPS[i];
     if (!st.modal && ownsModal && strikeOpen()) { closeStrike(); ownsModal = false; }
+    if (st.pick && strikeOpen()) pickDemoPackage();
     // openPanel's own `reveal` is deliberately not used. It brings a section's
     // leading 140px in from below, which is right for a panel that opened
     // because the war made it relevant and wrong here: the walkthrough is about
@@ -359,12 +413,28 @@ const Tour = (() => {
     // an .overlay with a .modal in it — so it never enters the dialog stack.
     reparent(st.modal || (st.opens && strikeOpen()) ? $('strike-modal') : document.body);
 
-    $('tour-count').textContent = `STEP ${i + 1} OF ${STEPS.length}`;
+    // The seal is announced rather than left to be discovered. A player who
+    // presses something on the panel the card is pointing at and gets no
+    // response has learned that the game is broken, which is the opposite of
+    // what the card was teaching; three words on a line that was already there
+    // costs nothing and answers it before it is asked.
+    $('tour-count').textContent = `STEP ${i + 1} OF ${STEPS.length} · DEMONSTRATION ONLY`;
     $('tour-title').textContent = st.title;
     $('tour-text').textContent = st.text;
     $('tour-back').disabled = i === 0;
     $('tour-next').textContent = st.next || 'NEXT';
     raf = requestAnimationFrame(frame);
+
+    // The card is the only live thing on screen, so focus belongs on it —
+    // claimed, not seized. A frame late because ui.js hands focus to the strike
+    // dialog's own ✕ on the microtask after it opens, and claiming it
+    // synchronously here would just lose that race. Left alone when the player
+    // is already standing somewhere on the card, or BACK would drop them on
+    // NEXT every time they pressed it.
+    requestAnimationFrame(() => {
+      if (i < 0 || card.contains(document.activeElement)) return;
+      $('tour-next').focus();
+    });
   }
 
   function start() {
@@ -385,11 +455,7 @@ const Tour = (() => {
     // card: the side it chose may no longer exist. Reopen the window rather than
     // repositioning here, so it still lands after the layout has finished moving.
     window.addEventListener('resize', resizeHandler);
-    go(0);
-    // after the report modal that launched this has finished handing focus back
-    // — syncStack restores it on a microtask, so claiming it synchronously here
-    // would just lose the race
-    requestAnimationFrame(() => { if (i >= 0) $('tour-next').focus(); });
+    go(0);   // which claims focus for the card, a frame from now
   }
 
   // Escape ends the walkthrough, but only when it is the walkthrough's to end.
@@ -406,7 +472,28 @@ const Tour = (() => {
   resizeHandler = () => { settle = 40; lastBox = ''; };
 
   keyHandler = (e) => {
-    if (i < 0 || e.key !== 'Escape' || anyModalOpen()) return;
+    if (i < 0) return;
+
+    // TAB IS THE OTHER WAY INTO THE ROOM, and a pointer seal without a keyboard
+    // seal leaves the identical bug standing for anyone who plays with one:
+    // three tabs off the card reaches the diplomatic shelf the card is pointing
+    // at, and Enter spends the turn's action. ui.js's trap does not cover it —
+    // that one only runs while a dialog is open, and eight of the ten cards do
+    // not have one — and on the steps that do it would fight this one, since
+    // it traps to the whole overlay and the dialog's own AUTHORIZE STRIKE is in
+    // there. Capture and stop, so exactly one trap answers any keystroke.
+    if (e.key === 'Tab') {
+      const f = [...card.querySelectorAll('button:not([disabled])')];
+      if (!f.length) return;
+      e.preventDefault(); e.stopPropagation();
+      const at = f.indexOf(document.activeElement);
+      // from anywhere else on the page, Tab lands on NEXT: it is the way through
+      f[at < 0 ? Math.max(0, f.indexOf($('tour-next')))
+              : (at + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+      return;
+    }
+
+    if (e.key !== 'Escape' || anyModalOpen()) return;
     e.preventDefault();
     endTour();
   };
