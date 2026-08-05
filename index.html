@@ -19,9 +19,9 @@
      stays invisible in the tab for as long as that row survives. Renaming the
      URL is the only thing it listens to. Stamp these with the badge on every
      bump, even when only the art changed. -->
-<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png?v=1.72">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1.72">
-<link rel="manifest" href="site.webmanifest?v=1.72">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png?v=1.73">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1.73">
+<link rel="manifest" href="site.webmanifest?v=1.73">
 <meta name="theme-color" content="#0a1626">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -35,7 +35,7 @@
      version-badge) renames every asset URL, which is the only thing that
      reliably forces the fetch.
      Bump the stamps and the badge together. -->
-<link rel="stylesheet" href="css/style.css?v=1.72">
+<link rel="stylesheet" href="css/style.css?v=1.73">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.72<span class="beta-tag">BETA</span></div>
+  <div class="version-badge">v1.73<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -106,6 +106,14 @@
                rewrites both attributes, but the pre-script paint should not
                claim the score is playing. -->
           <button id="btn-music" class="off" title="Music off — click to play" aria-pressed="false">🎵</button>
+          <!-- The beta's one piece of instrumentation, and it lives here for the
+               same reason mute does: it is a CONTROL, and the status row is the
+               row that overflows first on a narrow landscape phone. An icon
+               rather than a word because this cluster is already six deep and
+               BASES is the only label with room. Reachable on every turn of
+               every night, because the turn a tester finds something is the turn
+               they can still describe it. -->
+          <button id="btn-feedback" title="Report a problem">⚑</button>
         </div>
       </div>
       <div id="map-container">
@@ -513,6 +521,39 @@
   </div>
 </div>
 
+<!-- ============ BETA FEEDBACK ============ -->
+<!-- This dialog PRE-FILLS a GitHub issue and never files one. The tester lands
+     on GitHub's own new-issue form with the body already written and presses
+     Submit themselves, so nothing leaves the browser that they have not read
+     first. Same reason the diagnostic block is rendered into a visible textarea
+     instead of being assembled straight into the URL: what is being sent is on
+     screen before any of it is sent, and a tester who does not want a line in
+     there can delete it.
+     COPY is not a convenience button. A phone that opens the GitHub link in an
+     in-app browser can lose a long prefill, and a tester with no GitHub account
+     still has something to paste somewhere — the report should survive the
+     channel failing. -->
+<div id="feedback-modal" class="overlay hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="feedback-title">
+    <div class="modal-header">
+      <span class="panel-title" id="feedback-title">REPORT A PROBLEM</span>
+      <button class="modal-close" data-close="feedback-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="dim">Anything at all — something broke, a number looked wrong, a sentence read badly,
+        or the war just felt off. Half a sentence is a useful report.</p>
+      <textarea id="feedback-note" rows="5" placeholder="What happened?"></textarea>
+      <p class="dim feedback-legend">Attached so the turn can be reconstructed. Edit or delete any of it:</p>
+      <textarea id="feedback-diag" rows="8" spellcheck="false"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-close="feedback-modal">CANCEL</button>
+      <button id="btn-feedback-copy" class="btn-secondary">COPY</button>
+      <button id="btn-feedback-open" class="btn-primary">OPEN GITHUB ISSUE</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ ENDGAME MODAL ============ -->
 <div id="end-modal" class="overlay hidden">
   <!-- no data-esc: NEW WAR is not a dismissal, and Escape must never start one -->
@@ -527,18 +568,18 @@
   </div>
 </div>
 
-<script src="js/text.js?v=1.72"></script>
-<script src="js/geodata.js?v=1.72"></script>
-<script src="js/data.js?v=1.72"></script>
-<script src="js/map.js?v=1.72"></script>
-<script src="js/ai.js?v=1.72"></script>
-<script src="js/audio.js?v=1.72"></script>
-<script src="js/ui.js?v=1.72"></script>
+<script src="js/text.js?v=1.73"></script>
+<script src="js/geodata.js?v=1.73"></script>
+<script src="js/data.js?v=1.73"></script>
+<script src="js/map.js?v=1.73"></script>
+<script src="js/ai.js?v=1.73"></script>
+<script src="js/audio.js?v=1.73"></script>
+<script src="js/ui.js?v=1.73"></script>
 <!-- after ui.js: the walkthrough drives the room through UI's exported openPanel
      / openStrikeModal, and ui.js reaches back for Tour.start() at click time -->
-<script src="js/tour.js?v=1.72"></script>
-<script src="js/specops.js?v=1.72"></script>
-<script src="js/csar.js?v=1.72"></script>
-<script src="js/game.js?v=1.72"></script>
+<script src="js/tour.js?v=1.73"></script>
+<script src="js/specops.js?v=1.73"></script>
+<script src="js/csar.js?v=1.73"></script>
+<script src="js/game.js?v=1.73"></script>
 </body>
 </html>

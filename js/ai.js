@@ -83,6 +83,21 @@ const IranAI = (() => {
     return max ? (s / max) * 2 : 0; // 0..2
   }
 
+  // Iran's third arm, and the only one with no target class of its own. The
+  // militias in Iraq are an OUTPUT of the IRGC command complex that funds, arms
+  // and tasks them — that complex is the thing a president can actually put a
+  // package on, so it is the thing the proxy bill is denominated in. Reported on
+  // the same 0..2 scale as the other two so bite() behaves identically across
+  // all three: a whole IRGC is a full-price night, a flattened one pays the 0.25
+  // floor. It repairs at the `command` rate, which is the fastest on the board —
+  // so this is an arm that comes back if it is hit once and then forgotten,
+  // which is the correct shape for a proxy network and not a reason to hit it
+  // once.
+  const proxyStrength = () => {
+    const irgc = TARGETS.find(t => t.id === 'irgc-hq');
+    return irgc ? 2 * (irgc.hp / 100) : 0;
+  };
+
   // ---- event builders (return event objects consumed by game.js) ----
   //
   // RULE: if a number appears in both a field and the prose, `text` is a
@@ -150,21 +165,34 @@ const IranAI = (() => {
       title: 'Tehran vows "measured but crushing" response',
       text: 'The Supreme Leader\'s office signals it does not seek all-out war, but promises retaliation for any further strikes.',
     }),
-    proxyRockets: () => ({
+    proxyRockets: (str) => scaled({
       title: 'Proxy rocket fire near US positions in Iraq',
       text: 'Militia rockets landed near the Baghdad embassy compound and a base perimeter. No US casualties reported.',
       dOil: 2, flashAsset: 'asad', attack: { kind: 'drone', base: 'asad', count: 3 },
-    }),
-    proxyAttack: () => {
-      const c = rand(1, 4);
-      return {
+    }, str),
+    // THE LARGEST SINGLE APPROVAL SINK IN THE GAME, and until v1.73 the last one
+    // still exempt from the rule directly above. Measured over 200 campaigns it
+    // charged -16.4 approval per campaign against a total charged bill of -77.3
+    // — 24% of everything the president paid — as a flat -2 that no amount of
+    // counterforce ever moved. Every other arm's bill scaled with its condition;
+    // the biggest one did not, which is most of why servicing the IRGC read as a
+    // diplomatic act with no domestic return, and why a scripted campaign that
+    // fought well died on the same turn as one that did nothing.
+    //
+    // The casualty floor is 1 and not 0 on purpose: the prose names a number of
+    // dead and has no zero branch the way missileBase does, because a militia
+    // attack that makes the report at all killed somebody. A broken IRGC makes
+    // these rarer and cheaper, never bloodless.
+    proxyAttack: (str) => {
+      const c = Math.max(1, Math.round(rand(1, 4) * bite(str)));
+      return scaled({
         title: 'Militia attack on US forces in Iraq',
         text: (ev) => 'An Iranian-backed militia struck a US position with drones and rockets. ' +
           `${ev.casualties} American service ${pluralize(ev.casualties, 'member')} ` +
           `${were(ev.casualties)} killed.`,
         casualties: c, dApproval: -2, dOil: 3, flashAsset: 'asad',
         attack: { kind: 'drone', base: 'asad', count: 5 },
-      };
+      }, str);
     },
     shipping: (str) => scaled({
       title: 'Tanker struck by Iranian drone in Gulf of Oman',
@@ -469,6 +497,7 @@ const IranAI = (() => {
     const events = [];
     const mStr = missileStrength();
     const nStr = navalStrength();
+    const pStr = proxyStrength();
     const cap = mStr + nStr; // 0..4
     const struckOil = G.struckThisTurn.some(id => ['kharg', 'abadan'].includes(id));
     const struckNuclear = G.struckThisTurn.some(id => ['natanz', 'fordow'].includes(id));
@@ -503,15 +532,18 @@ const IranAI = (() => {
     if (cap <= 1) {
       // capacity overrides intent: a broken Iran cannot sustain the war
       events.push(chance(0.6) ? EV.quiet() : EV.propaganda());
-      if (chance(0.25)) events.push(EV.proxyRockets());
+      if (chance(0.25)) events.push(EV.proxyRockets(pStr));
     } else {
       // the missile arm throws what it has — while it exists, it is lethal
       if (mStr > 0 && chance(0.95 * w * P.missile)) {
         events.push(mStr >= 1.5 && chance(0.6 * w * P.missile) ? EV.massBarrage(mStr) : EV.missileBase(mStr));
       } else {
-        events.push(pick([EV.proxyAttack, EV.proxyRockets, EV.cyber, EV.harass])());
+        // cyber and harass take no strength and ignore the argument; the two
+        // proxy builders need it, and handing it to all four keeps the pick a
+        // pick rather than a switch.
+        events.push(pick([EV.proxyAttack, EV.proxyRockets, EV.cyber, EV.harass])(pStr));
       }
-      if (chance(0.35 * w * P.proxy)) events.push(EV.proxyAttack());
+      if (chance(0.35 * w * P.proxy)) events.push(EV.proxyAttack(pStr));
       // hitting the nuclear program draws a dedicated reprisal salvo
       if (struckNuclear && mStr > 0 && chance(0.5)) events.push(EV.missileBase(mStr));
       // the naval arm contests the strait — but not before the minelayers have

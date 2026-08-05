@@ -1803,12 +1803,22 @@ const BREAKOUT = {
 // how long it can keep doing it. On hard the cells are dry before the second week
 // is out unless the missile force has been worked; on easy there is room to be
 // slow about it.
+// `retaliation` is how much of an Iranian event's approval bill the country
+// actually charges the president — see applyEvent in game.js, which rewrites
+// ev.dApproval by it. It is the newest knob and the most load-bearing one, and
+// it exists because the table used to scale the WAR and never the domestic
+// clock the war was lost on: at v1.72, 64% of all campaigns ended on DEFEAT —
+// PRESIDENCY COLLAPSES, 63% were over by turn 10 of 30, and the whole spread
+// from easy to hard was worth about one turn. Hard holds the old bill at 1.0
+// because expert play was already winning 45-60% there and that is the war as
+// designed; what easy buys is not a shorter war but a president the country
+// will let finish one.
 const DIFFICULTY = {
-  easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25, israel: 0.75, bmd: 1.35, covert: 1.3, softGate: false,
-    desc: 'A forgiving war. The country absorbs more, Iran reconstitutes slower, the enrichment clock runs long, the fleet sailed with a deep interceptor magazine and Jerusalem is willing to wait.' },
-  normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1, israel: 1, bmd: 1, covert: 1, softGate: false,
+  easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25, israel: 0.75, bmd: 1.35, covert: 1.3, retaliation: 0.55, softGate: false,
+    desc: 'A forgiving war. The country absorbs more and forgives a bad night faster, Iran reconstitutes slower, the enrichment clock runs long, the fleet sailed with a deep interceptor magazine and Jerusalem is willing to wait.' },
+  normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1, israel: 1, bmd: 1, covert: 1, retaliation: 0.75, softGate: false,
     desc: 'The war as designed. Everything above and below is scaled from here.' },
-  hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85, israel: 1.3, bmd: 0.7, covert: 0.75, softGate: true,
+  hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85, israel: 1.3, bmd: 0.7, covert: 0.75, retaliation: 1, softGate: true,
     desc: 'Less patience at home. Iran repairs faster, the centrifuges are further along, the fleet sailed light on interceptors and Jerusalem has no patience at all. The staff will fly any package you order and hand you the casualty list afterwards.' },
 };
 

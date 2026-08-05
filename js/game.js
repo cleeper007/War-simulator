@@ -3776,6 +3776,35 @@ const Game = (() => {
       if (t && t.hp > 0) damageTarget(t, wearsDown(t) ? PKG_DAMAGE * 0.6 : 50);
     }
     if (ev.casualties) G.casualties.us += ev.casualties;
+    // WHAT THE COUNTRY WILL FORGIVE, which is the one thing difficulty never
+    // scaled and the one clock that decides how much of the game anybody sees.
+    // Measured at v1.72: 64% of all campaigns ended on DEFEAT — PRESIDENCY
+    // COLLAPSES and 63% were over by turn 10 of 30, and easy bought about one
+    // turn over hard because the table scaled the war (repair, coord, breakout,
+    // interceptors) and never the domestic bill the war was actually lost on.
+    //
+    // This is deliberately a different axis from `scaled()` in ai.js and stacks
+    // with it. That one asks how hard the ARM that fired can still hit — a fact
+    // about Iran, true at every difficulty. This asks how much patience the
+    // country has for the answer, which is the only honest thing an EASY setting
+    // can mean in a game whose losing condition is political.
+    //
+    // Charged events only. The positive side is the president's own work — the
+    // Oval Office address, a confirmed kill, an objective met — and a difficulty
+    // that handed out cheaper wins as well as cheaper losses would be scaling
+    // the scoreboard rather than the war. The floor of 1 holds at every level
+    // for the same reason it holds in `bite()`: an American base was hit, and no
+    // setting makes that cost nothing.
+    //
+    // `ev.dApproval` is REWRITTEN rather than the charge being scaled on the way
+    // past, because the report chips and any prose function read the field. A
+    // version that scaled only the arithmetic would show -2 on the line and take
+    // -1 off the bar — the same class of bug aegisIntercept's rescale exists to
+    // prevent.
+    if (ev.dApproval < 0) {
+      const r = diff().retaliation;
+      if (r != null && r !== 1) ev.dApproval = -Math.max(1, Math.round(Math.abs(ev.dApproval) * r));
+    }
     if (ev.dApproval) G.approval = clamp(G.approval + ev.dApproval, 0, 100);
     if (ev.dOil) G.oil = Math.max(60, G.oil + ev.dOil);
     if (ev.dWorld) G.world = clamp(G.world + ev.dWorld, 0, 100);

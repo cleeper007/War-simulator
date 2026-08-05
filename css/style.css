@@ -140,6 +140,46 @@ body {
 }
 .modal-body.at-end::after, .modal-body.no-overflow::after { opacity: 0; }
 
+/* ---- beta feedback ----
+   The only <textarea> in the project, so it inherits nothing and is styled
+   here. Both boxes are editable on purpose — see the note on the dialog in
+   index.html: a tester who does not want a line of the diagnostic block sent
+   must be able to take it out, which means it cannot be readonly.
+   `resize: vertical` and not `both`: this modal is 520px wide inside a fixed
+   situation-room layout, and a horizontally dragged textarea blows the box out
+   past the overlay on a landscape phone. */
+#feedback-modal textarea {
+  width: 100%; margin: 8px 0 4px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--line); border-radius: 2px;
+  font-family: var(--mono); font-size: 12px; line-height: 1.5;
+  padding: 8px 10px; resize: vertical;
+}
+#feedback-modal textarea:focus {
+  outline: none; border-color: #2a4a7a;
+}
+#feedback-modal textarea::placeholder { color: var(--dim); opacity: 0.7; }
+#feedback-diag { color: var(--dim); font-size: 11px; }
+.feedback-legend { margin-top: 10px; font-size: 11px; }
+/* The flag sits in a row of six controls that already overflows on a narrow
+   landscape phone (see the note beside it in index.html), so it gets the same
+   treatment the zoom buttons get and no extra width. Amber because it is the
+   one control in the cluster that is not part of the game. */
+#btn-feedback { color: var(--amber); }
+/* A landscape phone has ~200px of body between this modal's header and its
+   footer, and at the desktop sizes the note box alone ate all of it — the
+   diagnostic block sat entirely under the fold, so the one thing a tester
+   cannot retype was the one thing they never saw. Explicit heights rather than
+   smaller `rows`: rows is a content attribute and cannot answer a media query,
+   and both boxes have to shrink together or the fix just moves which one is
+   invisible. */
+@media (max-height: 540px) {
+  #feedback-modal .modal-body > p { font-size: 11px; line-height: 1.45; }
+  #feedback-note { height: 76px; }
+  #feedback-diag { height: 88px; }
+  .feedback-legend { margin-top: 6px; }
+}
+
 /* ============ buttons ============ */
 button { font-family: var(--mono); }
 

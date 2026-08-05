@@ -2578,6 +2578,10 @@ const UI = (() => {
   // seven-line verdict and put six independent letters under it, which asked
   // the president to do the weighting themselves and gave them no weights.
   function showEndgame(result) {
+    // stashed for the feedback dialog, which is most useful in exactly the
+    // moment after a war ends and wants to name the ending without re-deriving
+    // it from the DOM
+    lastEndgame = result;
     $('end-title').textContent = result.title;
     const vCls = result.kind === 'victory' ? 'end-victory' : result.kind === 'defeat' ? 'end-defeat' : 'end-stalemate';
 
@@ -2771,12 +2775,98 @@ const UI = (() => {
     });
   }
 
+  // ---- beta feedback ----
+  // Pre-fills a GitHub issue and never files one — see the note on
+  // #feedback-modal in index.html for why the tester presses Submit themselves.
+  const FEEDBACK_REPO = 'cleeper007/War-simulator';
+  let lastEndgame = null;
+
+  // EVERYTHING IN THIS BLOCK IS SOMETHING THE PLAYER CAN ALREADY SEE, and that
+  // is a rule rather than a coincidence. `G` carries two things the campaign
+  // spends real mechanics withholding: `iranPosture`, which is Tehran's war plan
+  // and is supposed to cost an intelligence tasking to learn, and the covert
+  // folder's unknown count, which the intel panel is under standing orders never
+  // to report because that number IS the mechanic. A diagnostic dump is still a
+  // screen the player reads, so a report button that printed either would hand
+  // over both secrets the game is built to keep — in the one dialog nobody
+  // thinks of as game content. Anything added here gets the same test: would the
+  // HUD show it?
+  function feedbackDiagnostics() {
+    const G = Game.G;
+    const badge = document.querySelector('.version-badge');
+    const ver = ((badge && badge.firstChild && badge.firstChild.textContent) || '?').trim();
+    const wp = G.warPowers.done ? (G.warPowers.result || 'held') : 'no vote yet';
+    const end = lastEndgame
+      ? lastEndgame.title + (lastEndgame.total ? ` (grade ${lastEndgame.total.letter}, ${lastEndgame.total.score}/100)` : '')
+      : 'still playing';
+    return [
+      `build:      ${ver}`,
+      `difficulty: ${G.difficulty}`,
+      `turn:       ${G.turn} of 30`,
+      `approval:   ${Math.round(G.approval)}    world: ${Math.round(G.world)}    oil: $${Math.round(G.oil)}`,
+      `losses:     ${G.casualties.us} American dead, ${G.stats.aircraftLost} aircraft`,
+      `progress:   ${G.stats.destroyed} destroyed, nuclear ${Math.round(G.nukeDegraded())}% degraded`,
+      `israel:     ${G.israelPosture}    hormuz: ${G.hormuz}`,
+      `warpowers:  ${wp}`,
+      `outcome:    ${end}`,
+      `screen:     ${window.innerWidth}x${window.innerHeight}`,
+      `browser:    ${navigator.userAgent}`,
+    ].join('\n');
+  }
+
+  function openFeedback() {
+    // Rebuilt on every open rather than held: the whole value of the block is
+    // that it describes the turn the tester is looking at.
+    $('feedback-diag').value = feedbackDiagnostics();
+    $('feedback-modal').classList.remove('hidden');
+    $('feedback-note').focus();
+  }
+
+  function feedbackBody() {
+    const note = $('feedback-note').value.trim();
+    return (note || '_(no description given)_') + '\n\n---\n```\n' + $('feedback-diag').value + '\n```\n';
+  }
+
+  function initFeedback() {
+    const btn = $('btn-feedback');
+    if (btn) btn.addEventListener('click', openFeedback);
+
+    $('btn-feedback-open').addEventListener('click', () => {
+      const G = Game.G;
+      const url = `https://github.com/${FEEDBACK_REPO}/issues/new` +
+        `?title=${encodeURIComponent(`[beta] turn ${G.turn} — `)}` +
+        `&body=${encodeURIComponent(feedbackBody())}`;
+      window.open(url, '_blank', 'noopener');
+      $('feedback-modal').classList.add('hidden');
+    });
+
+    // The fallback the COPY note in index.html is about. Label swap rather than
+    // a toast: there is no toast in this game and one button is not a reason to
+    // build one. clipboard.writeText is unavailable over plain http and inside
+    // some in-app browsers, which is exactly where a tester is most likely to be
+    // standing when they need it — so the failure says so instead of going quiet.
+    const copy = $('btn-feedback-copy');
+    copy.addEventListener('click', async () => {
+      const restore = () => setTimeout(() => { copy.textContent = 'COPY'; }, 1600);
+      try {
+        await navigator.clipboard.writeText(feedbackBody());
+        copy.textContent = 'COPIED';
+      } catch (e) {
+        $('feedback-note').focus();
+        $('feedback-note').select();
+        copy.textContent = 'PRESS ⌘C';
+      }
+      restore();
+    });
+  }
+
   // ---- wiring ----
   function init() {
     initPanels();
     initScrollEdge();
     initModalScrollEdge();
     initModals();
+    initFeedback();
     document.querySelectorAll('[data-close]').forEach(btn => {
       btn.addEventListener('click', () => $(btn.dataset.close).classList.add('hidden'));
     });
