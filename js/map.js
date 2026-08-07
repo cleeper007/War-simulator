@@ -1862,6 +1862,7 @@ const MapView = (() => {
   // clips are still on screen and let it await an idle scope.
   let activeClips = 0;
   let clipWaiters = [];
+  let clipSeq = 0;   // names each clip's hold on the score — see overlayScopeClip
   // Live clip finishers, so a skip can end them properly rather than yanking the
   // element out from under them — a launch clip gates the flight behind it, and
   // an orphaned one would hold that run for its full stall timeout.
@@ -1909,12 +1910,27 @@ const MapView = (() => {
     vid.className = 'scope-hit-video';
     vid.src = src;
     vid.playsInline = true;
+    // This is the one sound in the game that audio.js does not own, so the two
+    // things it gets for free everywhere else have to be asked for here. It
+    // answers to the speaker button — muting the game used to silence the
+    // klaxon and the watch floor and leave the strike footage talking, which
+    // reads as a broken mute rather than a loud clip. And it takes a hold on
+    // the score for as long as it runs, like any other noise; without it the
+    // bed plays over the footage in the gaps between impacts.
+    // The key is per-clip, not per-kind: a package big enough to open two scope
+    // cards runs two of these at once, and one shared key would have the first
+    // one to end hand the bed back while the second was still playing.
+    const hasAudio = typeof AudioSys !== 'undefined';
+    const duckKey = 'clip:' + (++clipSeq);
+    vid.muted = hasAudio && AudioSys.isMuted();
+    if (hasAudio) AudioSys.duckHold(duckKey);
     activeClips++;
     let done = false;
     const finish = () => {
       if (done) return;
       done = true;
       clipEnders.delete(finish);
+      if (hasAudio) AudioSys.duckRelease(duckKey);
       vid.remove();
       clipEnded();
       if (onEnd) onEnd();

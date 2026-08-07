@@ -150,12 +150,89 @@ const AudioSys = (() => {
   let missionCount = 0;      // live jet scopes currently on screen
   let missionCur = null;     // the clip currently playing
 
+  // ---- levels on iOS ----
+  // Every level in this file — the bed, its duck, the klaxon riding under the
+  // Hormuz call — is written to HTMLMediaElement.volume, and on iOS that
+  // property is not a control. WebKit makes it read-only there on the grounds
+  // that loudness belongs to the hardware switch: the assignment is accepted,
+  // silently ignored, and reads back as 1. So every sound in the game played at
+  // FULL GAIN on a phone. The bed came out twenty times louder than it was
+  // mixed and sat on top of the voice it exists to sit under; the duck walked a
+  // number nothing was reading; and the one file carrying a comment about the
+  // klaxon not being allowed to bury the watch floor buried the watch floor.
+  // None of it was a mix problem — the mix never reached the device.
+  //
+  // A GainNode *is* a control on iOS, so the levels route through one there.
+  // musicLevel's comment argued a context was not worth it for one gain node,
+  // and on desktop that still holds: volume works, this block stays asleep, and
+  // nothing below changes path. The test is the capability rather than the user
+  // agent, so a WebKit that ever ships a settable volume drops straight back to
+  // the simple path with no edit here. The other half of that argument — that a
+  // context needs its own unlock — was already paid for before it was made:
+  // init has had a first-gesture hook since the autoplay policy landed.
+  const honorsVolume = (() => {
+    try {
+      const a = new Audio();
+      a.volume = 0.5;
+      return Math.abs(a.volume - 0.5) < 0.01;
+    } catch (e) { return true; }   // no Audio at all — nothing to route anyway
+  })();
+
+  let actx = null;                // one context, built on demand
+  const gains = new WeakMap();    // element -> its GainNode
+
+  // Put an element behind a gain node so its level is settable. Only called for
+  // the handful of sources that want a level other than full — routing an
+  // element makes its sound depend on the context running, which is a trade
+  // worth making for the bed and worth avoiding for everything already at 1.
+  // createMediaElementSource throws on a second call for the same element, so
+  // the WeakMap is the guard as well as the lookup. Anything that fails leaves
+  // the element playing exactly where it played before.
+  function route(el) {
+    if (honorsVolume || !el) return;
+    if (gains.has(el)) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      if (!actx) actx = new AC();
+      const g = actx.createGain();
+      actx.createMediaElementSource(el).connect(g);
+      g.connect(actx.destination);
+      gains.set(el, g);
+    } catch (e) { /* silent — element keeps playing at full, as it did before */ }
+  }
+
+  // The only two places a level is read or written. Same call on both paths, so
+  // nothing else in this file has to know which one it is standing on — in
+  // particular musicLevel's hand-stepped ramp is left as the single ramp
+  // implementation rather than growing a Web Audio twin that could drift.
+  function setLevel(el, v) {
+    const g = gains.get(el);
+    if (g) { try { g.gain.value = v; } catch (e) { /* silent */ } return; }
+    try { el.volume = v; } catch (e) { /* silent */ }
+  }
+
+  function getLevel(el) {
+    const g = gains.get(el);
+    if (g) { try { return g.gain.value; } catch (e) { return 1; } }
+    try { return el.volume; } catch (e) { return 1; }
+  }
+
+  // iOS suspends the context when the tab backgrounds or the phone locks, and a
+  // suspended context is SILENCE rather than a wrong level — the one failure
+  // here that is worse than the bug being fixed. So this runs on every gesture
+  // and on coming back to the tab, not just on the first unlock.
+  function actxResume() {
+    if (!actx || actx.state !== 'suspended') return;
+    try { const p = actx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* silent */ }
+  }
+
   function preload() {
     for (const [name, file] of Object.entries(FILES)) {
       try {
         const a = new Audio(`audio/${file}`);
         a.preload = 'auto';
-        if (VOLUME[name] !== undefined) a.volume = VOLUME[name];
+        if (VOLUME[name] !== undefined) { route(a); setLevel(a, VOLUME[name]); }
         a.addEventListener('error', () => delete clips[name]);
         clips[name] = a;
       } catch (e) { /* no Audio support — game plays silent */ }
@@ -173,7 +250,8 @@ const AudioSys = (() => {
       const m = new Audio(`audio/${MUSIC_FILE}`);
       m.preload = 'auto';
       m.loop = true;
-      m.volume = MUSIC_VOLUME;
+      route(m);
+      setLevel(m, MUSIC_VOLUME);
       m.addEventListener('error', () => { music = null; });
       music = m;
     } catch (e) { /* no Audio support — game plays silent */ }
@@ -254,21 +332,25 @@ const AudioSys = (() => {
   }
 
   // Walk the gain to wherever the holds say it should be. Stepped by hand on a
-  // timer: Web Audio has a ramp for this, but the rest of this file is bare
-  // <Audio> elements and one gain node is not worth an AudioContext that would
-  // then need its own unlock.
+  // timer rather than handed to Web Audio's own ramp: on desktop the rest of
+  // this file is bare <Audio> elements and a ramp node is not worth a context,
+  // and where a context does exist (iOS — see the levels block above, where
+  // volume is not a control at all) this stays the ONE ramp both paths run, so
+  // the duck cannot come out a different shape depending on the device. All
+  // that changes between them is where the number lands, which is setLevel's
+  // problem and not this function's.
   function musicLevel() {
     if (!music) return;
     const target = ducks.size ? MUSIC_DUCK : MUSIC_VOLUME;
     const step = 40;
-    const ms = target < music.volume ? RAMP_MS.down : RAMP_MS.up;
+    const ms = target < getLevel(music) ? RAMP_MS.down : RAMP_MS.up;
     clearInterval(ramp);
-    const delta = (target - music.volume) / Math.max(1, ms / step);
+    const delta = (target - getLevel(music)) / Math.max(1, ms / step);
     ramp = setInterval(() => {
       if (!music) { clearInterval(ramp); return; }
-      const next = music.volume + delta;
+      const next = getLevel(music) + delta;
       const done = delta >= 0 ? next >= target : next <= target;
-      try { music.volume = done ? target : Math.max(0, Math.min(1, next)); } catch (e) { /* silent */ }
+      setLevel(music, done ? target : Math.max(0, Math.min(1, next)));
       if (done) { clearInterval(ramp); ramp = null; }
     }, step);
   }
@@ -506,6 +588,19 @@ const AudioSys = (() => {
     // muting mid-ring hangs up the bell, not the call: the popup is still there
     // and still waiting on an answer, it has just stopped making noise
     if (muted) ringStop();
+    // The strike footage is the one audible thing this file does not own — see
+    // the duck seam at the bottom — so the master switch has to reach it by
+    // hand, and reach it MID-CLIP rather than only at creation: a player who
+    // hits the speaker button while a package is landing wants silence now, and
+    // fifteen seconds of footage is a long time to keep talking over the ask.
+    //
+    // One direction only, for the same reason the ring is: muting is the urgent
+    // half. A clip that fell back to muted because audible autoplay was refused
+    // is only playing at all BECAUSE it is muted, and handing it an unmute here
+    // would be asking the browser to re-authorize a video already in flight.
+    if (muted) {
+      document.querySelectorAll('.scope-hit-video').forEach(v => { v.muted = true; });
+    }
     try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch (e) {}
     const btn = document.getElementById('btn-mute');
     if (btn) {
@@ -524,9 +619,16 @@ const AudioSys = (() => {
     // Respect autoplay policy: unlock only after the first real interaction.
     // That gesture is also the earliest moment the score is allowed to start,
     // so it opens there rather than on load — anything sooner is refused.
-    const unlock = () => { unlocked = true; musicStart(); };
+    const unlock = () => { unlocked = true; actxResume(); musicStart(); };
     document.addEventListener('pointerdown', unlock, { once: true });
     document.addEventListener('keydown', unlock, { once: true });
+    // The unlock above is `once` because it only has to happen once. Resuming
+    // is not that: a phone that locked mid-turn comes back with the context
+    // suspended and every routed level silent, so this one stands for the whole
+    // session. Cheap — actxResume is a state check and a no-op on desktop,
+    // where actx is never built at all.
+    document.addEventListener('pointerdown', actxResume);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) actxResume(); });
 
     const btn = document.getElementById('btn-mute');
     if (btn) btn.addEventListener('click', () => setMuted(!muted));
@@ -536,5 +638,9 @@ const AudioSys = (() => {
     setMusicOff(musicOff);
   }
 
-  return { init, play, playThen, cut, ringStart, ringStop, alertCheck, isMuted, setMuted, isMusicOff, setMusicOff, missionMusicStart, missionMusicStop, missionMusicStopAll };
+  // duckHold/duckRelease are the seam for sound this file does not own — the
+  // strike footage in map.js plays its own audio and has to take a hold like
+  // everything else, or the bed sits on top of it. Named keys, dropped by the
+  // caller; see the ducks set for why it is a set and not a counter.
+  return { init, play, playThen, cut, ringStart, ringStop, alertCheck, isMuted, setMuted, isMusicOff, setMusicOff, missionMusicStart, missionMusicStop, missionMusicStopAll, duckHold: duckAdd, duckRelease: duckDrop };
 })();
