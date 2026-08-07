@@ -19,7 +19,18 @@ const Game = (() => {
   // Only `released` is per-war state, and newWar clears that.
   (() => {
     const ids = new Set([...JIPTL.order, ...JIPTL.sortie]);
-    for (const t of TARGETS) t.held = ids.has(t.id);
+    // ...and the southern front, held for an unrelated reason and released on a
+    // different clock. JIPTL.order is the document CENTCOM is working through
+    // and Yemen is not in it: those two aimpoints are absent because three
+    // campaigns in four never have a southern front at all, and houthiTurn puts
+    // them on the plot the night Ansar Allah enters. Same flag, same absence,
+    // separate cause — which is why it is ORed in here rather than appended to
+    // the tasking order, where it would also start releasing on turn 2.
+    //
+    // This assignment is the only place `held` is decided. A `held: true` in
+    // data.js would be overwritten by this loop on the next page load, which is
+    // exactly the bug this comment exists to stop somebody re-introducing.
+    for (const t of TARGETS) t.held = ids.has(t.id) || t.theater === 'yemen';
     // A typo in either list is otherwise silent and costs an afternoon: the id
     // never matches, the target is simply never held, and the ramp quietly has
     // one fewer step in it than the table says.
@@ -274,6 +285,28 @@ const Game = (() => {
       corridor: false, summits: 0, patriots: 0,
     },
 
+    // ---- the southern front ----
+    // See HOUTHIS in data.js. `active` is the once-per-war roll and is false in
+    // three campaigns out of four; `entered` is whether it has actually opened,
+    // which is a different thing and happens on `enterTurn`. Nothing about this
+    // is visible — there is no panel, no marker and no aimpoint — until the
+    // night they announce themselves.
+    //
+    // `saudiStruck` is the counter the trigger reads and it only counts salvos
+    // that landed on Saudi soil, never Emirati or Bahraini: what brings the RSAF
+    // in is Saudi Arabia being hit, and the other capitals have their own gauge
+    // for their own grievances. `saudiSince` is turns since Riyadh committed,
+    // which is what flips the dove coupling from damping to dragging.
+    houthi: {
+      active: false, entered: false, enterTurn: 0,
+      saudiStruck: 0, saudiIn: false, saudiSince: 0, saudiSorties: 0,
+    },
+    // The second strait. Same three states as Hormuz and deliberately NOT the
+    // same consequences: this one has no loss condition attached, because it has
+    // a detour and Hormuz does not (see HOUTHIS.oilClosed). `mandabClosedTurns`
+    // is kept for the after-action record only — nothing reads it to end a war.
+    mandab: 'OPEN', mandabClosedTurns: 0,
+
     // ---- the Hill ----
     // One vote, mid-war, on whether this campaign continues and on what terms.
     warPowers: { done: false, result: null, noOil: false, noDeep: false },
@@ -505,7 +538,10 @@ const Game = (() => {
     // The Gulf is two camps with two gauges, and where the Gulf basing tier
     // folds is no longer a constant — a save written before the caveats existed
     // would resume with a threshold the rest of the state disagrees with.
-    const VERSION = 23;
+    // And TARGETS itself is two aimpoints longer: a v23 save carries no record
+    // of the southern front at all, so resuming one would restore a target list
+    // the rest of the state cannot account for.
+    const VERSION = 24;
     const FIELDS = [
       'turn', 'softCap', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -523,6 +559,7 @@ const Game = (() => {
       'tankers', 'tankerCap', 'basing', 'basingDebt', 'gulf', 'warPowers', 'addresses', 'threat',
       'timeline', 'adapt', 'adaptSeen', 'turnStartHp', 'tlamPool', 'torpedoes',
       'bmdPool', 'bmdRearm',
+      'houthi', 'mandab', 'mandabClosedTurns',
     ];
 
     function write() {
@@ -1131,7 +1168,21 @@ const Game = (() => {
   // Deep strike needs the northern tracks, and those come with the Gulf ramps —
   // or with the corridor the hawks were paid to hold open regardless, which is
   // the entire point of banking their goodwill instead of spending it (see GULF).
-  const canReach = (t) => G.basing.gulf || G.gulf.corridor || (t.depth || 2) < 3;
+  // ...and the southern front is a different question entirely, which is why it
+  // gets its own clause rather than a depth. Sanaa and Hodeidah are in the wrong
+  // OCEAN, not merely far: no tanker track out of Kuwait or Amman helps, and the
+  // northwestern corridor the hawks were paid to hold open is a corridor into
+  // Iran. What reaches Yemen is the Red Sea deck and nothing else on the board.
+  //
+  // Falling through to the generic rule was the first draft and it was wrong in
+  // the most confusing possible way: banking hawk goodwill unlocked Sanaa, so a
+  // player who bought the corridor to reach Tabriz found they could suddenly
+  // strike a country the corridor does not point at.
+  const reachesYemen = () => G.carriers.some(cv =>
+    cv.id === 'csg-ford' && cv.arrived && !cv.lost);
+  const canReach = (t) => t.theater === 'yemen'
+    ? reachesYemen()
+    : G.basing.gulf || G.gulf.corridor || (t.depth || 2) < 3;
 
   // ============================================================
   // DISPERSAL — THE MISSILE HUNT
@@ -2161,6 +2212,27 @@ const Game = (() => {
     return `SIDELINED — pressure ${p}%, ${clock}`;
   }
 
+  // The same line for the other ally with a ramp on this board. Riyadh has no
+  // gauge of its own — it has a threshold, and the honest thing to report is
+  // where the counter stands against it, because that counter is the whole
+  // trigger. The dove gauge already speaks for Saudi patience and this must not
+  // duplicate it: what this says is whether the RSAF is flying, never how the
+  // council feels about it.
+  function saudiStatus() {
+    const H = G.houthi;
+    if (!H || !H.entered) return 'NOT ENGAGED — no southern front';
+    if (!H.saudiIn) {
+      // The count goes in front of the noun, not behind it: "1 salvo onto Saudi
+      // soil of 3" parses as "of 3 soil" on the way past.
+      return `HOLDING — ${H.saudiStruck} of ${Txt.plural(HOUTHIS.saudiStrikes, 'salvo')} ` +
+        `onto Saudi soil, strait ${G.mandab.toLowerCase()}`;
+    }
+    return `COMMITTED OVER YEMEN — ${Txt.plural(H.saudiSorties, 'night')} flown, ` +
+      (H.saudiSince <= HOUTHIS.saudiGrace
+        ? 'the council is quiet while they fly'
+        : 'and the council is counting the cost');
+  }
+
   // what the president is spending, and what it buys, on the NEXT ask
   function israelHoldCost() {
     const n = G.israelHolds;
@@ -2226,6 +2298,14 @@ const Game = (() => {
       out.push([d.hormuzShut * (G.hormuz === 'CLOSED' ? 2 : 1),
         `The strait is ${G.hormuz.toLowerCase()}`]);
     }
+    // The southern one, which two of the three doves have a coastline on. Named
+    // explicitly rather than folded into the line above: "the strait" means
+    // Hormuz to everyone reading this panel, and a president who saw that line
+    // creep up would go looking at the wrong waterway.
+    if (G.mandab !== 'OPEN') {
+      out.push([d.mandabShut * (G.mandab === 'CLOSED' ? 2 : 1),
+        `Bab al-Mandab is ${G.mandab.toLowerCase()}`]);
+    }
     // The dual-use class, and deliberately not restricted to the sites CENTCOM
     // chose: a coordinated Israel's wildcard nights land on this same list, which
     // is the second consequence that surcharge always should have had. What
@@ -2236,6 +2316,29 @@ const Game = (() => {
     }
     if (G.oil <= d.calmOil && G.hormuz === 'OPEN') {
       out.push([d.calm, 'The barrel is calm and the tankers are moving']);
+    }
+
+    // ---- and the war Riyadh is fighting on its own account ----
+    // The southern front's one lasting mark on this gauge, and it changes sign.
+    // See HOUTHIS in data.js: a council cannot file a caveat about a war its own
+    // air force is flying, so committing the RSAF buys real quiet — and then it
+    // stops, because what this gauge measures was never approval of the war. It
+    // is how long Riyadh will keep paying for it, and the answer gets shorter
+    // once they are paying for two.
+    //
+    // The ramp matters. A term that flipped from −3.5 to +2.5 in one turn reads
+    // on the panel as the council changing its mind overnight for no stated
+    // reason; walked up over four turns it reads as patience running out, which
+    // is the thing actually being modelled.
+    const H = G.houthi;
+    if (H && H.saudiIn) {
+      if (H.saudiSince <= HOUTHIS.saudiGrace) {
+        out.push([HOUTHIS.saudiDamp, 'Riyadh is flying its own war in the south']);
+      } else {
+        const over = H.saudiSince - HOUTHIS.saudiGrace;
+        out.push([Math.min(HOUTHIS.saudiDragMax, HOUTHIS.saudiDrag * over),
+          'Riyadh is fighting two wars and wanted neither']);
+      }
     }
     return out;
   }
@@ -2326,6 +2429,247 @@ const Game = (() => {
         });
       }
     }
+    return events;
+  }
+
+  // ============================================================
+  // THE SOUTHERN FRONT
+  // ------------------------------------------------------------
+  // See HOUTHIS in data.js. Same shape as israelTurn and gulfTurn: a second
+  // actor with its own clock, called once a turn, which mutates state and
+  // RETURNS events rather than writing to the report, so the night's prose is
+  // assembled in one place.
+  //
+  // The one structural difference from Jerusalem is that this whole function is
+  // a no-op in three campaigns out of four, and has to be — a front that opens
+  // every time is a difficulty setting, not a complication.
+  // ============================================================
+  const yemenTargets = () => TARGETS.filter(t => t.theater === 'yemen');
+
+  // What the front can still do, on the 0..2 scale every arm in this game
+  // reports on. It reads the two aimpoints and nothing else, which is the whole
+  // of the counterplay: a night spent on Hodeidah has to be felt in tomorrow's
+  // shipping roll or servicing it is decoration.
+  function houthiStrength() {
+    const y = yemenTargets();
+    if (!y.length) return 0;
+    return 2 * y.reduce((n, t) => n + t.hp / 100, 0) / y.length;
+  }
+
+  // Same curve and the same floor as bite() in ai.js, and here for the same
+  // reason: through v1.63 an arm's casualties scaled with its condition and its
+  // approval and oil bills did not, which made counterforce buy lives and
+  // nothing else. A wrecked launch cell firing what it has left is still a hull
+  // on fire and is never free.
+  const houthiBite = (str) => Math.max(0.25, str / 2);
+  const houthiScaled = (ev, str) => {
+    const k = houthiBite(str);
+    if (ev.dApproval) ev.dApproval = -Math.max(1, Math.round(Math.abs(ev.dApproval) * k));
+    if (ev.dOil) ev.dOil = Math.max(1, Math.round(ev.dOil * k));
+    if (ev.dStrain) ev.dStrain = Math.round(ev.dStrain * Math.max(0.55, k));
+    return ev;
+  };
+
+  // Riyadh's own war, once it has one. Modelled on israelTurn's `service` and
+  // deliberately better at it: an air force that has been flying this exact
+  // campaign since 2015 finishes aimpoints a carrier air wing arriving cold does
+  // not. The BDA is sharp because CENTCOM watched it happen.
+  function rsafService(t, out) {
+    const roll = Math.random();
+    if (roll < HOUTHIS.saudiKill) damageTarget(t, 100);
+    else if (roll < HOUTHIS.saudiDamage) damageTarget(t, wearsDown(t) ? PKG_DAMAGE : 50);
+    else return false;
+    out.push(`${t.name} ${t.status}`);
+    G.intel[t.id] = { hp: t.hp, turn: G.turn, sharp: true };
+    return true;
+  }
+
+  function houthiTurn() {
+    const H = G.houthi;
+    if (!H.active) return [];
+    const events = [];
+
+    // ---- whether they come in at all ----
+    if (!H.entered) {
+      if (G.turn < H.enterTurn) return [];
+      // The one thing that stops this front existing, and it is counterforce
+      // rather than luck: Ansar Allah is armed and targeted through the same
+      // IRGC complex the proxy bill is denominated in. Checked once, tonight —
+      // an IRGC rebuilt next week does not summon a war that already declined
+      // to start, and one flattened next week does not end one that did.
+      const irgc = TARGETS.find(t => t.id === 'irgc-hq');
+      if (irgc && irgc.hp / 100 < HOUTHIS.entryIrgc) { H.active = false; return []; }
+
+      H.entered = true;
+      for (const t of yemenTargets()) { t.released = true; MapView.updateTarget(t); }
+      // Reveals the strait indicator and the bottom-edge cue. Called with a
+      // strait that is still OPEN on purpose: what the marker appearing says is
+      // that this war has a second waterway in it now, which is a fact about
+      // tonight and not a prediction about the lane.
+      MapView.setMandab(G.mandab);
+      // They announce themselves the way they actually would: with a salvo, and
+      // onto Saudi soil. That is the first of the three the trigger counts, and
+      // it is charged here rather than rolled so the entry night is never a
+      // press release — the president learns what this front is by being shown
+      // it working.
+      H.saudiStruck = 1;
+      events.push({
+        cls: 'world',
+        title: 'ANSAR ALLAH ENTERS THE WAR — SALVO INTO SOUTHERN SAUDI ARABIA',
+        sum: 'A second front opens',
+        text: 'Ansar Allah has declared itself a belligerent and opened with ballistic missiles and one-way ' +
+          'drones into Jizan and the Asir highlands. Two Saudi air defense batteries engaged; the rest got ' +
+          'through. CENTCOM assesses the launch cells are Iranian-supplied and Iranian-targeted, and that ' +
+          'the movement has been waiting for a war large enough to join. Two aimpoints have been added to ' +
+          'the plot — the strike cell above Sanaa and the port complex at Hodeidah — and both are in the ' +
+          'wrong ocean for the Lincoln. The Red Sea deck is the only thing in range.',
+        dOil: 4, dApproval: -1,
+      });
+      return events;   // they announce themselves, and nothing else tonight
+    }
+
+    const str = houthiStrength();
+
+    // Both aimpoints on the bottom. The front does not surrender and it is not
+    // deleted — it goes quiet, and `active` stays true so the panel keeps
+    // reading rather than the whole thing vanishing from a war it was in. What
+    // stops is the shooting, which is what servicing it was for.
+    const spent = str <= 0;
+
+    // ---- what they do while nobody is stopping them ----
+    if (!spent) {
+      if (Math.random() < HOUTHIS.shipping * houthiBite(str)) {
+        // Zero has to be a real branch here: most of these are a hull holed and
+        // a crew that got off, and a casualty count is the exception rather
+        // than the rule. A prose function, not a string, because the number
+        // appears in both places (see the rule above EV in ai.js).
+        const dead = Math.random() < 0.35 ? Math.max(1, Math.round(rand(1, 4) * houthiBite(str))) : 0;
+        events.push(houthiScaled({
+          cls: 'world',
+          title: 'MERCHANT HULL STRUCK IN THE BAB AL-MANDAB APPROACHES',
+          sum: 'Another hull hit',
+          text: (ev) => 'An anti-ship missile out of the Yemeni coast hit a bulk carrier in the southern Red Sea. ' +
+            (ev.casualties
+              ? `${Txt.plural(ev.casualties, 'crewman')} ${Txt.were(ev.casualties)} killed and the ship is ` +
+                'under tow. '
+              : 'The crew got off and the hull is under tow. ') +
+            'Three more operators have suspended Red Sea transits and are routing round the Cape, which is ' +
+            'three weeks and a war-risk premium on every barrel that takes the long way.',
+          casualties: dead, dOil: 5, dApproval: dead ? -2 : 0, dStrain: 3,
+        }, str));
+      }
+
+      if (Math.random() < HOUTHIS.saudi * houthiBite(str)) {
+        H.saudiStruck++;
+        const place = ['Jizan', 'Abha', 'Najran', 'Khamis Mushait'][rand(0, 3)];
+        events.push(houthiScaled({
+          cls: 'world',
+          title: `HOUTHI SALVO INTO ${place.toUpperCase()}`,
+          sum: 'Saudi soil hit again',
+          // The counter is stated because it is the trigger, and a threshold the
+          // player cannot see is a threshold that reads as the game deciding
+          // things on its own.
+          text: () => `Ballistic missiles and drones into ${place}, in the south of the kingdom. Saudi Patriot ` +
+            'batteries took some of it. This is the ' + Txt.ordinal(H.saudiStruck) + ' salvo onto Saudi ' +
+            'territory since Ansar Allah entered, and the Saudi defence ministry has stopped describing them ' +
+            'as isolated.',
+          dOil: 3, dStrain: 4,
+        }, str));
+      }
+
+      // The strait, in two steps like Hormuz. Contested first — nobody shuts a
+      // waterway with one missile — and the second step is deliberately the
+      // easier of the two, because a lane insurers have already started pricing
+      // out of is most of the way shut before anybody declares it.
+      if (G.mandab !== 'CLOSED' && Math.random() < HOUTHIS.strait * houthiBite(str)) {
+        const closing = G.mandab === 'CONTESTED';
+        events.push(houthiScaled({
+          cls: 'world',
+          title: closing ? 'BAB AL-MANDAB CLOSED TO COMMERCIAL TRAFFIC' : 'BAB AL-MANDAB CONTESTED',
+          sum: closing ? 'The southern strait is shut' : 'The southern strait is contested',
+          text: closing
+            ? 'The underwriters have withdrawn cover for the strait entirely and the major lines have stopped ' +
+              'booking it. Bab al-Mandab is shut in every sense that matters commercially. It is not Hormuz — ' +
+              'there is a way round the bottom of Africa and the cargo will get there — but it will get there ' +
+              'three weeks late, and Suez is now a canal with nothing to feed it.'
+            : 'Two more attempts on shipping in the strait, one of them on a US-flagged hull. Transits are ' +
+              'continuing under naval escort and at a quarter of the usual rate. The lane is not shut. It is ' +
+              'also not open in any way an underwriter recognises.',
+          mandab: closing ? 'CLOSED' : 'CONTESTED',
+          dOil: closing ? 9 : 4, dStrain: closing ? 6 : 3,
+        }, str));
+      }
+    }
+
+    // ---- the strait comes back ----
+    // Only once the launch cells have actually been worked over. There is no
+    // negotiated reopening here the way there is with Hormuz: nobody in this war
+    // has a phone number for Sanaa, so the lane reopens when the thing shooting
+    // at it stops and not before.
+    if (G.mandab !== 'OPEN' && (spent || str < 1) && Math.random() < HOUTHIS.reopen) {
+      events.push({
+        cls: 'friendly',
+        title: 'BAB AL-MANDAB REOPENS TO COMMERCIAL TRAFFIC',
+        sum: 'The southern strait reopens',
+        text: 'With the coastal launch cells worked over and the attack tempo down, the underwriters have ' +
+          'restored cover for the strait and the first convoys are through. The lines are booking Suez again. ' +
+          'The rates are not what they were and will not be for months, but the cargo is moving the short way.',
+        mandab: 'OPEN', dOil: -7,
+      });
+    }
+
+    // ---- Riyadh decides it is their war ----
+    if (!H.saudiIn && (H.saudiStruck >= HOUTHIS.saudiStrikes || G.mandab === 'CLOSED')) {
+      H.saudiIn = true;
+      H.saudiSince = 0;
+      const why = G.mandab === 'CLOSED' && H.saudiStruck < HOUTHIS.saudiStrikes
+        ? 'with the strait shut and the kingdom\'s own Red Sea ports behind it'
+        : `after ${Txt.plural(H.saudiStruck, 'salvo')} onto its own territory`;
+      events.push({
+        cls: 'friendly',
+        title: 'SAUDI ARABIA COMMITS THE RSAF AGAINST ANSAR ALLAH',
+        sum: 'Riyadh joins the southern war',
+        text: `Riyadh has ordered the Royal Saudi Air Force back over Yemen ${why}. F-15S and Typhoon ` +
+          'squadrons are generating out of King Khalid at Khamis Mushait, forty miles off the border, and ' +
+          'they will fly the southern aimpoints without asking CENTCOM for a slot on the tasking order. ' +
+          'This is the government that has spent the whole war telling you to end it, and it has just ' +
+          'opened a second one. Nobody in the council believes that costs nothing — least of all Riyadh, ' +
+          'which spent nine years in this war and got out of it exactly once.',
+        dApproval: HOUTHIS.saudiApproval, dWorld: HOUTHIS.saudiWorld,
+      });
+    }
+
+    // ---- and then flies it ----
+    if (H.saudiIn) {
+      H.saudiSince++;
+      const avail = yemenTargets().filter(t => t.hp > 0)
+        .sort((a, b) => a.hp - b.hp)
+        .slice(0, HOUTHIS.saudiAimpoints);
+      // Every other night, and only if there is something left standing. The
+      // cadence is what keeps this an ally rather than a second American
+      // squadron the president got for free.
+      if (avail.length && H.saudiSince % HOUTHIS.saudiEvery === 0) {
+        H.saudiSorties++;
+        const hits = [];
+        for (const t of avail) rsafService(t, hits);
+        const nth = H.saudiSorties > 1 ? ` — ${Txt.ordinal(H.saudiSorties).toUpperCase()} NIGHT` : '';
+        events.push({
+          cls: 'friendly',
+          title: `RSAF PACKAGE FLOWN AGAINST THE SOUTHERN AIMPOINTS${nth}`,
+          sum: hits.length ? 'Riyadh works the south' : 'Riyadh flew, and missed',
+          outcome: hits.length ? 'damaged' : 'miss',
+          text: hits.length
+            ? `Saudi aircraft worked the Yemeni coast overnight out of Khamis Mushait. Assessed effects: ` +
+              `${hits.join('; ')}. It is effects CENTCOM did not spend a package to buy, on a front the ` +
+              `Lincoln cannot reach.`
+            : 'Saudi aircraft worked the Yemeni coast overnight out of Khamis Mushait and came off the ' +
+              'aimpoints without assessable effect. They will go again.',
+          alliedStrike: hits.length > 0, allyOf: 'saudi',
+          alliedTargets: avail.map(t => t.id),
+        });
+      }
+    }
+
     return events;
   }
 
@@ -3190,7 +3534,17 @@ const Game = (() => {
     // more reason the vote is worth working before it happens.
     const law = legallyBarred(t);
     if (law) return law;
-    if (!canReach(t)) return 'Unreachable: with Gulf basing and overflight revoked there is no tanker track that puts a package this deep.';
+    // Two different unreachables, and they must not share a sentence: one is a
+    // permission that was withdrawn and can be won back, the other is a hull
+    // that is in the wrong ocean and can be sent for. A player told the second
+    // problem in the first problem's words goes looking at world opinion.
+    if (!canReach(t)) {
+      return t.theater === 'yemen'
+        ? 'Out of range: the Lincoln is in the Gulf of Oman and this is the Red Sea. Nothing in theater ' +
+          'reaches the Yemeni coast except the Ford — order the second carrier group from THEATER FORCES, ' +
+          'or leave this front to Riyadh.'
+        : 'Unreachable: with Gulf basing and overflight revoked there is no tanker track that puts a package this deep.';
+    }
     if (t.type === 'tel' && !t.located) return 'No fix. Dispersed launchers cannot be planned against until ISR finds them.';
     // A box is not an aimpoint. This is reachable from the picker sheet and from
     // a suspected box the player clicks on, and it has to say which of the two
@@ -3823,6 +4177,7 @@ const Game = (() => {
     if (ev.dResolve) G.gulf.resolve = clamp(G.gulf.resolve + ev.dResolve, 0, GULF.fly);
     if (ev.dStrain) G.gulf.strain = clamp(G.gulf.strain + ev.dStrain, 0, GULF.fly);
     if (ev.hormuz) { G.hormuz = ev.hormuz; MapView.setHormuz(G.hormuz); }
+    if (ev.mandab) { G.mandab = ev.mandab; MapView.setMandab(G.mandab); }
     if (ev.flashAsset) MapView.flashAsset(ev.flashAsset);
   }
 
@@ -4105,7 +4460,26 @@ const Game = (() => {
       function iranianResponse() {
         for (const ev of shipRisk) events.unshift(ev);
         if (threat) events.push(threat);
+
+        // The southern front answers on the same page Tehran does, and its
+        // events go into THIS list rather than beside gulfTurn's. That is not a
+        // presentation choice: everything gulfTurn returns has already been
+        // spent against G by the time it is returned, so those events only
+        // report — while these carry casualties, the barrel and a strait state,
+        // and the only thing that spends them is the applyEvent loop below.
+        // Appended beside Tehran's salvo because it IS Tehran's salvo: Ansar
+        // Allah is the third arm of the same war plan.
+        const south = houthiTurn();
+        for (const ev of south) events.push(ev);
+
         if (events.some(ev => ev.casualties || ev.hormuz === 'CLOSED')) AudioSys.play('retaliation');
+
+        // Riyadh's package flies the way Jerusalem's does and for the same
+        // reason — an ally's night is something the president is TOLD about, so
+        // it is a radar picture on the strategic plot rather than a targeting
+        // pod. It launches from Khamis Mushait, which is what `allyOf` is for.
+        const rsaf = south.find(ev => ev.alliedStrike);
+        MapView.alliedStrike(rsaf ? rsaf.alliedTargets : null, guard('rsaf', () => {
 
         // Iran's salvos fly on the map — missiles, drone swarms, intercepts —
         // before the damage assessment lands and covers the screen
@@ -4126,8 +4500,18 @@ const Game = (() => {
           // what is in the Red Sea. It does not fight the strait-closure premium below,
           // which is a separate, larger shock; it just keeps the ambient fear down.
           const carrierReassurance = navalForward() * 3;
+          // The second strait is added to the same target rather than shocking
+          // the price on its own, so two closed waterways cannot double-count a
+          // single panic — and it is worth about a third of Hormuz, because it
+          // has a detour and Hormuz does not. Shutting Bab al-Mandab does not
+          // strand a cargo; it sends it round the Cape, which is three weeks and
+          // a war-risk premium rather than a supply shock. That difference is
+          // the whole reason this front has no loss condition attached to it.
+          const mandabPremium = G.mandab === 'CONTESTED' ? HOUTHIS.oilContested
+            : G.mandab === 'CLOSED' ? HOUTHIS.oilClosed : 0;
           const oilTarget = 88 + Math.max(0, warPremium - carrierReassurance) +
-            (G.hormuz === 'CONTESTED' ? 14 : G.hormuz === 'CLOSED' ? 55 : 0);
+            (G.hormuz === 'CONTESTED' ? 14 : G.hormuz === 'CLOSED' ? 55 : 0) +
+            mandabPremium;
           // The market eases toward the target one night at a time, but not
           // symmetrically: a fear premium spikes slowly and collapses fast. When
           // the price is above target — the threat easing rather than building —
@@ -4155,6 +4539,14 @@ const Game = (() => {
 
           if (G.hormuz === 'CLOSED') G.hormuzClosedTurns++;
           else G.hormuzClosedTurns = 0;
+
+          // Counted for the after-action record and for nothing else. Note this
+          // one ACCUMULATES rather than resetting on reopening: HORMUZ_LIMIT is
+          // a loss condition and needs consecutive nights, while this is a
+          // tally of how long the president let the southern lane stay shut
+          // across the whole war. Nothing reads it to end a campaign, and
+          // nothing should — see the detour note above the premium.
+          if (G.mandab === 'CLOSED') G.mandabClosedTurns++;
 
           // domestic drift: the country reacts to the price at the pump. Expensive
           // gas and a long war bleed approval; cheap, calm markets let it recover a
@@ -4263,6 +4655,7 @@ const Game = (() => {
             : close;
           if (!theirs.length) { gavel(); return; }
           UI.showReport(`IRANIAN RETALIATION — DAY ${day}, TURN ${G.turn}`, theirs, gavel);
+        }));
         }));
       }
     }));
@@ -4700,6 +5093,13 @@ const Game = (() => {
     // synced on every boot rather than only on a resume — otherwise a war that
     // starts CONTESTED shows a green OPEN pin over an amber HUD readout.
     MapView.setHormuz(G.hormuz);
+    // ...and the second one, but only if this war has one. setMandab REVEALS the
+    // indicator, so calling it unconditionally would put a strait marker on the
+    // three campaigns in four that never have a southern front — which is the
+    // one thing the roll is supposed to keep quiet. A resumed war that had
+    // already opened its front gets both the marker and the edge cue back.
+    if (G.houthi.entered) MapView.setMandab(G.mandab);
+    MapView.syncSouthCue();
     if (resume) {
       // rebuild map state from the restored targets
       for (const t of TARGETS) MapView.updateTarget(t);
@@ -4846,6 +5246,21 @@ const Game = (() => {
       caveats: 0, gifts: [], tankers: 0, corridor: false, summits: 0, patriots: 0,
     };
 
+    // Whether this war has a southern front, and when. Both rolled here and
+    // neither shown: the entry turn is picked even on the 75% of campaigns that
+    // never use it, so the roll is one branch rather than two and a save written
+    // on turn 3 of a quiet war cannot be read to find out what is coming.
+    // See HOUTHIS in data.js — the IRGC check happens on the entry turn itself,
+    // not here, because what it asks is what the president has done by then.
+    G.houthi = {
+      active: Math.random() < HOUTHIS.chance,
+      entered: false,
+      enterTurn: rand(HOUTHIS.enterMin, HOUTHIS.enterMax),
+      saudiStruck: 0, saudiIn: false, saudiSince: 0, saudiSorties: 0,
+    };
+    G.mandab = 'OPEN';
+    G.mandabClosedTurns = 0;
+
     // The coastal SAM belt is never found at full strength. The sweep that put
     // it there IS the "covert action" Tehran is retaliating for in the opening
     // brief, and targetDesc says so wherever Bandar Abbas is read: a site
@@ -4955,6 +5370,7 @@ const Game = (() => {
     // Jerusalem: the gauge is state, the ETA and the drivers are readings off it,
     // so the panel, the advisors and the sim can never quote different numbers.
     israelStatus, israelEta, israelClock, israelDrivers, israelHoldCost, israelPriorities,
+    saudiStatus,
     // the two camps, on the same terms: the gauges are state, everything here is
     // a reading off them, and the panel is not allowed a second copy of any of it
     gulfHawkDrivers, gulfDoveDrivers, gulfEta, gulfSummitCost, gulfPriorities,
@@ -4980,5 +5396,8 @@ const Game = (() => {
     // the uncertainty layer: everything the player sees goes through these
     estimate, condition, staleEstimates, targetDesc, breakoutEstimate, barred, canReach, tankersFor, tankerCapacity,
     casualtyLimit, difficulty: diff,
+    // the southern front, for the council panel — `houthiStrength` is what the
+    // readout draws and `reachesYemen` is why the aimpoints are greyed out
+    houthiStrength, reachesYemen, yemenTargets,
     FORD_TRANSIT_TURNS, B2_TRANSIT_TURNS, HEAVY_TRANSIT_TURNS, WAR_POWERS_TURN, HORMUZ_LIMIT, G };
 })();

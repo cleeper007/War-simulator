@@ -25,7 +25,9 @@ const Txt = (() => {
 
   // Stems no rule reaches. Keyed on the last word, so "American life" inflects
   // as "American lives" and the adjective comes along for free.
-  const IRREGULAR = { life: 'lives', person: 'people' };
+  // "2 crewmans" is what the southern front's shipping report printed the first
+  // night a hull was hit with people still aboard.
+  const IRREGULAR = { life: 'lives', person: 'people', crewman: 'crewmen' };
 
   // The noun alone, correctly counted. For prose that puts the number somewhere
   // other than immediately in front of the word ("a single aviator", "both

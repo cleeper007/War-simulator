@@ -19,9 +19,9 @@
      stays invisible in the tab for as long as that row survives. Renaming the
      URL is the only thing it listens to. Stamp these with the badge on every
      bump, even when only the art changed. -->
-<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png?v=1.75">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1.75">
-<link rel="manifest" href="site.webmanifest?v=1.75">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png?v=1.76">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1.76">
+<link rel="manifest" href="site.webmanifest?v=1.76">
 <meta name="theme-color" content="#0a1626">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -35,7 +35,7 @@
      version-badge) renames every asset URL, which is the only thing that
      reliably forces the fetch.
      Bump the stamps and the badge together. -->
-<link rel="stylesheet" href="css/style.css?v=1.75">
+<link rel="stylesheet" href="css/style.css?v=1.76">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.75<span class="beta-tag">BETA</span></div>
+  <div class="version-badge">v1.76<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -133,6 +133,17 @@
              Kharg / Bushehr / Nav Bushehr cluster is a few map units across and
              at the zoom the war opens at they share a touch target. -->
         <div id="target-pick" class="hidden"></div>
+        <!-- The southern front sits below the frame — Sanaa plots 150 units under
+             the bottom edge and the strait 250 (see the Yemen aimpoints in
+             data.js). This is the map's way of saying so: hidden until Ansar
+             Allah actually enters, which is one campaign in four, and hidden
+             again the moment the theater is genuinely on screen.
+             MapView.syncSouthCue owns both, off every view change. -->
+        <button id="south-cue" class="hidden" type="button"
+                title="The southern front — pan down to Yemen and Bab al-Mandab">
+          <span class="sc-arrow" aria-hidden="true">▼</span>
+          <span class="sc-text">SOUTHERN FRONT</span>
+        </button>
         <div id="flight-status" class="hidden"></div>
         <!-- The watch floor, when it speaks. Bottom-right because the tactical
              scopes stack down the top-left and the zoom controls own the top
@@ -302,6 +313,13 @@
         </button>
         <div class="panel-body"><div class="panel-body-inner">
           <div id="gulf-roster"></div>
+          <!-- The southern front lives INSIDE the Gulf council rather than in a
+               panel of its own, and that is the argument it is making: the thing
+               that matters about Ansar Allah is what it does to Riyadh, who is a
+               dove holding Prince Sultan. A separate panel would have read as a
+               separate war. Empty and hidden in the three campaigns out of four
+               that never open one — renderGulf owns both. -->
+          <div id="gulf-south" class="hidden"></div>
           <div id="gulf-buttons"></div>
         </div></div>
       </div>
@@ -568,18 +586,18 @@
   </div>
 </div>
 
-<script src="js/text.js?v=1.75"></script>
-<script src="js/geodata.js?v=1.75"></script>
-<script src="js/data.js?v=1.75"></script>
-<script src="js/map.js?v=1.75"></script>
-<script src="js/ai.js?v=1.75"></script>
-<script src="js/audio.js?v=1.75"></script>
-<script src="js/ui.js?v=1.75"></script>
+<script src="js/text.js?v=1.76"></script>
+<script src="js/geodata.js?v=1.76"></script>
+<script src="js/data.js?v=1.76"></script>
+<script src="js/map.js?v=1.76"></script>
+<script src="js/ai.js?v=1.76"></script>
+<script src="js/audio.js?v=1.76"></script>
+<script src="js/ui.js?v=1.76"></script>
 <!-- after ui.js: the walkthrough drives the room through UI's exported openPanel
      / openStrikeModal, and ui.js reaches back for Tour.start() at click time -->
-<script src="js/tour.js?v=1.75"></script>
-<script src="js/specops.js?v=1.75"></script>
-<script src="js/csar.js?v=1.75"></script>
-<script src="js/game.js?v=1.75"></script>
+<script src="js/tour.js?v=1.76"></script>
+<script src="js/specops.js?v=1.76"></script>
+<script src="js/csar.js?v=1.76"></script>
+<script src="js/game.js?v=1.76"></script>
 </body>
 </html>

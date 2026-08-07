@@ -1024,6 +1024,21 @@ const IranAI = (() => {
     if (missileStrength() + navalStrength() <= 1) h.push('ANALYSTS: IRAN\'S MILITARY SHATTERED — HOW MUCH LONGER CAN TEHRAN FIGHT?');
     if (G.casualties.us >= 170) h.push('CASUALTY COUNT MOUNTS — CONGRESS DEBATES LIMITS ON THE WAR');
     if (G.hormuz === 'CLOSED') h.push('GAS LINES FORM AS HORMUZ CLOSURE CHOKES GLOBAL SUPPLY');
+    // The southern front, and none of it is marked `internal` — a second front
+    // is the most public thing that can happen to a war. The strait line names
+    // the CAPE rather than a price, because that is the fact this closure
+    // actually is: the cargo arrives, three weeks late, and the difference
+    // between that and Hormuz is the whole reason this one cannot lose the war.
+    if (G.mandab === 'CLOSED') {
+      h.push('SHIPPING LINES ABANDON SUEZ FOR THE CAPE AS BAB AL-MANDAB STAYS SHUT');
+    } else if (G.mandab === 'CONTESTED') {
+      h.push('WAR-RISK PREMIUMS SPIKE ON RED SEA TRANSITS AS ESCORTED CONVOYS CRAWL THROUGH');
+    }
+    if (G.houthi && G.houthi.saudiIn) {
+      h.push('RSAF BACK OVER YEMEN — RIYADH FIGHTING TWO WARS IT SPENT A DECADE TRYING TO LEAVE');
+    } else if (G.houthi && G.houthi.entered) {
+      h.push('ANSAR ALLAH WIDENS THE WAR — ANALYSTS ASK WHAT ELSE TEHRAN CAN STILL SWITCH ON');
+    }
     if (G.regimeChaosTurns > 0) h.push('POWER VACUUM IN TEHRAN — INTELLIGENCE AGENCIES ASK: WHO IS IN CHARGE?');
     if (G.downed) h.push(`SEARCH UNDER WAY FOR US AIRCREW DOWN INSIDE IRAN — PENTAGON WILL NOT DISCUSS RECOVERY OPERATIONS`);
     if (G.hostageCrisis) h.push('VIGILS HELD FOR AMERICANS IN IRANIAN CUSTODY');

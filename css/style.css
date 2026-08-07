@@ -282,6 +282,34 @@ button { font-family: var(--mono); }
 #target-pick .pick-name { font-size: 11px; letter-spacing: 0.4px; }
 #target-pick .pick-sub { font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase; }
 
+/* The southern front, which is off the bottom of the chart. Bottom-CENTRE is
+   the one edge nothing else claims: the scopes stack top-left, the zoom
+   controls own the top edge, the voice card is bottom-right and flight-status
+   is bottom-left. Amber because it points at an allied theater rather than at
+   an American one, matching the IAF tracks and the allied base markers.
+   Full 44px tall — it is a touch target on the edge a thumb rests on. */
+#south-cue {
+  position: absolute; z-index: 19;
+  left: 50%; transform: translateX(-50%); bottom: 8px;
+  display: flex; align-items: center; gap: 7px;
+  min-height: 44px; padding: 0 14px;
+  background: rgba(6, 10, 18, 0.92); border: 1px solid var(--amber);
+  color: var(--amber); font: inherit; cursor: pointer;
+  font-size: 10px; letter-spacing: 1.6px;
+}
+#south-cue:hover, #south-cue:focus-visible { background: var(--bg-panel2); outline: none; }
+#south-cue .sc-arrow { font-size: 12px; line-height: 1; }
+/* Landscape phones have ~200px of vertical room in the map pane, so the cue
+   drops its label and becomes the arrow alone. It does NOT shrink: it is
+   absolutely positioned and occludes the chart rather than taking layout room
+   off it, so trimming it to 36px bought no map back and cost a touch target —
+   31x36 is under the 44px floor this whole file is written to. Square instead,
+   which keeps the thumb honest and still gives back the label's width. */
+@media (max-height: 460px) {
+  #south-cue { min-width: 44px; padding: 0; justify-content: center; bottom: 6px; }
+  #south-cue .sc-text { display: none; }
+}
+
 /* ============ sidebar ============ */
 #sidebar {
   flex: 0 0 340px; display: flex; flex-direction: column; gap: 10px;
@@ -538,6 +566,19 @@ button { font-family: var(--mono); }
 .gulf-state-holds {
   color: var(--dim); font-style: italic; text-align: right;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The southern front. Red head rather than the hawk blue or the dove amber
+   because it is neither camp — it is the thing acting ON both of them. Ruled
+   off above so it reads as an addition to the council rather than a third
+   column of it. */
+.gulf-camp-south { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 2px; }
+.gulf-camp-south .gulf-camp-head { color: var(--red); }
+/* Values here are statuses, not holdings, so they are upright rather than the
+   roster's italic — and they carry inline colour, which italics fight. */
+.gulf-camp-south .gulf-state-holds { font-style: normal; }
+.gulf-south-note {
+  font-size: 10px; line-height: 1.5; color: var(--dim);
+  margin: 5px 0 8px; padding-left: 7px; border-left: 1px solid var(--line);
 }
 
 #fleet-status { font-size: 10px; letter-spacing: 1px; }
@@ -1028,10 +1069,17 @@ button { font-family: var(--mono); }
 .us-asset.ally .asset-icon { fill: none; stroke: var(--amber); stroke-width: 1.4; }
 .us-asset.ally text { fill: var(--amber); opacity: 0.85; }
 
-#hormuz-indicator text { font-family: var(--mono); text-anchor: middle; }
-#hormuz-indicator .hz-open { fill: var(--green); }
-#hormuz-indicator .hz-contested { fill: var(--amber); }
-#hormuz-indicator .hz-closed { fill: var(--red); }
+/* Both straits, and the selector covers both by id because there are two now.
+   Scoped rather than bare `.hz-open` so the three status colours cannot leak
+   onto anything else that happens to want an open/contested/closed class. */
+#hormuz-indicator text,
+#mandab-indicator text { font-family: var(--mono); text-anchor: middle; }
+#hormuz-indicator .hz-open,
+#mandab-indicator .hz-open { fill: var(--green); }
+#hormuz-indicator .hz-contested,
+#mandab-indicator .hz-contested { fill: var(--amber); }
+#hormuz-indicator .hz-closed,
+#mandab-indicator .hz-closed { fill: var(--red); }
 
 .impact-flash { fill: var(--amber); opacity: 0.9; }
 

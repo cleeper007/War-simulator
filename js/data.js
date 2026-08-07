@@ -725,6 +725,63 @@ const TARGETS = [
       { asset: 'cruise', qty: 2, base: 0.66, label: 'TLAM salvo — 2 missiles (they scatter and re-form)' },
     ],
   },
+
+  // ---- the southern front ----
+  // The only two aimpoints on this list that are not in Iran. See HOUTHIS below
+  // for the front they belong to; what matters here is that they are ordinary
+  // targets in every mechanical respect — hp, packages, repair, BDA — and are
+  // fenced off from Iran by `theater: 'yemen'` alone.
+  //
+  // They are HELD at H-hour, which is the same absence a JIPTL aimpoint has and
+  // for a better reason: on 75% of campaigns this front never opens and these
+  // two never appear at all. houthiTurn releases them the night Ansar Allah
+  // enters, so the plot gains them with the report that explains them. The flag
+  // itself is stamped in game.js off `theater` and is deliberately NOT written
+  // here — that loop runs on every load and would overwrite a literal.
+  //
+  // TRUE COORDINATES, and they are off the bottom of the opening frame — Sanaa
+  // sits 150 units below it and Hodeidah 170. That is not a placement problem to
+  // solve; it is the fact the whole front is about. The war the president is
+  // fighting is north of the frame and this one is south of it, and the map
+  // already has the idiom (the Lincoln's BACK station is off the chart too).
+  // MapView draws an edge cue rather than moving the geography.
+  //
+  // NOT Aden. Aden is the internationally recognised government's seat and has
+  // been since 2015 — an American package into it would be a strike on the side
+  // Washington backs. Hodeidah and Ras Isa are the Houthi-held ports the
+  // anti-ship missiles actually stage from, which is also why the humanitarian
+  // bill on the second one is the largest `worldOnKill` outside the oil list.
+  {
+    id: 'houthi-sanaa', name: 'Sanaa Missile and UAV Command', short: 'SANAA CMD',
+    type: 'houthi', theater: 'yemen', x: 190, y: 912, depth: 3,
+    desc: 'Ansar Allah\'s strike cell in the highlands above the capital — targeting, launch orders and the workshops that mate Iranian seekers to locally built airframes. The men who decide which hull gets shot at, and the sheds where the thing that shoots at it is assembled.',
+    world: -1,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.70, label: 'F-35 strike package — 2 sorties off the Ford' },
+      { asset: 'fighter', qty: 3, base: 0.66, label: 'Air strike — 3 F/A-18E sorties off the Ford' },
+      { asset: 'cruise', qty: 3, base: 0.74, label: 'TLAM salvo — 3 cruise missiles' },
+    ],
+  },
+  {
+    id: 'houthi-hodeidah', name: 'Hodeidah and Ras Isa Port Complex', short: 'HODEIDAH',
+    // 46 units off SANAA CMD, which is inside a 44px hit disc at most zooms.
+    // Same overlap Kharg and Bushehr NPP have and handled the same way — nearest
+    // centre, picker sheet on a genuinely ambiguous tap — but the label is pushed
+    // clear so the two names never stack.
+    type: 'houthi', theater: 'yemen', x: 148, y: 932, depth: 3,
+    label: { dy: -14 },
+    desc: 'The Red Sea coast the anti-ship missiles are trucked to and fired from, and the berths and oil terminal behind them. It is also the way seventy per cent of Yemen\'s food arrives. Both of those are true of the same quay, which is the entire difficulty of the target.',
+    // The humanitarian bill lands on the last hit, where the oil terminals put
+    // theirs and for the same reason: nobody abroad files a protest over the
+    // second package into a berth. The story is the port being shut, and that
+    // story does not exist until it is.
+    world: -1, worldOnKill: -7,
+    packages: [
+      { asset: 'f35', qty: 2, base: 0.72, label: 'F-35 strike package — 2 sorties off the Ford' },
+      { asset: 'fighter', qty: 3, base: 0.68, label: 'Air strike — 3 F/A-18E sorties off the Ford' },
+      { asset: 'cruise', qty: 3, base: 0.78, label: 'TLAM salvo — 3 cruise missiles' },
+    ],
+  },
 ];
 
 // Where a destroyed missile base's surviving launchers go, and how much of the
@@ -771,6 +828,14 @@ const TARGET_REPAIR = {
   // military list does.
   infra:       7,
   oil:         5,   // refinery trains and loading berths are the slowest of all
+  // Ansar Allah, and the fastest repair on the board after a command node. This
+  // is the one number in the table that is not about engineering: a movement
+  // that spent nine years being bombed by a Gulf air force with American
+  // munitions rebuilds a launch cell in days because the cell was never a
+  // building. It repairs off the same national effort as everything else (see
+  // eff() in game.js), which means a flattened IRGC slows the southern front
+  // down too — the resupply is real and it comes from the same place.
+  houthi:     11,
 };
 
 // ============================================================
@@ -1653,6 +1718,19 @@ const GULF = {
     oil: 0.06,         // × dollars over `oilFloor`
     oilFloor: 110,
     hormuzShut: 5,     // × 1 contested, × 2 closed
+    // ...and the southern one, at a third of it, for the same reason its oil
+    // premium is a third (see HOUTHIS): Bab al-Mandab has a detour and Hormuz
+    // does not. It is a standing driver rather than a one-off charge on the
+    // closing event because the doves' hormuz term is, and because Riyadh's own
+    // Red Sea ports sit behind it — Jizan and Jeddah do not stop being behind it
+    // the night after the lane shuts.
+    //
+    // The barrel already carries some of this through the `oil` term above, and
+    // that is fine: the same overlap exists for Hormuz, and what this adds is
+    // the doves SAYING SO on the panel. A council charged for a shut strait
+    // whose driver list never mentions the strait is a number the president
+    // cannot argue with.
+    mandabShut: 1.7,   // × 1 contested, × 2 closed
     civil: 1.8,        // per destroyed dual-use site — including the ones Israel did
     // A theater the president has actually calmed has to be able to walk this
     // back, or the only strategy is to outrun it. Worth more than the ambient
@@ -1718,6 +1796,132 @@ const GULF = {
   patriotResolve: 26,
   patriotMax: 2,
 };
+
+// ============================================================
+// THE SOUTHERN FRONT — ANSAR ALLAH
+// ------------------------------------------------------------
+// The one part of this war that does not happen every time.
+//
+// Everything else on the board is load-bearing: Jerusalem's clock runs all
+// thirty turns, the council argues from turn one, the belt reconstitutes on a
+// schedule. That is correct for the systems the campaign is ABOUT, and it is
+// also why two campaigns on the same difficulty rhyme. This one rolls once at
+// H-hour and stays out of three wars in four, so a president who has played six
+// campaigns has seen it once or twice and does not have an answer ready.
+//
+// It is deliberately NOT a second Israel. Jerusalem can lose you the war; Ansar
+// Allah can only make it more expensive. The whole front is an annoyance with a
+// decision buried in it, and the decision is the point:
+//
+//   YOU CANNOT REACH IT WITHOUT THE FORD. Sanaa and Hodeidah are in the wrong
+//   ocean for the Lincoln. The Red Sea deck is the only American thing within
+//   range, which means the southern front is the first thing in the campaign
+//   that makes the second carrier order about geography rather than sortie
+//   count. A president who never sent for the Ford cannot answer this at all.
+//
+//   SO THE OTHER ANSWER IS RIYADH — and Riyadh is a DOVE. It is the government
+//   that most wants this war over, and the trigger below drags it into a second
+//   one on its own southern border. That is the trade the front exists to offer:
+//   free sorties from the capital whose patience you are already spending.
+//
+// WHY THE TRIGGER IS WHAT IT IS. Three salvos onto Saudi soil, or the strait
+// shut. Both are things Ansar Allah does and the president does not choose —
+// which is what keeps this from being a lever. You cannot decide to bring Saudi
+// in; you can only decline to stop the thing that brings them in. A president
+// who services the southern front hard enough keeps Riyadh out of it and keeps
+// the dove gauge clean, and a president who ignores it gets an air force it did
+// not ask for and a bill that arrives four turns later.
+const HOUTHIS = {
+  // ---- whether this war has one at all ----
+  // Rolled once in newWar. A quarter of campaigns, and the roll is not shown:
+  // there is no panel and no marker until they announce themselves.
+  chance: 0.25,
+  // ...and not before this. The front is a late-campaign complication by design
+  // — dropped in at turn 3 it is just a harder difficulty setting, and dropped
+  // in at turn 20 it lands after most campaigns have already ended on the
+  // approval floor (the lesson the covert tier cost a week to learn: see COVERT,
+  // and note these numbers are inside the same turn 9–14 window that mechanic
+  // had to be dragged back into).
+  enterMin: 8,
+  enterMax: 13,
+  // The one thing that can stop it happening, and it is not luck. Ansar Allah is
+  // armed, paid and targeted through the IRGC's external network — the same
+  // complex the proxy bill is already denominated in. Flatten it and the seekers
+  // stop arriving, so a president who has spent packages on Iranian command by
+  // turn 10 may simply never see this front. Checked once, on the entry turn:
+  // an IRGC rebuilt afterwards does not summon a war that already declined to
+  // start, and one wrecked afterwards does not end one that did.
+  entryIrgc: 0.45,
+
+  // ---- what they do while nobody is stopping them ----
+  // Per-turn odds once they are in, each scaled by houthiStrength() — which is
+  // the condition of the two Yemen aimpoints, so servicing them is the whole of
+  // the counterplay and it works immediately.
+  shipping: 0.55,     // a hull in the Red Sea or the Gulf of Aden
+  // A salvo onto Saudi soil, and this one is the trigger's counter, so its rate
+  // is really a statement about WHEN Riyadh can come in. The entry night spends
+  // the first of the three itself (see houthiTurn), which leaves two to roll:
+  // at 0.40 that is about five turns, so a front that opens on turn 8–13 puts
+  // the RSAF in the air around turn 13–18. That is late in a thirty-turn war
+  // and absent from a short one, which is the shape the front is supposed to
+  // have — but it is also exactly the arithmetic the covert tier got wrong
+  // before it was measured, so it is measured (.claude/betatest/houthi.js).
+  saudi: 0.40,
+  strait: 0.22,       // an attempt on Bab al-Mandab
+  // Once shut it stays shut until somebody clears it. Lower than Hormuz's
+  // reopening odds because there is no negotiation channel here: nobody in this
+  // war has a phone number for Sanaa, and the strait reopens when the launch
+  // cells stop working rather than when a deal is struck.
+  reopen: 0.18,
+
+  // ---- the barrel ----
+  // A third of Hormuz, and the reason is that this one is REROUTABLE. Shutting
+  // Bab al-Mandab does not strand the oil; it sends it round the Cape, which is
+  // three weeks and a war-risk premium rather than a supply shock. Hormuz has no
+  // detour and that is why it is the strait that ends presidencies. Folded into
+  // the same nightly oil target so the two straits cannot double-count a panic.
+  oilContested: 5,
+  oilClosed: 18,
+
+  // ---- Riyadh's threshold ----
+  saudiStrikes: 3,    // salvos onto Saudi soil that bring the RSAF in
+  // What they fly once they are in: a wider night than the IAF's, because this
+  // is their own border and they have been doing it for a decade. Rates are
+  // deliberately good — an air force that has flown this exact campaign since
+  // 2015 is better at it than a carrier air wing arriving cold.
+  saudiAimpoints: 2,
+  saudiKill: 0.30,
+  saudiDamage: 0.70,
+  saudiEvery: 2,      // they fly every other night, not nightly
+
+  // ---- and what Riyadh charges for it ----
+  // The answer the player chose, and the one that makes this a gamble rather
+  // than a gift. A council cannot file caveats about a war its own air force is
+  // flying, so the dove gauge SLOWS while the RSAF is committed — and then it
+  // does not, because the thing being measured was never approval of the war. It
+  // was how long Riyadh will keep paying for it. Past the grace window Saudi
+  // Arabia is fighting two wars it did not want and the gauge climbs faster than
+  // it would have if the front had never opened.
+  //
+  // Both terms go through gulfDoveDrivers as [amount, why] pairs like everything
+  // else that moves that gauge, so the council panel explains the swing in the
+  // player's own language rather than the number simply changing direction.
+  saudiGrace: 4,      // turns of quiet bought by the commitment
+  saudiDamp: -3.5,    // per turn inside the grace window
+  saudiDrag: 2.5,     // per turn after it, while the front is still live
+  saudiDragMax: 7,    // ...ramped over four turns and then capped
+
+  // Approval at home for the RSAF flying American-supplied aircraft over Yemen,
+  // charged once when they enter. Small: the domestic story is an ally taking a
+  // burden off American pilots, and the honest cost of it lands abroad instead.
+  saudiApproval: -2,
+  saudiWorld: -3,
+};
+
+// Where the second strait is drawn. Bab al-Mandab proper, off Perim — the same
+// treatment Hormuz gets (HORMUZ_POS) and, like everything else on this front,
+// below the opening frame.
+const MANDAB_POS = { x: 162, y: 1016 };
 
 // ============================================================
 // IRANIAN WAR PLANS
@@ -1968,12 +2172,26 @@ const US_ASSETS = [
 
   // -- Israeli air force bases: allied, not American (ally: true draws them in
   //    amber rather than US blue). Far west of the Gulf — pan west to see them.
+  //    `allyOf` is what alliedStrike flies FROM: without it the dispatcher picks
+  //    any amber base on the board, and the night Riyadh entered the war an IAF
+  //    package launched out of Khamis Mushait.
   { id: 'nevatim', name: 'Nevatim AB — Israel', short: 'NEVATIM', x: -117, y: 313, kind: 'airbase',
-    forward: true, ally: true, sortie: false, atacms: false,
+    forward: true, ally: true, allyOf: 'israel', sortie: false, atacms: false,
     desc: 'IAF F-35I "Adir" and heavy transport base in the Negev. The long-range strike force flies from here. (Pan west to see it.)' },
   { id: 'hatzerim', name: 'Hatzerim AB — Israel', short: 'HATZERIM', x: -129, y: 312, kind: 'airbase',
-    forward: true, ally: true, sortie: false, atacms: false, labelAbove: true,
+    forward: true, ally: true, allyOf: 'israel', sortie: false, atacms: false, labelAbove: true,
     desc: 'IAF F-15I and F-16I squadrons west of Beersheba — the aircraft that would fly a deep-strike package into Iran.' },
+  // -- and the Royal Saudi Air Force's southern base, which only matters if the
+  //    southern front opens (see HOUTHIS). Khamis Mushait is 40 miles off the
+  //    Yemeni border and is the ramp that has flown this exact campaign since
+  //    2015 — the honest origin for an RSAF package into Sanaa, and a long way
+  //    from Prince Sultan, which is the base the basing tiers are about.
+  //    Drawn from the start rather than conjured on entry: the base exists in
+  //    every campaign, and a marker that appears mid-war reads as the war having
+  //    built it.
+  { id: 'khamis', name: 'King Khalid AB — Saudi Arabia', short: 'KHAMIS MUSHAIT', x: 133, y: 803, kind: 'airbase',
+    forward: true, ally: true, allyOf: 'saudi', sortie: false, atacms: false, labelAbove: true,
+    desc: 'RSAF F-15S and Typhoon squadrons in the Asir highlands, forty miles from the Yemeni border. The base the Saudi air campaign in Yemen has been flown from since 2015. (Pan south to see it.)' },
 ];
 
 // ---- carrier strike groups ----

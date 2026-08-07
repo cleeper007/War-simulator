@@ -1344,6 +1344,62 @@ const UI = (() => {
       }).join('') + `</ul>`;
   }
 
+  // ---- the southern front, inside the council panel ----
+  // It sits here rather than in a panel of its own because the interesting fact
+  // about Ansar Allah is not Ansar Allah — it is that the government it drags
+  // into the war is the dove holding Prince Sultan. A separate panel would have
+  // read as a separate war and left the player to notice the connection.
+  //
+  // What this must NOT show is a gauge. Riyadh has a threshold, not a temper:
+  // three salvos or a shut strait, both of which are things Ansar Allah does and
+  // the president does not choose. Drawing it as a filling bar would invite
+  // exactly the reading the mechanic is built to refuse — that bringing the RSAF
+  // in is a lever you pull.
+  function renderSouth(G) {
+    const box = $('gulf-south');
+    const H = G.houthi;
+    if (!H || !H.entered) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    box.classList.remove('hidden');
+
+    const y = Game.yemenTargets();
+    const cond = Math.round(y.reduce((n, t) => n + t.hp, 0) / y.length);
+    const reach = Game.reachesYemen();
+    const strait = G.mandab;
+    // The threshold, stated as a count against a count. It is the only number in
+    // this block a player can act on, and only by taking the launch cells apart
+    // before the third salvo lands.
+    const trip = H.saudiIn ? null : `${H.saudiStruck}/${HOUTHIS.saudiStrikes} salvos on Saudi soil`;
+
+    const row = (k, v, tone) =>
+      `<div class="gulf-state"><span class="gulf-state-name">${k}</span>` +
+      `<span class="gulf-state-holds"${tone ? ` style="color:${tone}"` : ''}>${v}</span></div>`;
+
+    box.innerHTML =
+      `<div class="gulf-camp gulf-camp-south">` +
+      `<div class="gulf-camp-head">THE SOUTHERN FRONT</div>` +
+      row('Ansar Allah', cond > 0 ? `${cond}% capable` : 'launch cells down',
+        cond > 60 ? 'var(--red)' : cond > 0 ? 'var(--amber)' : 'var(--green)') +
+      row('Bab al-Mandab', strait,
+        strait === 'OPEN' ? 'var(--green)' : strait === 'CONTESTED' ? 'var(--amber)' : 'var(--red)') +
+      row('Riyadh', H.saudiIn
+        ? `flying · ${plural(H.saudiSorties, 'night')}`
+        : trip, H.saudiIn ? 'var(--amber)' : '') +
+      // The reach line is the decision this front actually poses, so it is the
+      // one that gets a sentence rather than a value. A player reading "out of
+      // range" with no reason attached goes looking at world opinion, which is
+      // where every other unreachable target in this game points them.
+      row('CENTCOM', reach ? 'Ford on station — aimpoints live' : 'out of range without the Ford',
+        reach ? 'var(--blue)' : 'var(--dim)') +
+      `</div>` +
+      `<p class="gulf-south-note">${
+        H.saudiIn
+          ? (H.saudiSince <= HOUTHIS.saudiGrace
+            ? 'The council is quiet while the RSAF is committed. A government cannot file a caveat about a war it is flying — and that is a loan, not a gift.'
+            : 'Riyadh is fighting two wars and wanted neither. The council is louder than it would have been if this front had never opened.')
+          : 'Ansar Allah is an Iranian-supplied problem in the wrong ocean. Take the launch cells apart, or let the third salvo land and hand it to Riyadh.'
+      }</p>`;
+  }
+
   function renderGulf(G) {
     const used = G.diploUsed;
     const resolve = Math.round(G.gulf.resolve);
@@ -1357,9 +1413,16 @@ const UI = (() => {
     // plural(2, 'CAVEAT') is "2 CAVEATs" — the same class of bug Txt exists to
     // prevent, arrived at from the other side. Every counted noun in this panel
     // is built lowercase and uppercased afterwards for that reason.
-    $('gulf-status').textContent = caveats
-      ? `GULF ${plural(caveats, 'caveat').toUpperCase()} · FOLDS AT ${Game.gulfFoldThreshold('gulf')}`
-      : `GULF ${strain}% STRAIN · ${resolve}% RESOLVE`;
+    // A shut southern strait outranks both, and it is the only thing from the
+    // southern front that reaches this header. It is here rather than in the
+    // panel alone because a waterway closing is the one fact on this front that
+    // is costing money tonight, and the header is what a player who never opens
+    // the panel actually reads.
+    $('gulf-status').textContent = G.mandab === 'CLOSED'
+      ? `GULF · MANDAB SHUT · ${caveats ? plural(caveats, 'caveat').toUpperCase() : `${strain}% STRAIN`}`
+      : caveats
+        ? `GULF ${plural(caveats, 'caveat').toUpperCase()} · FOLDS AT ${Game.gulfFoldThreshold('gulf')}`
+        : `GULF ${strain}% STRAIN · ${resolve}% RESOLVE`;
 
     // The roster. Camp, capital, and what each government is actually holding —
     // which is the sentence that makes the split legible in one read.
@@ -1372,6 +1435,8 @@ const UI = (() => {
           `<span class="gulf-state-holds">${s.holds}</span></div>`).join('') +
         `</div>`;
     }).join('');
+
+    renderSouth(G);
 
     const summit = Game.gulfSummitCost();
     const strainEta = Game.gulfEta('dove');

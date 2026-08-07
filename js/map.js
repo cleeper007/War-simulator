@@ -541,6 +541,19 @@ const MapView = (() => {
     hz.appendChild(hzLabel);
     world.appendChild(hz);
 
+    // ...and the second strait, drawn with exactly the same furniture 250 units
+    // below the frame. It is `hidden` until the southern front opens, which is
+    // three campaigns in four: an indicator reading BAB AL-MANDAB: OPEN in a war
+    // that has no Yemen in it is a promise the campaign never keeps, and a
+    // player who panned down and found it would go looking for a mechanic.
+    const bm = el('g', { id: 'mandab-indicator', class: 'hidden',
+      transform: `translate(${MANDAB_POS.x},${MANDAB_POS.y})` });
+    bm.appendChild(el('circle', { id: 'mandab-dot', r: 5, class: 'hz-open' }));
+    const bmLabel = el('text', { y: 16, 'font-size': 9, id: 'mandab-label', class: 'hz-open' });
+    bmLabel.textContent = 'BAB AL-MANDAB: OPEN';
+    bm.appendChild(bmLabel);
+    world.appendChild(bm);
+
     // forward basing layer (shown by default — the BASES button in the map
     // header hides it when the plot gets busy)
     //
@@ -555,8 +568,14 @@ const MapView = (() => {
     for (const a of forwardAssets) {
       const g = assetIcon(a);
       attachTooltip(g, () => `<span class="tt-name">${a.name}</span><br>${a.desc}` +
+        // An allied base reports ITS OWN capital's posture. Before the RSAF
+        // existed this could hardcode Jerusalem's, because Jerusalem was the
+        // only ally with a ramp on the board; Khamis Mushait reading "ISRAEL:
+        // COORDINATED" is the same class of mistake as an IAF package launching
+        // out of it.
         (a.ally
-          ? `<br><em style="color:var(--amber)">ALLIED — NOT UNDER US COMMAND · ${Game.israelStatus()}</em>`
+          ? `<br><em style="color:var(--amber)">ALLIED — NOT UNDER US COMMAND · ${
+              a.allyOf === 'saudi' ? Game.saudiStatus() : Game.israelStatus()}</em>`
           : `<br><em style="color:var(--blue)">${a.sortie ? 'Fixed-wing sorties: YES' : 'Fixed-wing sorties: NO'}` +
             ` · ${a.atacms ? 'ATACMS/PrSM: YES' : 'ATACMS/PrSM: NO'}</em>`));
       fwd.appendChild(g);
@@ -860,6 +879,59 @@ const MapView = (() => {
     // the touch discs are sized in screen pixels, so they are re-derived here:
     // this is the one choke point every gesture already goes through
     syncHitDiscs();
+    syncSouthCue();
+  }
+
+  // ---- the southern front is off the bottom of the frame ----
+  // Sanaa plots 150 units below the opening view and Hodeidah 170, and that is
+  // the honest place for them: the frame runs south to about 19.4N and Yemen
+  // starts at 19. Widening it to hold them would cost ~30% off everything else
+  // on the chart, which is the entire war (see the comment on the svg element
+  // in index.html, and the Lincoln's deep station, which is off the picture for
+  // exactly the same reason).
+  //
+  // So what the map owes the player is not corrected geography — it is a way to
+  // know the theater is down there. A cue on the bottom edge, shown only once
+  // the front has actually opened, and taken away again the moment the theater
+  // is genuinely on screen. In the three campaigns out of four that never have
+  // a southern front it never appears at all: a permanent arrow pointing at an
+  // empty sea is worse than no arrow.
+  const SOUTH_FOCUS = { x: 165, y: 925 };
+
+  // The visible rect in WORLD coordinates. `world` carries
+  // translate(view.x,view.y) scale(view.k), so a world point lands at
+  // view.x + view.k*wx — and this is that inverted. NOT toSvgPoint, which is
+  // viewBox space and short by view.k (the same distinction pickTarget has to
+  // make, documented in CLAUDE.md).
+  function worldBox() {
+    const vis = visibleBox();
+    return {
+      x0: (vis.x - view.x) / view.k, y0: (vis.y - view.y) / view.k,
+      x1: (vis.x + vis.w - view.x) / view.k, y1: (vis.y + vis.h - view.y) / view.k,
+    };
+  }
+
+  function syncSouthCue() {
+    const cue = document.getElementById('south-cue');
+    if (!cue) return;
+    const open = !!(typeof Game !== 'undefined' && Game.G.houthi && Game.G.houthi.entered);
+    const b = worldBox();
+    const shown = SOUTH_FOCUS.x >= b.x0 && SOUTH_FOCUS.x <= b.x1 &&
+      SOUTH_FOCUS.y >= b.y0 && SOUTH_FOCUS.y <= b.y1;
+    cue.classList.toggle('hidden', !open || shown);
+  }
+
+  // Walk the chart down to Yemen. Zoom is set rather than kept, because the
+  // player who taps this is arriving from a frame that had none of it in view
+  // and the useful thing is the theater filling the screen — Khamis Mushait at
+  // the top of it, the strait at the bottom.
+  function focusSouth() {
+    const vis = visibleBox();
+    const k = Math.min(MAX_ZOOM, Math.max(minZoom(vis), 1.5));
+    view.k = k;
+    view.x = vis.x + vis.w / 2 - k * SOUTH_FOCUS.x;
+    view.y = vis.y + vis.h / 2 - k * SOUTH_FOCUS.y;
+    applyView();
   }
 
   function zoomAt(cx, cy, factor) {
@@ -921,6 +993,11 @@ const MapView = (() => {
       view = { x: 0, y: 0, k: 1 };
       applyView();   // clamps up off 1 if the window is too wide for it
     });
+    // The cue hides itself the instant the theater is in frame, so this is a
+    // one-way trip: tap it and it is gone, and RESET brings the chart back to
+    // the war. There is deliberately no toggle — a button that pans away and
+    // then back is a button whose label has to lie in one of the two states.
+    document.getElementById('south-cue').addEventListener('click', focusSouth);
 
     // The frame's shape decides how far out the view may open, so anything that
     // reshapes it can leave a legal view illegal — rotating a phone, a mobile
@@ -1045,6 +1122,23 @@ const MapView = (() => {
     dot.setAttribute('class', cls + (status !== 'OPEN' ? ' pulsing' : ''));
     label.setAttribute('class', cls);
     label.textContent = `HORMUZ: ${status}`;
+  }
+
+  // The southern strait, and the same three states. Called with a status it
+  // REVEALS the indicator, which is why houthiTurn calls it on the entry night
+  // with a strait that is still open: the marker appearing is how the map says
+  // this war has a second waterway in it now.
+  function setMandab(status) {
+    const g = document.getElementById('mandab-indicator');
+    if (!g) return;
+    g.classList.remove('hidden');
+    const cls = status === 'OPEN' ? 'hz-open' : status === 'CONTESTED' ? 'hz-contested' : 'hz-closed';
+    document.getElementById('mandab-dot')
+      .setAttribute('class', cls + (status !== 'OPEN' ? ' pulsing' : ''));
+    const label = document.getElementById('mandab-label');
+    label.setAttribute('class', cls);
+    label.textContent = `BAB AL-MANDAB: ${status}`;
+    syncSouthCue();
   }
 
   // ---- carrier movement ----
@@ -3382,9 +3476,16 @@ const MapView = (() => {
   // silhouette walking it, a burst) rather than the scope: it is a radar picture,
   // not a targeting pod. It runs in amber, and it runs BEFORE the battle report,
   // so the strike is on screen before the prose explaining it.
-  function alliedStrike(targetIds, done) {
+  //
+  // `ally` names WHOSE package this is, and it has to, because there are two
+  // allied air forces on the board now and they fly from opposite ends of it.
+  // Filtering on `a.ally` alone put an IAF package into Iran out of Khamis
+  // Mushait the first night Riyadh committed — the dispatcher rotated through
+  // every amber base it could find.
+  function alliedStrike(targetIds, done, ally) {
     const fx = document.getElementById('fx-layer');
-    const bases = US_ASSETS.filter(a => a.ally);
+    const who = ally || 'israel';
+    const bases = US_ASSETS.filter(a => a.ally && (a.allyOf || 'israel') === who);
     const tgts = (targetIds || []).map(id => TARGETS.find(t => t.id === id)).filter(Boolean);
     if (ff || !tgts.length || !bases.length) { if (done) done(); return; }
 
@@ -3411,19 +3512,30 @@ const MapView = (() => {
       setTimeout(() => {
         if (ff) { if (--left === 0) finish(); return; }
         const o = bases[i % bases.length];
-        // Bowed NORTH of the direct line. The straight track from the Negev to
-        // Natanz runs down the middle of Saudi Arabia and Jordan, which is the
-        // one route everyone involved insists is not being used; the northern
-        // bow reads as the Syria–Iraq corridor the aircraft would really fly.
-        const mx = (o.x + t.x) / 2, my = (o.y + t.y) / 2 - 120;
+        // Bowed NORTH of the direct line, for Israel. The straight track from
+        // the Negev to Natanz runs down the middle of Saudi Arabia and Jordan,
+        // which is the one route everyone involved insists is not being used;
+        // the northern bow reads as the Syria–Iraq corridor the aircraft would
+        // really fly.
+        //
+        // The RSAF's problem is the opposite one and so is the bow. Khamis
+        // Mushait to Hodeidah is 130 miles down their own border and there is
+        // nothing to route around — the only reason to bend it at all is that a
+        // dead-straight track reads as a diagram rather than a flight, so it
+        // bows WEST, out over the Red Sea, which is also the run-in they would
+        // actually fly to come at the coast from the water.
+        const south = who === 'saudi';
+        const mx = (o.x + t.x) / 2 + (south ? -55 : 0);
+        const my = (o.y + t.y) / 2 - (south ? 0 : 120);
         const path = el('path', { class: 'iaf-path', d: `M${o.x},${o.y} Q${mx},${my} ${t.x},${t.y}` });
         fx.appendChild(path);
-        // Israel flies the two airframes it would actually send this far: the
-        // F-15I for reach and load, the F-35I for the leg that has to survive
-        // being seen. Picked per aircraft, so a package crossing the plot is a
-        // mixed formation rather than four copies of one shape — which is also
-        // what the IAF would put over a defended target.
-        const jet = el('path', { class: 'iaf-jet', d: pick([SIL.f15, SIL.f35]) });
+        // Each air force flies what it would actually send. Israel: the F-15I
+        // for reach and load, the F-35I for the leg that has to survive being
+        // seen. Saudi Arabia: the F-15S, which is the aircraft that has flown
+        // this campaign since 2015 and the only fast jet silhouette on hand that
+        // is honest for them. Picked per aircraft, so an IAF package crossing
+        // the plot is a mixed formation rather than four copies of one shape.
+        const jet = el('path', { class: 'iaf-jet', d: south ? SIL.f15 : pick([SIL.f15, SIL.f35]) });
         fx.appendChild(jet);
         litter.add(path).add(jet);
         const total = path.getTotalLength();
@@ -3500,9 +3612,9 @@ const MapView = (() => {
     setTimeout(finish, 12000); // watchdog: a throttled tab must never stall the war
   }
 
-  return { render, updateTarget, syncCovert, setHormuz, setGulfMood, flashAsset, animateStrike, playStrikeHit,
+  return { render, updateTarget, syncCovert, setHormuz, setMandab, setGulfMood, flashAsset, animateStrike, playStrikeHit,
     whenFootageDone, updateTransit, animateIranianAttacks, alliedStrike,
-    setTargetClickHandler, setFastForward,
+    setTargetClickHandler, setFastForward, syncSouthCue, focusSouth,
     setCarrierPosture, setCarrierIngress, setAssetActive, raidOpen,
     csarOpen, setSurvivor };
 })();
