@@ -1961,33 +1961,221 @@ button { font-family: var(--mono); }
 }
 .target, .us-asset { -webkit-touch-callout: none; }
 
-/* ---- rotate lock: touch devices in portrait only ----
-   The war is fought in landscape. A portrait phone is asked to turn rather
-   than served a stacked layout: the chart is the game, and half a phone's
-   width is not enough chart to command from. Gated on pointer:coarse so a
-   narrow desktop window never hits it. */
-#rotate-lock { display: none; }
-@media (orientation: portrait) and (pointer: coarse) {
-  #rotate-lock {
-    display: flex; position: fixed; inset: 0; z-index: 500;
-    background: var(--bg); color: var(--text);
-    align-items: center; justify-content: center; text-align: center; padding: 32px;
+/* ---- press feedback ----
+   Everything in the block above kills -webkit-tap-highlight-color, which is
+   correct — the default is a blue-grey rectangle that has nothing to do with
+   this game and lands on the wrong box half the time. But nothing replaced it,
+   so for four versions the whole room answered a finger with no acknowledgement
+   at all: :hover does not fire on a touch screen, and the entire feedback
+   language of this stylesheet is written in :hover. A tap on a tasking either
+   changed the game or appeared to do nothing, and there was no third state to
+   tell a player their finger had even landed.
+
+   These are deliberately the SAME treatments the mouse gets — border goes blue,
+   surface lifts — rather than a second visual language for fingers. The one
+   addition is the scale: 0.985 is below the threshold where it reads as an
+   animation and above the threshold where it reads as a dead button. */
+@media (hover: none) {
+  #sidebar-scroll [id$="-buttons"] button:not(.action-why):not(:disabled):active,
+  .pkg-option:active {
+    border-color: var(--blue); background: #16213a;
+    transform: scale(0.985);
   }
-  .rotate-inner { max-width: 360px; }
-  .rotate-icon {
-    font-size: 46px; color: var(--amber); margin-bottom: 18px;
-    animation: rotate-hint 2.4s ease-in-out infinite;
+  .panel-head:active .panel-title { color: var(--text); }
+  .panel-head:active .panel-caret { color: var(--blue); }
+  .adv-head:active { background: rgba(255, 255, 255, 0.06); }
+  #map-zoom-controls button:active { border-color: var(--blue); background: #16213a; }
+  .btn-primary:not(:disabled):active { background: #1a3156; }
+  .btn-secondary:active { color: var(--text); border-color: #33517f; }
+  .btn-danger:not(:disabled):active { background: #571717; }
+  .rail-chip:active { background: var(--bg-panel2); }
+  #target-pick .pick-row:active { background: var(--bg-panel2); }
+  /* fast enough to feel like the press itself rather than a transition of it */
+  #sidebar-scroll [id$="-buttons"] button:not(.action-why), .pkg-option {
+    transition: transform 0.06s ease, background 0.06s ease;
   }
-  .rotate-title {
-    font-size: 15px; letter-spacing: 4px; color: #fff; margin-bottom: 12px;
-  }
-  .rotate-sub { font-size: 12px; line-height: 1.6; color: var(--dim); }
-}
-@keyframes rotate-hint {
-  0%, 55%, 100% { transform: rotate(0deg); }
-  75%, 90% { transform: rotate(-90deg); }
 }
 
+/* ============================================================
+   THE SECTION RAIL
+   ------------------------------------------------------------
+   Hidden entirely unless UI.initRail has put `mobile-ui` on the body — one
+   media query, in JS, in one place (see MOBILE_Q in ui.js), rather than the
+   same breakpoint spelled out in two languages that then drift apart.
+
+   The problem it solves: eleven sections stacked in a scroll pane that is
+   ~250px tall on a landscape phone. Collapsed, the list is taller than the
+   window it lives in; expanded, one section pushes the other ten out of sight.
+   Either way the player is scrolling a list they cannot see to find a section
+   they cannot see, thirty turns in a row.
+
+   The rail is five tabs across the top of the sidebar, always all visible,
+   each carrying the same live badge its section carries. The section under it
+   gets the whole pane. Nothing is renamed and nothing is hidden — each panel
+   keeps its own header, its own meta line and its own disclosure behaviour;
+   the rail is a way IN to them, not a replacement for them.
+   ============================================================ */
+#panel-rail { display: none; }
+
+body.mobile-ui #panel-rail {
+  display: flex; gap: 3px; flex: none;
+  overflow-x: auto; overflow-y: hidden;
+  /* the chips are the nav: a rail that scrolls out of view is the bug this
+     whole block exists to fix, so it only scrolls as a safety valve for a
+     sixth chip on the narrowest phone, and never resting-scrolls */
+  scrollbar-width: none;
+}
+body.mobile-ui #panel-rail::-webkit-scrollbar { display: none; }
+
+.rail-chip {
+  /* 44px is the floor a six-tab rail needs to stand across a 268px sidebar;
+     the labels are written to fit it (see RAIL_GROUPS in ui.js). Below that
+     the rail scrolls rather than clipping a tab in half. */
+  flex: 1 1 0; min-width: 44px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; min-height: 40px; padding: 5px 2px;
+  background: var(--bg-panel); border: 1px solid var(--line); border-bottom-width: 2px;
+  color: var(--dim); font: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.rail-label {
+  font-size: 8.5px; letter-spacing: 0.9px; line-height: 1; white-space: nowrap;
+}
+/* The badge is the reason a player can leave a section shut: it is what is
+   still LIVE in there tonight. Empty for the read-only sections, which then
+   collapse to a single line rather than sitting there with a hole in them.
+   Tracking is tighter here than anywhere else in this file because it is what
+   decides whether "10 READY" is one line or two in a 42px chip. Wrapping is
+   still allowed: the fallback badges run longer than any count ("BOMB IN 4–9"
+   once the collection deck is spent) and a clipped clock is worse than a
+   two-line one. */
+.rail-badge { font-size: 8px; letter-spacing: 0.3px; line-height: 1.15; color: var(--amber); }
+.rail-badge:empty { display: none; }
+.rail-chip.rail-quiet .rail-badge { color: var(--dim); }
+
+/* The open section. The bottom border is the tab's connection to the pane
+   under it — amber, and 2px, so the tab bar reads as a tab bar at a glance
+   rather than as five identical buttons. */
+.rail-chip[aria-pressed="true"] {
+  background: var(--bg-panel2); color: var(--text); border-color: var(--line);
+  border-bottom-color: var(--amber);
+}
+.rail-chip[aria-pressed="true"] .rail-label { color: var(--amber); }
+.rail-chip:focus-visible { outline: 1px solid var(--blue); outline-offset: -2px; }
+
+/* Aircrew are on the ground. This chip does not exist most of the war and,
+   when it does, it is the only thing on the rail that is a clock rather than a
+   menu — so it gets the one colour nothing else on the rail is allowed. */
+.rail-chip.rail-urgent { border-color: var(--red); }
+.rail-chip.rail-urgent .rail-label { color: var(--red); }
+.rail-chip.rail-urgent .rail-badge { color: var(--red); }
+/* The red box is the alarm and the amber edge is "you are standing here" —
+   two different facts, and the shorthand above would otherwise swallow the
+   second one the moment the tab being warned about is also the tab that is
+   open, which is the usual case for a recovery. */
+.rail-chip.rail-urgent[aria-pressed="true"] { border-bottom-color: var(--amber); }
+
+/* In rail mode the panels the rail is not pointing at are not collapsed, they
+   are GONE — a collapsed head still costs 30px and still has to be scrolled
+   past, which is the whole complaint. */
+body.mobile-ui .panel.rail-off { display: none !important; }
+/* One section in the pane, so its own frame is redundant with the pane's:
+   drop the outer border and give the height back to the content. The head
+   keeps its rule so the section still reads as a titled block. */
+body.mobile-ui #sidebar-scroll .panel {
+  border: 0; padding: 0 2px 2px; background: none;
+}
+body.mobile-ui #sidebar-scroll .panel + .panel { margin-top: 10px; }
+body.mobile-ui #sidebar-scroll .panel .panel-head {
+  padding: 7px 0 6px; border-bottom: 1px solid var(--line); margin-bottom: 2px;
+}
+
+/* "There is more below this." The short-viewport block already fades the pane
+   on a landscape phone; portrait is not short but the pane is still ~220px
+   against sections that run past 400, so it needs the same. initScrollEdge
+   lifts the fade once the list is read to the end. */
+body.mobile-ui #sidebar-scroll {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+}
+body.mobile-ui #sidebar-scroll.at-end {
+  mask-image: none; -webkit-mask-image: none;
+}
+
+/* ---- the chart's own header ----
+   Three things share this row: a label, the clock, and six controls. At 844px
+   — a modern phone on its side — the label was still being drawn, and being
+   drawn it wrapped to THREE lines and charged the chart ~90px of a 390px
+   screen to say a thing the player is looking straight at. It came off below
+   780px only, which is a threshold no current phone is under in landscape.
+   The clock stays and stops wrapping: that one is the war telling the time.
+
+   `flex-wrap` is the second half of it, and it is a WRAP rather than a
+   threshold on purpose. A clock plus seven controls needs about 400px, and the
+   width that decides whether they get it is the map PANE — the window minus the
+   sidebar — which this stylesheet cannot query: 667x375 leaves 375px of pane
+   and 932x430 leaves 640px, and both of those are landscape phones. Left
+   unwrapped the row simply kept drawing, and the feedback flag ended up painted
+   on top of the first tab of the section rail. Flexbox already knows when the
+   row does not fit; this lets it say so, and above ~700px of pane it never
+   fires and costs nothing. */
+body.mobile-ui #map-header { padding: 5px 8px; gap: 4px 10px; flex-wrap: wrap; }
+body.mobile-ui #map-header .panel-title { display: none; }
+body.mobile-ui #map-clock { flex: none; white-space: nowrap; font-size: 11px; }
+/* and a hard stop, so nothing in this pane can ever paint on the sidebar again */
+body.mobile-ui #map-panel { overflow: hidden; }
+/* seven controls, a clock, and 390px of portrait phone to fit them in */
+body.mobile-ui .mc-local { display: none; }
+body.mobile-ui #toggle-bases { padding: 0 7px; }
+
+/* ---- the status strip ----
+   Seven readouts in a row that fits five, scrolling sideways behind a fade,
+   on a bar whose whole job is to be glanceable. A grid instead: every reading
+   on screen at once, no swipe, and the height comes back out of the padding
+   rather than out of the numbers. The labels are allowed to wrap to two lines
+   at this size — a wrapped "IRAN WAR / CAPACITY" is still readable, a clipped
+   one is not. */
+body.mobile-ui #status-row {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: 1px; padding: 0; background: var(--line);
+  overflow: visible;
+  mask-image: none; -webkit-mask-image: none;
+}
+body.mobile-ui .stat {
+  background: var(--bg-panel); border-right: 0;
+  padding: 5px 7px; gap: 2px; min-width: 0;
+}
+body.mobile-ui .stat:first-child { padding-left: 7px; }
+body.mobile-ui .stat-label { font-size: 8px; letter-spacing: 0.7px; line-height: 1.25; }
+body.mobile-ui .stat-value.big { font-size: 14px; }
+body.mobile-ui #capacity-value { font-size: 12px; }
+/* ten fixed 14px segments do not fit a column that is now ~95px wide */
+body.mobile-ui .defcon-meter { gap: 1px; }
+body.mobile-ui .defcon-meter .seg { width: auto; flex: 1 1 0; height: 8px; }
+
+/* The line a readout is measured against — "— FALLS AT 20%", "— BITES AT $135".
+   Real information, and too long for a 95px column, so on a phone it is spent
+   only where it has started to matter: the suffix appears on the readouts that
+   have gone amber or red, which is exactly when a threshold stops being trivia
+   and becomes the thing about to end the war. */
+body.mobile-ui .stat-sub { display: none; }
+body.mobile-ui .stat:has(.warn) .stat-sub,
+body.mobile-ui .stat:has(.crit) .stat-sub { display: inline; color: var(--amber); }
+body.mobile-ui .stat:has(.crit) .stat-sub { color: var(--red); }
+
+/* ---- the session row, on a screen that cannot afford it ----
+   HOW TO PLAY, SAVE & QUIT and NEW GAME are pressed about once a session
+   each, and on a landscape phone they were standing at full height directly
+   under END TURN — 45px of a sidebar whose scroll pane is 156px. They keep
+   their place (a control a player goes looking for should not move) and give
+   up their weight: thin, dim, and rule-separated from the button above rather
+   than boxed like three more orders. */
+body.mobile-ui #session-buttons { gap: 1px; margin-top: 0; }
+body.mobile-ui #session-buttons button {
+  padding: 6px 3px; font-size: 9px; letter-spacing: 0.4px;
+  border-color: transparent; border-top-color: var(--line);
+}
+body.mobile-ui #session-buttons button::after { inset: -4px -2px; }
 
 /* ---- fatter hit targets for fingers (any touch device) ---- */
 @media (pointer: coarse) {
@@ -2180,19 +2368,12 @@ button { font-family: var(--mono); }
   #sidebar { flex-basis: 268px; }
 }
 
-/* ---- narrow viewport: keep the map usable beside the sidebar ---- */
-@media (max-width: 780px) {
+/* ---- narrow viewport: keep the map usable beside the sidebar ----
+   The label and the clock moved to the mobile-ui block above, which catches
+   every phone rather than only the ones under 780px. What is left here is the
+   column width, which is genuinely a function of how narrow the window is. */
+@media (max-width: 780px) and (orientation: landscape) {
   #sidebar { flex-basis: 260px; }
-  #map-header { gap: 8px; }
-  #map-clock { font-size: 11px; }
-  /* The control row is sized in 44px units — each button is 36px of paint plus
-     the 8px gap its ::after eats — so a landscape phone's ~406px map panel
-     holds exactly the five it had, and the music toggle made six, hanging 21px
-     off an edge nothing marks. The label is what gives way: it is the one thing
-     in this header that is neither a control nor a readout, and at this width
-     it was wrapping to three lines and charging the chart ~15px of height for
-     the privilege. The clock stays — that one is the war telling the time. */
-  #map-header .panel-title { display: none; }
 }
 
 /* ---- overlays & modals: let tall content scroll on a short screen instead
@@ -2206,6 +2387,169 @@ button { font-family: var(--mono); }
   .title-brief p { margin-bottom: 8px; }
   #difficulty-select { margin: 12px 0 10px; }
   .modal { max-height: 92vh; }
+}
+
+/* ---- the chart's controls, once the pane stops holding seven of them ----
+   Below about 700px of map pane the seven controls no longer fit beside the
+   clock and the last of them — the beta's feedback flag — hangs off an edge nothing
+   marks, which is the exact failure the flag was moved into this row to escape.
+   Both arms of the query are needed: a phone on its side is narrow in the PANE
+   (an 844px screen minus a 300px sidebar) while the window is not, and a phone
+   upright is narrow outright.
+
+   After the pointer:coarse block above, deliberately — that is what sizes these
+   buttons for a finger, and this has to be the thing that trims it.
+
+   The paint shrinks; the TOUCH TARGET does not. 34px of button under a -5px
+   ::after is still the 44px the whole file is written to, and the 10px gap
+   keeps two of those hit areas from ever overlapping — a thumb landing in the
+   crack still resolves to the button it is nearest, never to the wrong one. */
+@media (max-width: 800px), (orientation: portrait) and (max-width: 820px) {
+  /* body.mobile-ui on every one of these, and not for show: the block above
+     sets the same properties through that same prefix, and an unprefixed
+     #map-header here would lose to it on specificity and quietly do nothing.
+     Anything this query matches is inside MOBILE_Q's 900px arm anyway, so the
+     class is always there to lean on. */
+  body.mobile-ui #map-header { padding: 4px 6px; gap: 4px 8px; }
+  body.mobile-ui #map-zoom-controls { gap: 8px; }
+  body.mobile-ui #map-zoom-controls button { width: 34px; height: 34px; font-size: 15px; }
+  body.mobile-ui #map-zoom-controls button::after { inset: -5px; }   /* 34 → 44 */
+  /* the layer toggle is a WORD, so it must not inherit the icon size the rule
+     above just set — it is the same `#map-zoom-controls button` selector, and
+     an id on its own loses to it */
+  body.mobile-ui #map-zoom-controls #toggle-bases {
+    width: auto; height: 34px; padding: 0 5px;
+    font-size: 9px; letter-spacing: 0.8px;
+  }
+  body.mobile-ui #btn-mute, body.mobile-ui #btn-music { font-size: 15px; }
+}
+
+/* ---- dialogs on a phone ----
+   Every irreversible thing in this game happens in one of these boxes, and on a
+   touch screen they were still laid out for a mouse: AUTHORIZE STRIKE was a
+   116x37 target in the bottom-right corner, which is both under the 44px floor
+   the rest of this file is written to and in the one corner of a phone a thumb
+   reaches last. The footer buttons now share the width and stand a full 46px,
+   with the destructive one last — the same order they were always in, just
+   sized for the hand actually pressing them. */
+body.mobile-ui .modal-footer {
+  gap: 8px; padding: 10px 12px;
+}
+body.mobile-ui .modal-footer button {
+  flex: 1 1 0; min-height: 46px; padding: 10px 8px; text-align: center;
+}
+/* the report's detail toggle is a preference, not an answer to the dialog —
+   it keeps its place on the left and does not claim a third of the row */
+body.mobile-ui .report-footer #btn-report-ok { margin-left: 0; }
+body.mobile-ui .modal-footer #btn-report-detail,
+body.mobile-ui .modal-footer #btn-report-tour { flex: 0 1 auto; }
+
+/* Package rows are the choice the strike dialog exists to offer, so they get
+   the touch floor outright rather than the ::after trick — there is nothing
+   beside them to collide with. */
+body.mobile-ui .pkg-option { min-height: 46px; padding: 9px 11px; }
+
+/* ---- PORTRAIT ----
+   The chart on top, the command deck under it, END TURN inside the thumb arc.
+
+   Last in the mobile section on purpose: it has to out-rank the landscape
+   column widths above, and it does that by coming after them rather than by
+   growing a specificity contest.
+
+   The height split is the whole design, and it is not 50/50. Everything the
+   chart gains past a point comes straight off the deck, and the deck is the
+   half that was starving — sideways it had a 300px column with a ~160px scroll
+   pane in it. 38dvh of a 390x844 phone is 321px, which after the header leaves
+   a ~275px chart and a ~220px orders pane; the taller-phone and shorter-phone
+   rules underneath nudge that either way. Below 38% the chart stops being a
+   common operating picture and starts being a thumbnail of one.
+
+   dvh and not vh throughout: the URL bar hides and shows as the player scrolls,
+   and vh would size the map to a viewport nobody ever has. */
+@media (orientation: portrait) and (max-width: 820px) {
+  #main-row { flex-direction: column; }
+  #map-panel {
+    flex: 0 0 38dvh; min-height: 220px;
+    border-right: 0; border-bottom: 1px solid var(--line);
+  }
+  #sidebar {
+    flex: 1 1 auto; min-height: 0; width: 100%;
+    padding: 8px 10px 6px; gap: 8px;
+  }
+  /* Portrait has width to spare and no height to waste, so the session row goes
+     quiet: three controls a player touches once a session should not be sitting
+     between END TURN and the bottom of the screen at full size. */
+  #session-buttons { gap: 6px; }
+  #session-buttons button {
+    padding: 7px 4px; font-size: 9px; letter-spacing: 0.5px; color: var(--dim);
+  }
+  /* the control the whole layout is arranged around */
+  #btn-end-turn, #btn-skip-turn { padding: 15px; font-size: 12.5px; }
+  .rail-chip { min-height: 44px; }
+  .rail-label { font-size: 9.5px; letter-spacing: 1px; }
+  .rail-badge { font-size: 8.5px; }
+
+  /* Seven readouts across a 390px phone is 55px each, which is not a readout,
+     it is a column of clipped words. Two rows of four instead — and four, not
+     4+3 with a stretched last cell, because a bar whose columns do not line up
+     between its own two rows reads as broken rather than as compact. The cost
+     is an eighth cell with nothing in it, which left alone is the colour of the
+     dividers and reads as a readout that failed to render. So it is filled. */
+  body.mobile-ui #status-row { grid-template-columns: repeat(4, 1fr); }
+  body.mobile-ui #status-row::after { content: ''; background: var(--bg-panel); }
+  /* two rows of readouts is two rows of everything, so a pixel spent on
+     padding here is spent twice — and it comes out of the orders pane */
+  body.mobile-ui .stat { padding: 4px 8px; gap: 0; }
+  body.mobile-ui .stat-label { font-size: 8.5px; line-height: 1.2; }
+  body.mobile-ui .stat-value.big { font-size: 15px; }
+
+  /* Dialogs become sheets: full width, anchored to the bottom edge, so the
+     buttons that answer them land where the thumb already is instead of in the
+     middle of a 844px-tall screen. Square corners, because nothing else in this
+     game has round ones — it is the position that makes it a sheet, not a
+     radius borrowed from another app's design language. */
+  .overlay { align-items: flex-end; justify-content: stretch; padding: 0; }
+  .modal, .modal.wide {
+    width: 100%; max-width: 100%; max-height: 88dvh;
+    border-left: 0; border-right: 0; border-bottom: 0;
+  }
+  /* ---- the title card ----
+     Not a sheet: it is the only screen with nothing behind it, so it stays
+     centred and takes the viewport. It also has to FIT in the viewport, which
+     it did not — at desktop sizes the brief and three difficulty write-ups ran
+     about 1500px down a 844px phone, and ENTER THE SITUATION ROOM was two
+     screens below the fold on the first thing anybody sees. */
+  #title-screen { align-items: center; padding: 16px 14px; }
+  .title-box { max-width: 100%; padding: 24px 20px; }
+  .title-eyebrow { font-size: 9.5px; letter-spacing: 2px; margin-bottom: 14px; }
+  .title-box h1 { font-size: 27px; letter-spacing: 4px; }
+  .title-box h2 { font-size: 12px; letter-spacing: 3px; margin-bottom: 16px; }
+  .title-brief { font-size: 12px; line-height: 1.5; margin-bottom: 16px; }
+  .title-brief p { margin-bottom: 9px; }
+  /* Only the chosen difficulty explains itself. Three doctrines stacked is
+     ~300px of the screen, and two of them are describing a war the player is
+     not about to fight — the one they have selected is the one they are
+     reading. Tapping another swaps which paragraph is open, so nothing is
+     unreachable; it is the same three descriptions, one at a time. */
+  .diff-option .diff-desc { display: none; }
+  .diff-option:has(input:checked) .diff-desc { display: block; }
+  .diff-option { padding: 9px 11px; }
+  #btn-start, #btn-continue {
+    display: block; width: 100%; min-height: 48px; margin-top: 8px;
+  }
+  /* the badge is over scrolling text now rather than over a dead background,
+     so it stops being translucent */
+  .version-badge { background: var(--bg); top: 8px; left: 8px; }
+}
+
+/* The tallest portrait phones can spare the chart a little more; the shortest
+   cannot spare the ticker at all. */
+@media (orientation: portrait) and (max-width: 820px) and (min-height: 780px) {
+  #map-panel { flex-basis: 41dvh; }
+}
+@media (orientation: portrait) and (max-width: 820px) and (max-height: 680px) {
+  #ticker-row { display: none; }
+  #map-panel { flex-basis: 38dvh; }
 }
 
 /* ---- reduced motion ----

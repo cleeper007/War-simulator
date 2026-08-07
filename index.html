@@ -19,9 +19,9 @@
      stays invisible in the tab for as long as that row survives. Renaming the
      URL is the only thing it listens to. Stamp these with the badge on every
      bump, even when only the art changed. -->
-<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png?v=1.77">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1.77">
-<link rel="manifest" href="site.webmanifest?v=1.77">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png?v=1.78">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1.78">
+<link rel="manifest" href="site.webmanifest?v=1.78">
 <meta name="theme-color" content="#0a1626">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -35,24 +35,29 @@
      version-badge) renames every asset URL, which is the only thing that
      reliably forces the fetch.
      Bump the stamps and the badge together. -->
-<link rel="stylesheet" href="css/style.css?v=1.77">
+<link rel="stylesheet" href="css/style.css?v=1.78">
 </head>
 <body>
 
-<!-- ============ ROTATE-TO-LANDSCAPE LOCK ============ -->
-<!-- Touch devices only (gated on pointer:coarse in CSS); never shown on a
-     mouse-driven screen, so desktop play is unaffected. -->
-<div id="rotate-lock">
-  <div class="rotate-inner">
-    <div class="rotate-icon">⟲</div>
-    <div class="rotate-title">ROTATE TO LANDSCAPE</div>
-    <div class="rotate-sub">The situation room is fought in landscape. Turn your device sideways to take command.</div>
-  </div>
-</div>
+<!-- The rotate-to-landscape lock is gone as of v1.78, and so is the
+     "orientation": "landscape" line the manifest used to enforce it with — an
+     installed copy would otherwise still be turned sideways by the OS before
+     any of this stylesheet got a say.
+
+     The lock was the right call while the room only had a landscape layout to
+     offer: half a phone's width is not enough chart to command from, and a
+     squeezed sidebar beside it is worse than an honest refusal. What changed is
+     that portrait has a layout of its own now (see the PORTRAIT block in the
+     stylesheet). The chart is smaller than it is sideways — that trade is real
+     and it is made deliberately — and what it buys is the half that was
+     actually starving: the command deck goes from a 300px column with a ~160px
+     scroll pane to the full width of the phone with a ~220px one, with END TURN
+     sitting in the thumb arc instead of across the screen. A player who wants
+     the bigger chart still turns the phone, and now that is a choice. -->
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.77<span class="beta-tag">BETA</span></div>
+  <div class="version-badge">v1.78<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -183,6 +188,20 @@
 
     <!-- Situation Room sidebar -->
     <div id="sidebar">
+      <!-- THE SECTION RAIL — phones and small windows only.
+           Empty here and built by UI.initRail() from the panels below, so a
+           section added to the sidebar joins the rail for free and there is no
+           second list of section names to keep in step with this one.
+
+           What it is for: eleven collapsible sections in a ~250px scroll pane
+           meant that opening one pushed the other ten off-screen, and finding
+           DIPLOMATIC ACTIONS was a blind scroll through headers you could not
+           see. The rail groups them into five standing tabs — and the grouping
+           is not arbitrary, it is the action budget: DIPLOMATIC ACTIONS, ALLIES
+           and GULF PARTNERS spend the SAME single slot, so on a phone they are
+           one tab. Desktop is untouched; the rail is hidden and the accordion
+           behaves exactly as it always has. -->
+      <div id="panel-rail" class="hidden" aria-label="Situation room sections"></div>
       <div id="sidebar-scroll">
       <!-- Personnel recovery: this panel does not exist as a standing option.
            CSAR.renderPanel un-hides it only while aircrew are down, and hides
@@ -622,18 +641,18 @@
   </div>
 </div>
 
-<script src="js/text.js?v=1.77"></script>
-<script src="js/geodata.js?v=1.77"></script>
-<script src="js/data.js?v=1.77"></script>
-<script src="js/map.js?v=1.77"></script>
-<script src="js/ai.js?v=1.77"></script>
-<script src="js/audio.js?v=1.77"></script>
-<script src="js/ui.js?v=1.77"></script>
+<script src="js/text.js?v=1.78"></script>
+<script src="js/geodata.js?v=1.78"></script>
+<script src="js/data.js?v=1.78"></script>
+<script src="js/map.js?v=1.78"></script>
+<script src="js/ai.js?v=1.78"></script>
+<script src="js/audio.js?v=1.78"></script>
+<script src="js/ui.js?v=1.78"></script>
 <!-- after ui.js: the walkthrough drives the room through UI's exported openPanel
      / openStrikeModal, and ui.js reaches back for Tour.start() at click time -->
-<script src="js/tour.js?v=1.77"></script>
-<script src="js/specops.js?v=1.77"></script>
-<script src="js/csar.js?v=1.77"></script>
-<script src="js/game.js?v=1.77"></script>
+<script src="js/tour.js?v=1.78"></script>
+<script src="js/specops.js?v=1.78"></script>
+<script src="js/csar.js?v=1.78"></script>
+<script src="js/game.js?v=1.78"></script>
 </body>
 </html>

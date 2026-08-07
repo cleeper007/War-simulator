@@ -42,6 +42,198 @@ const UI = (() => {
     }
     const scroll = $('sidebar-scroll');
     if (scroll) scroll.scrollTop = 0;
+    // On a phone "shut" is not a state the deck has — there is always exactly
+    // one tab showing. The equivalent reset is to send the rail back to where
+    // every turn should start, which is tonight's decision.
+    selectRail(defaultRail());
+  }
+
+  // ============================================================
+  // THE SECTION RAIL — phones and small windows
+  // ------------------------------------------------------------
+  // Eleven sections in a scroll pane that is ~250px tall on a landscape phone.
+  // Collapsed, the list of heads is already taller than the pane; expanded, one
+  // section pushes the other ten out of sight. Either way the player is
+  // scrolling past headers they cannot see to reach a section they cannot see,
+  // on every one of thirty turns. That is the thing this fixes.
+  //
+  // Five standing tabs, always all visible, each carrying the live badge its
+  // sections carry. The grouping is NOT a filing convenience — it is the action
+  // budget made visible. DIPLOMATIC ACTIONS, ALLIES and GULF PARTNERS spend the
+  // same single slot (see doDiplo in game.js), so on a phone they are one tab
+  // and choosing between them looks like the choice it actually is. Same
+  // argument for TONIGHT: the staffed options and the one-shot raid are both
+  // things the military slot buys tonight.
+  //
+  // Nothing is renamed and nothing is taken away. Each panel keeps its own
+  // header, its meta line and its disclosure caret; the rail is a way in.
+  // ============================================================
+
+  // The one definition of "this screen is a phone". CSS reads it back off
+  // `body.mobile-ui` rather than repeating the breakpoints, so there is no
+  // second copy to drift. Height is in here because a landscape phone is short
+  // rather than narrow — 932x430 is neither a small width nor a desktop.
+  const MOBILE_Q = '(max-width: 900px), (max-height: 560px)';
+
+  const RAIL_GROUPS = [
+    // Labels are capped at seven characters and that is a hard constraint, not
+    // a style: six tabs have to stand side by side across a 268px sidebar on an
+    // iPhone SE turned sideways, which is ~43px of chip each. STAFF rather than
+    // ADVISORS for exactly that reason — the panel it opens still says
+    // SITUATION ROOM — ADVISORS at the top of the pane.
+    { key: 'recovery', label: 'RESCUE',  urgent: true, panels: ['csar'] },
+    { key: 'tonight',  label: 'TONIGHT', panels: ['coa', 'specops'] },
+    { key: 'mission',  label: 'MISSION', panels: ['objectives', 'intel'] },
+    { key: 'forces',   label: 'FORCES',  panels: ['resources', 'fleet'] },
+    { key: 'advisors', label: 'STAFF',   panels: ['advisors'] },
+    { key: 'diplo',    label: 'DIPLO',   panels: ['diplo', 'allied', 'gulf'] },
+  ];
+
+  let railKey = null;
+
+  const onMobile = () => document.body.classList.contains('mobile-ui');
+  const panelEl = (key) => document.querySelector(`.panel[data-panel="${key}"]`);
+  const railGroup = (key) => RAIL_GROUPS.find((g) => g.key === key);
+  const groupFor = (panelKey) => RAIL_GROUPS.find((g) => g.panels.includes(panelKey));
+
+  // A tab is on the rail only while it has something behind it. RECOVERY does
+  // not exist until aircrew are down, and TONIGHT'S OPTIONS does not exist at
+  // all on hard — a tab leading to an empty pane is worse than no tab.
+  const livePanels = (g) =>
+    g.panels.map(panelEl).filter((p) => p && !p.classList.contains('hidden'));
+  const groupLive = (g) => livePanels(g).length > 0;
+
+  // Aircrew on the ground outrank whatever the player had open; otherwise the
+  // night starts on the night's decision.
+  function defaultRail() {
+    const first = ['recovery', 'tonight', 'mission'].map(railGroup).find(groupLive);
+    return (first || RAIL_GROUPS.find(groupLive) || {}).key;
+  }
+
+  // What the chip says while its sections are out of sight. Orders first, and
+  // in the same words the panel badges already use — how much of this is still
+  // live tonight — because that is the number that decides whether a tab is
+  // worth opening. A group with no orders left falls back to the most
+  // informative thing its panels are saying, which is how MISSION goes on
+  // showing the breakout clock once the collection deck is spent.
+  function railBadge(g) {
+    if (g.key === 'advisors') {
+      const n = document.querySelectorAll('#advisors-list .advisor.urgent').length;
+      return { text: n ? `${n} URGENT` : '', urgent: n > 0 };
+    }
+    // Counted off the order rows themselves rather than off the panel badges,
+    // for one reason: TONIGHT'S OPTIONS has no badge — it is not in
+    // ACTION_PANELS, because on a desktop its meta line already says how many
+    // options are staffed — and a tab reading "1 READY" over two courses of
+    // action and a raid is simply wrong. Same rule as renderBadges otherwise,
+    // disclosure carets included: they are never disabled, so counting them
+    // would report every tab as ready.
+    let counted = false, live = 0, fallback = '';
+    for (const p of livePanels(g)) {
+      const box = p.querySelector('[id$="-buttons"]');
+      if (box && box.querySelector('button:not(.action-why)')) {
+        counted = true;
+        live += box.querySelectorAll('button:not(.action-why):not(:disabled)').length;
+      }
+      const text = (p.querySelector('.panel-badge').textContent || '').trim();
+      if (text && text !== 'NONE' && !fallback) fallback = text;
+    }
+    if (counted && live) return { text: `${live} READY` };
+    return { text: fallback || (counted ? 'NONE' : ''), quiet: true };
+  }
+
+  // Open a tab: everything outside it leaves the pane entirely (a collapsed
+  // head still costs 30px and still has to be scrolled past), and the first
+  // section inside it opens, because a tab that lands on a row of shut headers
+  // has moved the problem rather than solved it. The rest keep their heads and
+  // their carets — a group is two or three sections, so they all fit on screen.
+  function selectRail(key) {
+    if (!onMobile()) return;
+    const g = railGroup(key);
+    const target = g && groupLive(g) ? g : RAIL_GROUPS.find(groupLive);
+    if (!target) return;
+    railKey = target.key;
+    // Visibility here as well as in syncRail, and not as belt and braces: the
+    // recovery tab is created hidden and is un-hidden by the same render that
+    // calls openPanel on it, so a selectRail that only moved the highlight
+    // would put the player on a tab that is still display:none — the section
+    // opens and the way back to it does not exist.
+    for (const chip of document.querySelectorAll('.rail-chip')) {
+      const own = railGroup(chip.dataset.rail);
+      chip.classList.toggle('hidden', !(own && groupLive(own)));
+      chip.setAttribute('aria-pressed', String(chip.dataset.rail === target.key));
+    }
+    for (const p of document.querySelectorAll('#sidebar-scroll .panel[data-panel]')) {
+      p.classList.toggle('rail-off', !target.panels.includes(p.dataset.panel));
+    }
+    livePanels(target).forEach((p, i) => setPanelOpen(p, i === 0));
+    const scroll = $('sidebar-scroll');
+    if (scroll) scroll.scrollTop = 0;
+  }
+
+  // Badges and tab visibility, every render. Deliberately NOT re-selecting the
+  // tab: the player may have opened the second or third section inside the one
+  // they are on, and a turn's worth of re-rendering must not shut it again.
+  function syncRail() {
+    const rail = $('panel-rail');
+    if (!rail || !rail.children.length) return;
+    for (const g of RAIL_GROUPS) {
+      const chip = rail.querySelector(`[data-rail="${g.key}"]`);
+      if (!chip) continue;
+      const live = groupLive(g);
+      chip.classList.toggle('hidden', !live);
+      if (!live) continue;
+      const b = railBadge(g);
+      chip.querySelector('.rail-badge').textContent = b.text;
+      chip.classList.toggle('rail-quiet', !!b.quiet);
+      chip.classList.toggle('rail-urgent', !!(g.urgent || b.urgent));
+    }
+    // The tab under the player can stop existing — the recovery closes, the
+    // last aircrew comes home — so re-home rather than leaving the pane
+    // pointing at nothing.
+    const open = railGroup(railKey);
+    if (onMobile() && (!open || !groupLive(open))) selectRail(defaultRail());
+  }
+
+  function initRail() {
+    const rail = $('panel-rail');
+    if (!rail) return;
+    for (const g of RAIL_GROUPS) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'rail-chip hidden' + (g.urgent ? ' rail-urgent' : '');
+      chip.dataset.rail = g.key;
+      chip.setAttribute('aria-pressed', 'false');
+      const label = document.createElement('span');
+      label.className = 'rail-label';
+      label.textContent = g.label;
+      const badge = document.createElement('span');
+      badge.className = 'rail-badge';
+      chip.append(label, badge);
+      chip.addEventListener('click', () => selectRail(g.key));
+      rail.appendChild(chip);
+    }
+
+    const mq = window.matchMedia(MOBILE_Q);
+    const apply = () => {
+      document.body.classList.toggle('mobile-ui', mq.matches);
+      rail.classList.toggle('hidden', !mq.matches);
+      if (mq.matches) {
+        syncRail();
+        selectRail(railKey || defaultRail());
+      } else {
+        // Back to a desktop window mid-war: hand every section back to the
+        // accordion it came from, shut, which is where a turn starts there.
+        for (const p of document.querySelectorAll('#sidebar-scroll .panel[data-panel]')) {
+          p.classList.remove('rail-off');
+          setPanelOpen(p, false);
+        }
+      }
+    };
+    // A rotation fires this, which is the whole point: the deck has to be
+    // standing before the first tap lands after the phone comes round.
+    mq.addEventListener('change', apply);
+    apply();
   }
 
   // For a section that has just become relevant on its own account rather than
@@ -61,6 +253,12 @@ const UI = (() => {
   function openPanel(key, reveal) {
     const panel = document.querySelector(`.panel[data-panel="${key}"]`);
     if (!panel) return;
+    // On a phone the section is behind a tab, so it has to bring its tab with
+    // it — otherwise this opens a panel inside a group the rail is not showing
+    // and the player is told nothing at all. Before setPanelOpen, because
+    // selecting a tab opens the FIRST section in it and this one may be second.
+    const g = onMobile() && groupFor(key);
+    if (g && g.key !== railKey) selectRail(g.key);
     setPanelOpen(panel, true);
     if (!reveal) return;
     // The body animates open on grid-template-rows, so its height is a moving
@@ -199,6 +397,9 @@ const UI = (() => {
       if (!total) { setBadge(key, ''); continue; }
       setBadge(key, live ? `${live} READY` : 'NONE', live ? '' : 'badge-none');
     }
+    // the rail reads its tabs off the badges this just wrote, so it is synced
+    // from here rather than from a second pass over the same panels
+    syncRail();
   }
 
   // ---- HUD / bottom bar ----
@@ -206,7 +407,11 @@ const UI = (() => {
     // clock
     const day = Math.ceil(G.turn / 2);
     const hour = G.turn % 2 === 1 ? '06:00' : '18:00';
-    $('map-clock').textContent = `DAY ${day} — ${hour} LOCAL`;
+    // LOCAL is in a span so a phone can drop it: with the chart's label already
+    // hidden this row is the clock plus six controls, and on a 390px portrait
+    // screen those six need every pixel the word was spending.
+    $('map-clock').innerHTML =
+      `DAY ${day} — ${hour}<span class="mc-local"> LOCAL</span>`;
     // A bare count, no denominator. The war does not end on a known turn any
     // more — it ends when the country stops paying for it — and "17/30" would
     // promise a deadline the game no longer honours in either direction: it can
@@ -240,7 +445,13 @@ const UI = (() => {
     const ap = $('approval-value');
     ap.textContent = `${Math.round(G.approval)}%`;
     ap.className = 'stat-value big ' + (G.approval < 30 ? 'crit' : G.approval < 45 ? 'warn' : 'good');
-    $('approval-label').textContent = 'APPROVAL — FALLS AT 20%';
+    // The threshold rides in its own span so a phone can hold it back until it
+    // is worth the width: seven readouts across a 390px screen leaves ~95px a
+    // column, and "APPROVAL — FALLS AT 20%" does not go in 95px. The stylesheet
+    // brings it back the moment this readout goes amber, which is when the line
+    // stops being trivia and starts being the thing about to end the war.
+    $('approval-label').innerHTML =
+      'APPROVAL<span class="stat-sub"> — FALLS AT 20%</span>';
 
     // Oil defeats the war outright at $240; pulse the number once it is close
     // enough that the next spike could end it, so the loss never arrives unseen.
@@ -251,8 +462,9 @@ const UI = (() => {
     // $135 is where the barrel starts costing approval every night, $165 where
     // it doubles, $240 where it ends the war. The label names whichever line is
     // the next one coming, so it always reads as a warning rather than a stat.
-    $('oil-label').textContent = G.oil >= 165 ? 'BRENT CRUDE — BREAKS AT $240'
-      : G.oil >= 135 ? 'BRENT CRUDE — DOUBLES AT $165' : 'BRENT CRUDE — BITES AT $135';
+    $('oil-label').innerHTML = 'BRENT CRUDE<span class="stat-sub"> — ' +
+      (G.oil >= 165 ? 'BREAKS AT $240' : G.oil >= 135 ? 'DOUBLES AT $165' : 'BITES AT $135') +
+      '</span>';
 
     // A closed Strait breaks the economy after HORMUZ_LIMIT turns shut. Shown as
     // a count against that limit the same way casualties are, and read from the
@@ -1876,7 +2088,10 @@ const UI = (() => {
     // had shut, aircrew on the ground outrank it.
     const csar = $('csar-panel');
     const csarHidden = csar.classList.contains('hidden');
-    if (csarWasHidden && !csarHidden) setPanelOpen(csar, true);
+    // openPanel rather than setPanelOpen: this is the case that function was
+    // written for, and on a phone it is the difference between the recovery
+    // opening and the recovery opening behind a tab nobody is looking at.
+    if (csarWasHidden && !csarHidden) openPanel('csar', true);
     csarWasHidden = csarHidden;
 
     renderCoa(G);          // first in the sidebar; absent entirely on hard
@@ -3084,6 +3299,7 @@ const UI = (() => {
   // ---- wiring ----
   function init() {
     initPanels();
+    initRail();      // after initPanels: the rail drives the same open/shut state
     initScrollEdge();
     initModalScrollEdge();
     initModals();
