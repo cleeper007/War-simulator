@@ -19,9 +19,9 @@
      stays invisible in the tab for as long as that row survives. Renaming the
      URL is the only thing it listens to. Stamp these with the badge on every
      bump, even when only the art changed. -->
-<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png?v=1.76">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1.76">
-<link rel="manifest" href="site.webmanifest?v=1.76">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png?v=1.77">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1.77">
+<link rel="manifest" href="site.webmanifest?v=1.77">
 <meta name="theme-color" content="#0a1626">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -35,7 +35,7 @@
      version-badge) renames every asset URL, which is the only thing that
      reliably forces the fetch.
      Bump the stamps and the badge together. -->
-<link rel="stylesheet" href="css/style.css?v=1.76">
+<link rel="stylesheet" href="css/style.css?v=1.77">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.76<span class="beta-tag">BETA</span></div>
+  <div class="version-badge">v1.77<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -197,6 +197,22 @@
         <div class="panel-body"><div class="panel-body-inner">
           <div id="csar-brief"></div>
           <div id="csar-buttons"></div>
+        </div></div>
+      </div>
+
+      <!-- Tonight's staffed options. First panel in the sidebar and the only
+           one that opens itself, because on easy it is the whole night's
+           decision and on hard it does not exist at all — renderCoa hides it
+           outright when DIFFICULTY.coa is 0. -->
+      <div class="panel hidden" id="coa-panel" data-panel="coa">
+        <button type="button" class="panel-head" aria-expanded="true">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <span class="panel-title">TONIGHT'S OPTIONS</span>
+          <span class="panel-badge"></span>
+          <span class="panel-meta" id="coa-status"></span>
+        </button>
+        <div class="panel-body"><div class="panel-body-inner">
+          <div id="coa-buttons"></div>
         </div></div>
       </div>
 
@@ -422,6 +438,26 @@
   </div>
 </div>
 
+<!-- ============ TARGET CARD ============
+     What tapping an aimpoint does on a level where the president does not write
+     the tasking order. Everything the strike dialog shows ABOUT the site, and
+     nothing that orders one — the plot stays a fully live common operating
+     picture, it simply is not where orders are written. No footer: there is
+     nothing to authorize, so an AUTHORIZE-shaped button would be a lie. -->
+<div id="target-card" class="overlay hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="target-card-title">
+    <div class="modal-header">
+      <span class="panel-title" id="target-card-title">TARGET FOLDER — <span id="target-card-name"></span></span>
+      <button class="modal-close" data-close="target-card">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="target-card-status"></p>
+      <p id="target-card-desc" class="dim"></p>
+      <p id="target-card-note" class="dim"></p>
+    </div>
+  </div>
+</div>
+
 <!-- ============ SPECIAL OPERATIONS MODAL ============ -->
 <div id="specops-modal" class="overlay hidden">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="specops-modal-title">
@@ -586,18 +622,18 @@
   </div>
 </div>
 
-<script src="js/text.js?v=1.76"></script>
-<script src="js/geodata.js?v=1.76"></script>
-<script src="js/data.js?v=1.76"></script>
-<script src="js/map.js?v=1.76"></script>
-<script src="js/ai.js?v=1.76"></script>
-<script src="js/audio.js?v=1.76"></script>
-<script src="js/ui.js?v=1.76"></script>
+<script src="js/text.js?v=1.77"></script>
+<script src="js/geodata.js?v=1.77"></script>
+<script src="js/data.js?v=1.77"></script>
+<script src="js/map.js?v=1.77"></script>
+<script src="js/ai.js?v=1.77"></script>
+<script src="js/audio.js?v=1.77"></script>
+<script src="js/ui.js?v=1.77"></script>
 <!-- after ui.js: the walkthrough drives the room through UI's exported openPanel
      / openStrikeModal, and ui.js reaches back for Tour.start() at click time -->
-<script src="js/tour.js?v=1.76"></script>
-<script src="js/specops.js?v=1.76"></script>
-<script src="js/csar.js?v=1.76"></script>
-<script src="js/game.js?v=1.76"></script>
+<script src="js/tour.js?v=1.77"></script>
+<script src="js/specops.js?v=1.77"></script>
+<script src="js/csar.js?v=1.77"></script>
+<script src="js/game.js?v=1.77"></script>
 </body>
 </html>

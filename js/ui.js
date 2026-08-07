@@ -575,6 +575,18 @@ const UI = (() => {
     if (G.fatigue) alerts.push(['warn', `${plural(G.fatigue, 'package')} held back for crew rest.`]);
     if (!G.basing.gulf) alerts.push(['crit', 'Gulf ramps closed — nothing deep is reachable.']);
     else if (!G.basing.nato) alerts.push(['warn', 'NATO and Saudi tanker tracks withdrawn.']);
+    // The depots, where anyone is counting them. Phrased in NIGHTS rather than
+    // rounds for the same reason the Aegis line is tiered: "412 weapons" is a
+    // number a player cannot price, and "three nights of fighting" is a
+    // decision about whether tonight is the night to send the heavies.
+    if (Game.pgmLedger()) {
+      const n = Game.pgmNights();
+      if (n < 1) alerts.push(['crit', 'Precision munitions exhausted — the depots cannot build up a package.']);
+      else if (n < 3) alerts.push(['crit', `Precision munitions critical — about ${plural(Math.floor(n), 'night')} of ` +
+        'fighting left in the depots.']);
+      else if (n < 6) alerts.push(['warn', `Precision munitions running low — about ${Math.floor(n)} nights ` +
+        'left at this tempo. The next shipment comes in with the force flow.']);
+    }
 
     const whyText =
       `<p>${airPhaseNote(G)}</p>` +
@@ -597,6 +609,10 @@ const UI = (() => {
       `<div class="ton-row"><span>TANKER TRACKS</span>` +
       `<span class="ton-val${tkCls}">${tk} / ${cap}</span></div>` +
       trackGauge(tk, cap) +
+      (Game.pgmLedger()
+        ? `<div class="ton-row"><span>PRECISION MUNITIONS</span>` +
+          `<span class="ton-val${Game.pgmNights() < 3 ? ' crit' : Game.pgmNights() < 6 ? ' warn' : ''}">` +
+          `${G.pgm}</span></div>` : '') +
       alerts.map(([c, t]) => `<div class="ton-alert ${c}">${t}</div>`).join('') +
       `<button type="button" class="ton-why" aria-expanded="${resWhyOpen}">` +
       `<span class="why-caret" aria-hidden="true">▾</span>what this costs</button>` +
@@ -1230,6 +1246,79 @@ const UI = (() => {
     return out;
   }
 
+  // ---- tonight's staffed options ----
+  // The whole easy-mode game, and half the normal one. See COURSES OF ACTION in
+  // game.js for what a course of action is; this draws it.
+  //
+  // Three rules, and the first two are the reason it does not just print the
+  // legs in a list. A COA is an ARGUMENT — a name, an intent, and a reason —
+  // and the aimpoints are the evidence for it, so the pitch is above the fold
+  // and the target list is behind the same disclosure caret every other order
+  // in this sidebar uses. A player who wants to audit the staff can; a player
+  // who wants to be a president does not have to. Second, the MAIN EFFORT and
+  // the supporting packages are drawn apart, because what is being chosen is
+  // the main effort and burying it in a flat list of six sites would misrepresent
+  // the choice as a target list — which is the one thing this panel exists to
+  // stop being. Third, an option already flown is not removed: it stays,
+  // marked, because the packages are still scrubbable off tonight's order and a
+  // player who signed the wrong one needs to see what they signed.
+  function renderCoa(G) {
+    const panel = $('coa-panel');
+    const list = Game.coaOptions();
+    // hard briefs nothing at all, and the panel is not there to say so
+    if (!Game.difficulty().coa) { panel.classList.add('hidden'); return; }
+    panel.classList.remove('hidden');
+
+    const flown = Game.coaFlown();
+    const spent = Game.atoSlots() - G.strikesThisTurn;
+    $('coa-status').textContent = flown.size
+      ? `— ${flown.size} SIGNED`
+      : list.length ? `— ${plural(list.length, 'option')}` : '— NONE TONIGHT';
+
+    if (!list.length) {
+      // An empty brief is a real state — everything reachable is serviced, or
+      // the sky has not released anything the staff would sign its name to —
+      // and it has to say which rather than rendering a blank box.
+      $('coa-buttons').innerHTML = '<div class="coa-empty">The staff has nothing to brief tonight. ' +
+        'Every aimpoint CENTCOM can reach and release is either serviced or waiting on ' +
+        'something the tasking order cannot buy.</div>';
+      return;
+    }
+
+    const rows = list.map((c) => {
+      const done = flown.has(c.id);
+      const open = actOpen.has(`coa-${c.id}`);
+      const main = c.legs.filter(l => l.main), supp = c.legs.filter(l => !l.main);
+      const nameOf = (l) => {
+        const t = TARGETS.find(x => x.id === l.targetId);
+        return t ? `${t.name.split(' — ')[0]} <span class="dim">· ${l.pkg.label}</span>` : l.targetId;
+      };
+      const legList = (arr, label) => arr.length
+        ? `<div class="coa-leg-head">${label}</div>` +
+          arr.map(l => `<div class="coa-leg">${nameOf(l)}</div>`).join('')
+        : '';
+      return `<div class="action coa${done ? ' off' : ''}${open ? ' open' : ''}" data-action="coa-${c.id}">` +
+        `<button class="action-do" data-coa="${c.id}" ${done ? 'disabled' : ''}>` +
+        `<span class="action-name"><span class="coa-slot">${c.slot}</span> ${c.name}</span>` +
+        `<span class="il-current">${c.line}</span>` +
+        `<span class="coa-cost">${done ? 'SIGNED — ON TONIGHT\'S ORDER' :
+          `${plural(c.legs.length, 'package')}${spent > 0 && c.legs.length > spent
+            ? ` · ${c.legs.length - spent} past the plan` : ''}`}</span>` +
+        `</button>` +
+        `<button type="button" class="action-why" aria-expanded="${open}" ` +
+        `aria-label="What this option flies, and why"><span class="why-caret">▾</span></button>` +
+        `<div class="action-desc">${c.why}` +
+        `<div class="coa-legs">${legList(main, 'MAIN EFFORT')}${legList(supp, 'AND WITH THE REMAINING CAPACITY')}</div>` +
+        `</div></div>`;
+    }).join('');
+
+    $('coa-buttons').innerHTML = rows;
+    for (const btn of document.querySelectorAll('#coa-buttons .action-do')) {
+      btn.addEventListener('click', () => Game.takeCoa(btn.dataset.coa));
+    }
+    wireWhy('#coa-buttons');
+  }
+
   function renderDiplo(G) {
     const used = G.diploUsed;
     $('diplo-status').textContent = used ? '— USED THIS TURN' : '';
@@ -1276,8 +1365,35 @@ const UI = (() => {
       },
     ];
 
+    // ...and on easy, the staff says which one. It is a MARK on an order the
+    // president was always able to give, not a fourth kind of button and not a
+    // shortcut that takes it: "diplomacy recommended" is the same bargain the
+    // courses of action make on the military side, and the president still has
+    // to agree. Only on easy — the advisors already argue for all of these at
+    // length, and a star beside one of them on normal would be the room having
+    // the argument twice and then settling it for you.
+    if (Game.difficulty().recommend && !used) {
+      const rec = recommendedDiplo(G, actions);
+      const hit = actions.find(a => a.id === rec);
+      if (hit) hit.mark = 'STAFF RECOMMENDS';
+    }
+
     $('diplo-buttons').innerHTML = actionButtons(actions, used);
     wireActions('#diplo-buttons');
+  }
+
+  // Which diplomatic order the room would press for tonight, in priority order.
+  // Deliberately short and deliberately obvious: a recommendation engine that
+  // is cleverer than the player cannot be argued with, and the point of marking
+  // one is to teach what the orders are FOR, not to play the game for them.
+  function recommendedDiplo(G, actions) {
+    const can = (id) => { const a = actions.find(x => x.id === id); return a && !a.disabled; };
+    if (G.negotiationReady() && can('backchannel')) return 'backchannel';   // the war can end tonight
+    if (G.approval <= 35 && can('address')) return 'address';               // the floor is what wars are lost on
+    if (G.oil >= 150 && can('spr')) return 'spr';
+    if (G.world <= 45 && can('un')) return 'un';                            // the ramps are downstream of this
+    if (can('sanctions')) return 'sanctions';
+    return can('un') ? 'un' : null;
   }
 
   // Coalition-building and the two Israel orders sit in their own section, and
@@ -1555,7 +1671,8 @@ const UI = (() => {
       const attrs = a.attrs === undefined ? `data-diplo="${a.id}"` : a.attrs;
       return `<div class="action${off ? ' off' : ''}${open ? ' open' : ''}" data-action="${a.id}">` +
         `<button class="action-do" ${attrs} ${off ? 'disabled' : ''}>` +
-        `<span class="action-name">${a.name}</span>` +
+        `<span class="action-name">${a.name}` +
+        (a.mark ? `<span class="rec-chip">${a.mark}</span>` : '') + `</span>` +
         (a.current ? `<span class="il-current">${a.current}</span>` : '') +
         `</button>` +
         (a.desc
@@ -1762,6 +1879,7 @@ const UI = (() => {
     if (csarWasHidden && !csarHidden) setPanelOpen(csar, true);
     csarWasHidden = csarHidden;
 
+    renderCoa(G);          // first in the sidebar; absent entirely on hard
     renderObjectives(G);
     renderResources(G);
     renderFleet(G);
@@ -1818,6 +1936,11 @@ const UI = (() => {
       if (h.gate) { push(h.gate); continue; }
       if (!h.stock) push(MAG_SHORT);
       if (!h.fuel) push(NO_TANKERS);
+      // The aircraft exist, the fuel exists, and there is nothing to hang under
+      // them. Its own line rather than folded into MAGAZINE SHORT, because they
+      // are answered by two different things: sorties come back at the turn,
+      // weapons come back with the force flow.
+      if (h.pgm) push(h.pgm);
     }
     return out;
   }
@@ -1880,8 +2003,9 @@ const UI = (() => {
       // the air-superiority ladder outranks both magazines: a tier that has not
       // been released is not short of anything, it is simply not flying tonight
       const gate = Game.pkgBlock(target, pkg);
-      if (stock && fuel && !gate) flyable.push({ pkg, have, cost });
-      else held.push({ gate, stock, fuel });
+      const pgm = Game.pgmBlock(pkg);
+      if (stock && fuel && !gate && !pgm) flyable.push({ pkg, have, cost });
+      else held.push({ gate, stock, fuel, pgm });
     });
 
     if (!flyable.length) {
@@ -2124,6 +2248,38 @@ const UI = (() => {
     }
     $('strike-estimate').innerHTML = html;
     $('strike-estimate').classList.remove('hidden');
+  }
+
+  // ---- the target folder ----
+  // What tapping an aimpoint does where the president does not write the
+  // tasking order. It is everything the strike dialog says ABOUT a site and
+  // nothing that orders one — deliberately the same estimate, the same
+  // staleness warning and the same perishable-fix line, because the reason to
+  // keep the plot live on easy is that reading it is how a player decides which
+  // course of action the night wants. Take the information away with the target
+  // list and the menu becomes a coin flip.
+  function openTargetCard(G, target) {
+    $('target-card-name').textContent = target.name;
+    const st = target.status || 'intact';
+    const band = Game.estimate(target);
+    const col = st === 'intact' ? 'var(--red)' : st === 'damaged' ? 'var(--amber)' : 'var(--dim)';
+    $('target-card-status').innerHTML =
+      `<span style="color:${col}">ASSESSED ${st.toUpperCase()}` +
+      (st === 'destroyed' ? '' : ` — ${Game.condition(target)}`) + `</span>` +
+      (!band.known && band.age > 0
+        ? `<br><span class="dim">Last assessed ${plural(band.age, 'turn')} ago — the estimate widens ` +
+          `every night nobody looks.</span>` : '');
+    $('target-card-desc').textContent = Game.targetDesc(target);
+
+    const barred = Game.barred(target);
+    $('target-card-note').innerHTML = st === 'destroyed'
+      ? 'This aimpoint is off the list.'
+      : barred ? `<span style="color:var(--red)">${barred}</span>`
+      // Which is the sentence that has to do the teaching, so it names the
+      // panel by the words on it rather than saying "you cannot do this here".
+      : 'CENTCOM builds the tasking order. If this site is worth a package tonight it will ' +
+        'appear under TONIGHT\'S OPTIONS — signing the option that covers it is how it gets flown.';
+    $('target-card').classList.remove('hidden');
   }
 
   function closeStrikeModal() {
@@ -2976,12 +3132,35 @@ const UI = (() => {
   // staff refuses nothing. `manual` is the HOW TO PLAY button, which works at
   // every difficulty: suppressing the brief at boot is a judgement about pacing,
   // not a reason to make it unreachable for the rest of the war.
+  // v1.77 — AND IT NOW TEACHES THE GAME THE PLAYER PICKED. The first card used
+  // to open "Click any target to plan a strike", which on easy is an instruction
+  // to go and do the one thing that level deliberately does not let you do:
+  // tapping a site opens a folder and nothing else, and a player following the
+  // brief would conclude the game was broken on their first click. A primer that
+  // describes a different difficulty than the one running is worse than no
+  // primer, so the cards that differ are chosen off the same two knobs the rest
+  // of the feature reads (see DIFFICULTY).
   function showPrimer(manual) {
     if (!manual && (Game.G.difficulty || 'normal') === 'hard') return;
+    const d = Game.difficulty();
     const panels = [
-      { cls: 'friendly', title: 'FIRST, TAKE THE SKY',
-        text: 'Click any target to plan a strike. Most of your force is grounded until the SAM belt ' +
-          'comes down, so hit air defenses first. STRIKE ASSETS shows what has been released.' },
+      d.coa && !d.freeTargeting
+        ? { cls: 'friendly', title: 'THE STAFF WRITES THE NIGHT',
+            text: 'CENTCOM briefs you options every evening under TONIGHT\'S OPTIONS. Sign one. You are ' +
+              'not picking aimpoints — you are picking which war tonight is for.' }
+        : d.coa
+        ? { cls: 'friendly', title: 'TWO OPTIONS, AND THE REST IS YOURS',
+            text: 'CENTCOM briefs you two plans under TONIGHT\'S OPTIONS, and neither fills the order. ' +
+              'Sign one, then click targets on the map to spend what is left.' }
+        : { cls: 'friendly', title: 'FIRST, TAKE THE SKY',
+            text: 'Click any target to plan a strike. Most of your force is grounded until the SAM belt ' +
+              'comes down, so hit air defenses first. STRIKE ASSETS shows what has been released.' },
+      // The ladder still has to be taught on easy — the options are ranked
+      // against it, and a president who never understands why ROLLBACK keeps
+      // coming up first is picking off a menu rather than reading a war.
+      ...(d.freeTargeting ? [] : [{ cls: '', title: 'THE SKY COMES FIRST',
+        text: 'Most of the force is grounded until the SAM belt is down, which is why ROLLBACK keeps ' +
+          'coming up. Take the sky and the heavier options open.' }]),
       // The board opens SHORT as of v1.69, and a player who reads night one as
       // the whole war mis-plans everything downstream of it — Arak arrives on
       // the ramp, so the nuclear objective is not even fully visible yet.
@@ -3000,9 +3179,15 @@ const UI = (() => {
       // v1.28, and it is the first thing a new player runs into — three packages
       // on night one, and the fourth costs. Discovering that from a refusal on
       // the fourth click is the wrong way to learn the rule the game is about.
-      { cls: '', title: 'THREE PACKAGES A NIGHT',
+      // The late frag is a decision the president does not make on easy — the
+      // staff sizes the option to the plan — so the card that teaches how to
+      // spend a fourth package is dropped rather than reworded.
+      ...(d.freeTargeting ? [{ cls: '', title: 'THREE PACKAGES A NIGHT',
         text: 'A fourth still flies, as a degraded LATE FRAG, and it comes off tomorrow\'s plan. ' +
-          'Surge for a night that matters, not for every night.' },
+          'Surge for a night that matters, not for every night.' }] : []),
+      ...(Game.pgmLedger() ? [{ cls: 'iran', title: 'THE DEPOTS ARE FINITE',
+        text: 'Precision weapons do not regenerate — only the force flow brings more. STRIKE ASSETS ' +
+          'counts them. A bomber cell costs six times what an F-35 pair does.' }] : []),
       { cls: '', title: 'THE NUCLEAR SITES NEED THE B-2',
         text: 'Fordow and Natanz are buried, and only the B-2 reaches them. It is still in Missouri, ' +
           'so call it forward from THEATER FORCES, one turn out.' },
@@ -3027,6 +3212,6 @@ const UI = (() => {
     };
   }
 
-  return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, showReport,
+  return { init, renderAll, renderHUD, renderSidebar, setTicker, openStrikeModal, openTargetCard, showReport,
     showWarPowers, showEndgame, showPrimer, openLeaderCall, closeAllPanels, openPanel, voiceUp, voiceDown };
 })();

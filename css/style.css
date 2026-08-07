@@ -521,6 +521,42 @@ button { font-family: var(--mono); }
    row and, unlike .action-desc, is never hidden behind the caret. */
 .action-extra { grid-column: 1 / 3; padding: 5px 10px 6px; border: 1px solid var(--line); border-top: 0; }
 
+/* ---- COURSES OF ACTION ----
+   Built out of .action rather than beside it, so a staffed option inherits the
+   disclosure caret, the off state and the keyboard behaviour every other order
+   in this sidebar already has. What is added is the things a COA has and an
+   order does not: a slot letter, a cost line, and a target list that reads as
+   evidence for the argument above it rather than as a menu of its own. */
+.action.coa .action-name { font-size: 11.5px; letter-spacing: 0.02em; }
+.coa-slot {
+  display: inline-block; margin-right: 6px; padding: 1px 5px;
+  background: var(--blue); color: var(--bg-panel2);
+  font-size: 9px; font-weight: 700; letter-spacing: 0.08em; vertical-align: 1px;
+}
+.action.coa.off .coa-slot { background: var(--dim); }
+.coa-cost { display: block; margin-top: 4px; color: var(--dim); font-size: 10px; letter-spacing: 0.04em; }
+.action.coa.off .coa-cost { color: var(--green, var(--blue)); }
+/* the evidence, under the argument, behind the same caret */
+.coa-legs { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line); }
+.coa-leg-head {
+  color: var(--dim); font-size: 9px; letter-spacing: 0.1em;
+  margin: 5px 0 3px;
+}
+.coa-leg-head:first-child { margin-top: 0; }
+.coa-leg { color: var(--text); font-size: 10.5px; line-height: 1.4; padding-left: 8px; }
+.coa-leg::before { content: '▸ '; color: var(--blue); }
+.coa-empty { color: var(--dim); font-size: 10.5px; line-height: 1.45; padding: 8px 10px; border: 1px solid var(--line); }
+
+/* The staff's mark on an order the president could always give. A chip and not
+   a colour change on the row, because the row still has to read as available
+   rather than as already chosen. */
+.rec-chip {
+  display: inline-block; margin-left: 6px; padding: 1px 5px;
+  border: 1px solid var(--amber); color: var(--amber);
+  font-size: 8.5px; letter-spacing: 0.08em; vertical-align: 1px;
+}
+.action.off .rec-chip { opacity: 0.5; }
+
 /* ---- Jerusalem's clock ----
    The only pressure in this game another government owns. Deliberately built
    from the same parts as the rest of the HUD's meters rather than a new visual

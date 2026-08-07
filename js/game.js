@@ -172,6 +172,12 @@ const Game = (() => {
     // theater magazine: the Mk-48s are already in her tubes. Four of them, and
     // nobody reloads a boat on patrol — see TORPEDO_LOAD.
     torpedoes: TORPEDO_LOAD,
+    // ---- what the wing has left to drop ----
+    // The theater precision-munitions stock, kept on hard and only on hard (see
+    // THE PRECISION MUNITIONS STOCK). Set from DIFFICULTY.pgm at kickoff and
+    // added to only by the force flow; zero everywhere else, where nothing
+    // reads it and no package is ever charged against it.
+    pgm: 0,
     // ---- the escort screen's interceptors ----
     // The other consumable magazine, and the defensive twin of tlamPool above:
     // SM-3/SM-6 rounds in the Aegis cells, spent against whatever Tehran throws
@@ -541,7 +547,12 @@ const Game = (() => {
     // And TARGETS itself is two aimpoints longer: a v23 save carries no record
     // of the southern front at all, so resuming one would restore a target list
     // the rest of the state cannot account for.
-    const VERSION = 24;
+    // v25: the difficulty levels are now three different jobs rather than one
+    // job at three prices (see DIFFICULTY). A v24 save carries no munitions
+    // stock, and — worse — was played on a level whose name no longer describes
+    // what it does: an EASY save would resume into a war that has taken the
+    // target list away from a president who has been using it for nine turns.
+    const VERSION = 25;
     const FIELDS = [
       'turn', 'softCap', 'approval', 'oil', 'world',
       'hormuz', 'hormuzClosedTurns', 'casualties', 'res', 'caps',
@@ -558,7 +569,7 @@ const Game = (() => {
       'milestones', 'difficulty', 'iranPosture', 'postureKnown', 'breakout', 'intel',
       'tankers', 'tankerCap', 'basing', 'basingDebt', 'gulf', 'warPowers', 'addresses', 'threat',
       'timeline', 'adapt', 'adaptSeen', 'turnStartHp', 'tlamPool', 'torpedoes',
-      'bmdPool', 'bmdRearm',
+      'bmdPool', 'bmdRearm', 'pgm',
       'houthi', 'mandab', 'mandabClosedTurns',
     ];
 
@@ -1670,9 +1681,20 @@ const Game = (() => {
       G.forceFlow.fighters += w.fighters;
       G.forceFlow.tanker += w.tanker;
       G.forceFlow.rep += w.rep;
+      // the weapons that came with it — the only thing that ever refills the
+      // stock, and only where a stock is being kept at all
+      const rounds = pgmLedger() ? (w.pgm || 0) : 0;
+      if (rounds) G.pgm = (G.pgm ?? 0) + rounds;
       events.push({
         cls: 'friendly', title: w.title, text: w.text,
         dTanker: w.tanker,
+        // Appended rather than written into the wave's own prose, because that
+        // prose is shared with the two levels that keep no ledger and would be
+        // quoting a number nothing on their screen shows.
+        appended: rounds
+          ? `The tranche brought its own weapons: ${Txt.plural(rounds, 'precision munition')} into the ` +
+            `theater depots, against ${Txt.plural(G.pgm, 'round')} now on hand.`
+          : undefined,
       });
     });
     if (events.length) syncFleetCaps();
@@ -2698,6 +2720,49 @@ const Game = (() => {
   }
 
   // ============================================================
+  // THE PRECISION MUNITIONS STOCK
+  // ------------------------------------------------------------
+  // What the theater has left to drop, as opposed to what it has left to fly.
+  // Until v1.77 those were the same question: the ready magazine topped itself
+  // off every night, so a wing that had been fighting for three weeks was as
+  // well supplied as one that had been fighting for one, and the only weapons
+  // in the game with a campaign floor were the ones fired by ships.
+  //
+  // IT IS KEPT ON HARD AND NOWHERE ELSE, and `pgmLedger` is the switch rather
+  // than a very large number, so easy and normal are not "a war with a stock
+  // too big to bind" — they are a war with no stock at all, byte for byte the
+  // same simulation they were before this existed. That is a testable claim
+  // and it is meant to be tested.
+  //
+  // The stock only ever refills off FORCE_FLOW: weapons arrive in ships, in
+  // bulk, on a schedule the president does not set. What that buys is a second
+  // reason the buildup matters and a real cost to the heavy bomber — a B-1 is
+  // the cheapest aimpoint in the game measured in packages and the dearest by
+  // six times measured in bombs.
+  const pgmLedger = () => (diff().pgm || 0) > 0;
+  const pgmCost = (pkg) => pkg.sub ? 0 : (assetProfile(pkg.asset).pgm || 0) * pkg.qty;
+
+  // Why this package cannot be built up tonight, or null. Same contract as
+  // pkgBlock — one sentence the dialog and the panel both print.
+  function pgmBlock(pkg) {
+    if (!pgmLedger()) return null;
+    const need = pgmCost(pkg);
+    if (need <= (G.pgm ?? 0)) return null;
+    return `Insufficient precision munitions in theater — this package needs ${Txt.plural(need, 'weapon')} ` +
+      `and the depots hold ${G.pgm ?? 0}. The next munitions shipment is on the force flow.`;
+  }
+
+  // How thin the stock is, for the panel and the advisors. Measured against
+  // what a single night of fighting actually costs rather than against the
+  // opening load, because "34% remaining" says nothing and "two nights"
+  // is the sentence a logistician would say out loud.
+  const pgmNights = () => {
+    if (!pgmLedger()) return Infinity;
+    const perNight = Math.max(1, atoSlots() * PGM_NIGHT);
+    return (G.pgm ?? 0) / perNight;
+  };
+
+  // ============================================================
   // THE TASKING ORDER
   // ------------------------------------------------------------
   // How many packages tonight's plan holds, and what it costs to fly past it.
@@ -2937,9 +3002,15 @@ const Game = (() => {
   // feel like — you say flatten it, and tonight it is flat.
   const MISSION_ETA = { f35: 1, fighter: 1, cruise: 1, stealth: 2, heavy: 1 };
 
-  function executeStrike(target, pkg) {
+  // `coaId` is set only when the package is a leg of a staffed course of action
+  // (see takeCoa). It is carried on the mission so the panel can say which
+  // option is already flying and so scrubbing the last leg puts that option
+  // back on the table — nothing about the strike itself reads it.
+  function executeStrike(target, pkg, coaId) {
     if (G.over || busy()) return;
     if (pkgStock(pkg) < pkg.qty) return;
+    // ...and a package nobody can build up is not a package
+    if (pgmBlock(pkg)) return;
     // a launcher group nobody has found is not a target, and a deep target is
     // not reachable without the northern tanker tracks
     if (target.type === 'tel' && (!target.dispersed || !target.located)) return;
@@ -2960,6 +3031,8 @@ const Game = (() => {
       G.res[resKey(pkg.asset)] -= pkg.qty;
       if (pkg.asset === 'cruise') G.tlamPool = Math.max(0, (G.tlamPool || 0) - pkg.qty);
     }
+    // the bombs themselves, where anyone is counting them
+    if (pgmLedger()) G.pgm = Math.max(0, (G.pgm ?? 0) - pgmCost(pkg));
     G.tankers -= cost;
 
     // the joint option is one-shot: committing it against either site spends it
@@ -2985,7 +3058,7 @@ const Game = (() => {
     // turn boundary, and a refund computed later would be a different number.
     G.missions.push({
       targetId: target.id, pkg: { ...pkg }, eta: pkg.eta || MISSION_ETA[pkg.asset],
-      turn: G.turn, tanker: cost, surge: atoOver(pkg) > 0,
+      turn: G.turn, tanker: cost, surge: atoOver(pkg) > 0, coa: coaId || null,
     });
     AudioSys.play('targetMarked');
     UI.renderAll(G);
@@ -3024,6 +3097,11 @@ const Game = (() => {
       G.res[resKey(pkg.asset)] += pkg.qty;
       if (pkg.asset === 'cruise') G.tlamPool = (G.tlamPool || 0) + pkg.qty;
     }
+    // weapons that were never built up go back on the rack. No clamp against
+    // the opening load for the same reason the magazine has none: the stock is
+    // only ever added to at the turn boundary, so anything handed back tonight
+    // came out of tonight's holding.
+    if (pgmLedger()) G.pgm = (G.pgm ?? 0) + pgmCost(pkg);
     G.tankers = Math.min(G.tankerCap || tankerCapacity(), G.tankers + (m.tanker || 0));
     if (pkg.joint) { G.israelJointAvailable = true; syncJointPackages(); }
     if (!pkg.sub) G.adapt[pkg.asset] = Math.max(0, (G.adapt[pkg.asset] || 0) - 1);
@@ -3039,6 +3117,273 @@ const Game = (() => {
     Save.write();
     return true;
   }
+
+  // ============================================================
+  // COURSES OF ACTION — THE STAFF WRITES THE NIGHT
+  // ------------------------------------------------------------
+  // See COA in data.js for why this exists. The short version: on easy and
+  // normal the CAOC has already done the targeting by the time the president
+  // walks in, and what is on the table is two or three staffed options with a
+  // doctrine behind each one.
+  //
+  // THIS IS A FRONT END, NOT A SECOND STRIKE PATH. Every package a course of
+  // action flies goes through executeStrike, one at a time, exactly as if the
+  // player had opened the dialog and authorized it — so a COA cannot get around
+  // the magazine, the tanker plan, the air-superiority gate, the adaptation
+  // counter, the crew-rest debt or the wall, and every package it flies can be
+  // scrubbed off tonight's order individually like any other. A version that
+  // resolved COAs on their own would have been half the code and would have
+  // needed every one of those invariants re-implemented and kept in step
+  // forever, which is the same bargain MapView.alliedStrike declined.
+  //
+  // THE BRIEF IS PURE AND CACHED BY TURN. Nothing here rolls a die: the same
+  // board produces the same three options, which is what lets the menu be
+  // rebuilt after a reload instead of persisted into the save. It is cached
+  // anyway, because it is read once per render and the panel re-renders on
+  // every click — and because on normal a hand-fragged package changes the
+  // magazine underneath it, and an option that quietly rewrites itself while
+  // the player is reading it is worse than one that goes grey.
+  let coaCache = { turn: -1, list: null };
+
+  // How badly tonight wants each doctrine, 0..1, before the table's own
+  // standing appetite for it. Every branch reads the same functions the HUD and
+  // the advisors read — there is no private assessment in here, and the staff is
+  // never allowed to score off something the president cannot also see.
+  function coaScore(intent) {
+    switch (intent.id) {
+      case 'rollback': {
+        // the one doctrine that prices itself out: at superiority there is
+        // nothing left up there worth a package
+        const recon = TARGETS.some(t => t.type === 'airdefense' && t.killedOnce && t.hp > 0);
+        return clamp((1 - airSuperiority()) + (recon ? 0.18 : 0), 0, 1);
+      }
+      case 'counterforce': {
+        // a fix on a launcher group does not keep — same fact SecDef leads with
+        const fixed = IranAI.liveTels().filter(t => t.located).length;
+        return clamp(IranAI.missileStrength() * 0.55 + (1 - bmdFrac()) * 0.30 +
+          (fixed ? 0.40 : 0), 0, 1);
+      }
+      case 'objective': {
+        // urgency is the clock, permission is the sky. The halls are deep,
+        // hardened and the far side of a belt, so this doctrine is discounted
+        // while the sky is contested rather than ruled out — the stealth
+        // packages fly at any phase, and they are the only key Fordow has.
+        //
+        // The floor is the load-bearing part and it was 0.35 for exactly one
+        // measurement pass. Every other doctrine on this table scores off a
+        // threat that DECAYS as it is worked, so the program — the one thing
+        // the war is actually scored on — finished behind the missile force and
+        // the SAM belt on essentially every night of every campaign, and a bot
+        // that took the staff's leading recommendation thirty nights running
+        // never once flew the enrichment halls and could not win at all. A
+        // doctrine that is never briefed is not a doctrine. It leads whenever
+        // the program is substantially intact, and it goes on leading until it
+        // is finished, which is what "this is what the war is for" has to mean
+        // if it means anything.
+        const brk = breakoutEstimate();
+        const near = brk.halted ? 0 : clamp(1 - (brk.mid || 30) / 18, 0, 1);
+        const left = 1 - G.nukeDegraded() / 100;
+        const sky = phaseAtLeast('superiority') ? 1 : phaseAtLeast('degraded') ? 0.85 : 0.55;
+        return clamp((0.55 + near * 0.45) * left * sky, 0, 1);
+      }
+      case 'maritime': {
+        return clamp(IranAI.navalStrength() * 0.55 + carrierRisk().risk * 0.25 +
+          (G.hormuz === 'CLOSED' ? 0.35 : 0), 0, 1);
+      }
+      case 'pressure': {
+        // never urgent and never worthless. It scores off the fact that the
+        // war has run long without the gate moving, which is exactly when a
+        // president starts reaching for the other kind of target.
+        const stall = clamp(G.turn / 20, 0, 1);
+        return clamp(0.30 + stall * 0.45 - (G.world < 40 ? 0.30 : 0), 0, 1);
+      }
+      case 'jerusalem': {
+        // the gauge, not the ETA: a null ETA means two different things and
+        // neither of them is a number this can multiply (see israelEta)
+        if (G.israelPosture === 'coordinated') return 0.15;
+        return clamp(G.israelPressure / ISRAEL.fly, 0, 1);
+      }
+      case 'southern': {
+        return G.houthi && G.houthi.active ? clamp(houthiStrength() * 0.8 + 0.2, 0, 1) : 0;
+      }
+      default: return 0;
+    }
+  }
+
+  // The aimpoints the staff would put under an intent, best first. `finish what
+  // is started` is the sort, because it is what a targeteer actually does and
+  // because the alternative — spreading three packages across three intact
+  // sites — is the exact play that loses this game slowly.
+  function coaTargets(intent) {
+    const live = TARGETS.filter((t) => {
+      if (t.hp <= 0 || t.status === 'destroyed') return false;
+      if (!plotted(t)) return false;               // a box on the plot is not an aimpoint
+      if (t.type === 'tel' && (!t.dispersed || !t.located)) return false;
+      if (!canReach(t)) return false;
+      if (legallyBarred(t)) return false;          // the Hill took it off the list
+      if (intent.id === 'jerusalem') return !!t.israelPriority;
+      return intent.types ? intent.types.includes(t.type) : false;
+    });
+    return live.sort((a, b) => {
+      const ad = a.hp < 100 ? 0 : 1, bd = b.hp < 100 ? 0 : 1;
+      if (ad !== bd) return ad - bd;               // finish the wounded first
+      if (ad === 0) return a.hp - b.hp;            // and the most wounded of those
+      return TARGETS.indexOf(a) - TARGETS.indexOf(b);  // otherwise file order
+    });
+  }
+
+  // What the CAOC would actually frag against a site tonight, or null. Reads
+  // exactly the gate the strike dialog reads, so the staff can never brief a
+  // package the player would have been refused.
+  //
+  // The preference against the finite reservoirs SCALES WITH WHAT IS LEFT OF
+  // THEM, and a flat discount was wrong in a way that only showed on a live
+  // board. A Tomahawk beats an F-35 package on the staff's own arithmetic —
+  // higher base odds and nobody aboard to lose — so with a fixed penalty the
+  // first brief of the war was three TLAM salvos, which is nine rounds of a
+  // thirty-round campaign reservoir spent on night one, every campaign, before
+  // the president had been told there was a reservoir. Weighted against what
+  // remains, the staff spends freely while the cells are full and starts
+  // husbanding exactly when a planner would, which is also the behaviour that
+  // leaves the boat's four torpedoes for the hulls they are the answer to.
+  // ...and it does not fly the whole night on one platform. `flownTonight`
+  // counts what this option has already committed, and a tier already on it is
+  // damped for the next leg. That was not a polish pass either: without it
+  // every leg solves the same arithmetic against the same board and returns the
+  // same answer, so the opening brief of every campaign was three identical
+  // TLAM salvos — nine rounds of a thirty-round campaign reservoir, on night
+  // one, before the player had been told a reservoir existed. Mixing is also
+  // what the rest of the game already rewards: IranAI.adaptPenalty charges a
+  // campaign that flies one platform into the ground, and a staff that hands
+  // the president a single-platform night is walking them into that bill.
+  function coaPackage(target, flownTonight) {
+    let best = null;
+    for (const pkg of target.packages) {
+      if (pkgStock(pkg) < pkg.qty) continue;
+      if (pkgBlock(target, pkg)) continue;
+      if (!tankersFor(target, pkg).ok) continue;
+      if (pgmBlock(pkg)) continue;
+      const c = computeStrike(target, pkg);
+      // What a round out of a campaign reservoir is worth, as opposed to a
+      // sortie that regenerates at the turn: the share of everything REMAINING
+      // that this package would spend. It self-sharpens as the cells empty,
+      // which is the whole behaviour — spend freely while there is depth,
+      // husband the last few for the targets nothing else can reach.
+      const pool = pkg.sub ? (G.torpedoes ?? 0) : pkg.asset === 'cruise' ? (G.tlamPool ?? 0) : 0;
+      const finite = pool > 0 ? clamp(1 - 2.2 * pkg.qty / pool, 0.2, 1) : 1;
+      const rep = Math.pow(0.72, (flownTonight && flownTonight[pkg.asset]) || 0);
+      const val = (c.fullOdds * (c.gradual ? c.damage : 100) * finite - c.lossRisk * 40) * rep;
+      if (!best || val > best.val) best = { pkg, val };
+    }
+    return best && best.pkg;
+  }
+
+  // Tonight's brief. Deterministic, so a reload rebuilds the same menu.
+  function coaOptions() {
+    const d = diff();
+    if (!d.coa || G.over) return [];
+    if (coaCache.turn === G.turn && coaCache.list) return coaCache.list;
+
+    // how many packages one option is allowed to be worth. On easy an option
+    // IS the night; on normal it is deliberately short of it, and the shortfall
+    // is what the map is for.
+    const size = Math.max(1, Math.round(atoSlots() * (COA.fill[d.coaFill] ?? 1)));
+
+    const ranked = COA.intents
+      .map(intent => ({ intent, urgency: coaScore(intent) }))
+      .map(o => ({ ...o, rank: o.intent.weight * (0.3 + o.intent.scale * o.urgency) }))
+      .sort((a, b) => b.rank - a.rank);
+
+    const out = [];
+    for (const { intent, urgency, rank } of ranked) {
+      if (out.length >= d.coa) break;
+      const pool = coaTargets(intent);
+      if (pool.length < intent.min) continue;
+      // fill the option, one aimpoint at a time. `taken` stops the same site
+      // being briefed twice inside one option; nothing stops two OPTIONS naming
+      // the same site, because two doctrines wanting the same aimpoint is a
+      // real thing and hiding it would misrepresent the choice.
+      const legs = [], taken = new Set(), mix = {};
+      const fill = (list, main) => {
+        for (const t of list) {
+          if (legs.length >= size) break;
+          if (taken.has(t.id)) continue;
+          const pkg = coaPackage(t, mix);
+          if (!pkg) continue;
+          taken.add(t.id);
+          mix[pkg.asset] = (mix[pkg.asset] || 0) + 1;
+          legs.push({ targetId: t.id, pkg: { ...pkg }, main });
+        }
+      };
+      fill(pool, true);
+      // ...and then the SUPPORTING effort. An intent almost never has enough
+      // live aimpoints to fill a plan by itself — three SAM sites is a whole
+      // doctrine and a five-package night — so an option built only out of its
+      // own class went out at half strength and left the rest of the tasking
+      // order unflown. Measured, that was the entire difference between easy
+      // and a hand-played campaign: 61 packages against 126, which is not a
+      // difficulty setting, it is half a war. A real ATO has a main effort and
+      // then it fills the night, and so does this: the option keeps its name
+      // and its argument, and the capacity its own class cannot use goes to the
+      // next-ranked doctrines that can. `main` is carried per leg so the brief
+      // can show the two apart — what the president is choosing is still the
+      // main effort, and it would be a lie to bury that in a list.
+      if (legs.length < size) {
+        for (const other of ranked) {
+          if (legs.length >= size) break;
+          if (other.intent.id === intent.id) continue;
+          fill(coaTargets(other.intent), false);
+        }
+      }
+      if (legs.length < Math.max(1, Math.ceil(size * COA.fillFloor))) continue;
+      // an option whose own class contributed nothing is not that option
+      if (!legs.some(l => l.main)) continue;
+      out.push({
+        id: intent.id, name: intent.name, line: intent.line, why: intent.why,
+        slot: COA.slots[out.length] || `OPTION ${out.length + 1}`,
+        urgency, rank, legs,
+      });
+    }
+
+    coaCache = { turn: G.turn, list: out };
+    return out;
+  }
+
+  // Which options have already gone out tonight. Read off the missions rather
+  // than off a counter, so scrubbing the last package of a course of action
+  // puts it back on the table — the same rule every other refund follows.
+  function coaFlown() {
+    const s = new Set();
+    for (const m of G.missions) if (m.turn === G.turn && m.coa) s.add(m.coa);
+    return s;
+  }
+
+  // Sign one. Each leg is authorized exactly as the dialog would authorize it,
+  // and a leg that can no longer fly — the magazine went on something else, the
+  // site died to an earlier package tonight — is simply skipped. The staff does
+  // not get a refusal it can argue with either.
+  function takeCoa(id) {
+    if (G.over || busy()) return 0;
+    const coa = coaOptions().find(c => c.id === id);
+    if (!coa || coaFlown().has(id)) return 0;
+    let flown = 0;
+    for (const leg of coa.legs) {
+      const t = TARGETS.find(x => x.id === leg.targetId);
+      if (!t || t.hp <= 0 || t.status === 'destroyed') continue;
+      if (atoWall()) break;
+      const before = G.missions.length;
+      executeStrike(t, leg.pkg, id);
+      if (G.missions.length > before) flown++;
+    }
+    UI.renderAll(G);
+    Save.write();
+    return flown;
+  }
+
+  // Whether the president is allowed to write orders on the map at all. One
+  // answer, read by map.js for the click and by ui.js for the tooltip, so the
+  // two can never disagree about whether tapping a site does anything.
+  const freeTargeting = () => diff().freeTargeting !== false;
 
   // resolve one mission at time-on-target; returns the BDA event
   function resolveImpact(target, pkg) {
@@ -4726,6 +5071,13 @@ const Game = (() => {
     UI.closeAllPanels();
 
     UI.renderAll(G);
+    // ...except the staff's brief, which is not "a section the player might
+    // want" — on easy it is the entire night's decision, and a shut panel over
+    // the words "3 OPTIONS" is the one arrangement of this sidebar where the
+    // player can end a turn without knowing they were asked anything. Opened
+    // AFTER renderAll, because renderCoa is what decides whether the panel
+    // exists tonight at all.
+    if (diff().coa && coaOptions().length) UI.openPanel('coa', true);
     Save.write();
   }
 
@@ -5087,6 +5439,11 @@ const Game = (() => {
     MapView.setTargetClickHandler((t) => {
       if (G.over || busy()) return;
       if (t.status === 'destroyed') return;
+      // On a level where the staff writes the tasking order the plot is a
+      // reading surface, not an ordering one. The gate is here rather than
+      // inside the dialog so there is exactly one answer to "does tapping a
+      // site do anything" and the tooltip in map.js is reading the same one.
+      if (!freeTargeting()) { UI.openTargetCard(G, t); return; }
       UI.openStrikeModal(G, t);
     });
     // The strait does not always open quiet (see newWar), so the marker is
@@ -5133,7 +5490,10 @@ const Game = (() => {
       // ways: the title screen states it, the primer restates it, and the
       // OBJECTIVES badge shows the breakout clock while the panel is shut. The
       // turn-one tasking is carried nowhere else, so it is the one that opens.
-      UI.openPanel('advisors', true);
+      // ...unless the staff is briefing, in which case that outranks it: on
+      // easy the options ARE turn one, and the advisors argue for the same
+      // doctrines one panel down.
+      UI.openPanel(diff().coa && coaOptions().length ? 'coa' : 'advisors', true);
     }
   }
 
@@ -5151,6 +5511,13 @@ const Game = (() => {
     // a save written while the submarine shot was still a Tomahawk restores
     // with the boat's tubes full — she was never spending torpedoes before
     if (typeof G.torpedoes !== 'number') G.torpedoes = TORPEDO_LOAD;
+    // the munitions stock is gated by VERSION, so this can only fire on a blob
+    // written by a build between the field landing and the bump. Restore the
+    // opening load rather than zero: a war that resumes with empty depots and
+    // no way to explain them is worse than one that resumes over-supplied.
+    if (typeof G.pgm !== 'number') G.pgm = diff().pgm || 0;
+    // the brief is rebuilt against the board rather than restored with it
+    coaCache = { turn: -1, list: null };
     for (const t of TARGETS) {
       const rec = data.targets[t.id] || {};
       t.hp = typeof rec.hp === 'number' ? rec.hp : (t.dispersal ? 0 : 100);
@@ -5289,6 +5656,10 @@ const Game = (() => {
     // this is read off the table rather than written twice (see NAVAL_BMD)
     G.bmdPool = bmdCapacity();
     G.bmdRearm = 0;
+    // what the depots opened the war holding, on the one level that counts it
+    G.pgm = diff().pgm || 0;
+    // and last night's brief belongs to last night's war
+    coaCache = { turn: -1, list: null };
     syncFleetCaps();
     G.res.f35 = G.caps.f35;
     G.airPhaseSeen = airPhase();
@@ -5393,6 +5764,13 @@ const Game = (() => {
     // the tasking order: how many packages tonight's plan holds, and how far
     // past it the next one would be. The panel and the modal both read these.
     atoSlots, atoOver,
+    // the staff's own work: what it briefed tonight, what has already gone out,
+    // and whether the president is writing orders on the map at all. takeCoa is
+    // the only way in — every leg still goes through executeStrike.
+    coaOptions, coaFlown, takeCoa, freeTargeting,
+    // the precision-munitions stock. pgmBlock is the one sentence for "we
+    // cannot build this package up", the same contract pkgBlock has.
+    pgmLedger, pgmBlock, pgmCost, pgmNights,
     // the uncertainty layer: everything the player sees goes through these
     estimate, condition, staleEstimates, targetDesc, breakoutEstimate, barred, canReach, tankersFor, tankerCapacity,
     casualtyLimit, difficulty: diff,

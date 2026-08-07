@@ -1252,16 +1252,35 @@ const PKG_DAMAGE = 55;
 // difference between an air campaign where aircrew are people and one where
 // they stop existing after night eight. It is also the only thing that keeps
 // csar.js reachable in a war the player is winning.
+//
+// `pgm` — guided weapons expended per sortie, drawn against the theater stock
+// (see DIFFICULTY.pgm, which is what decides whether that stock is finite). It
+// is NOT another balance dial: it is the bomb count a real sortie of that type
+// carries, and the whole reason it exists is that it prices the tiers against
+// each other in a second currency that runs the other way from every currency
+// already here. A B-1 is the cheapest thing in the game per aimpoint measured
+// in packages, tankers and risk, and the most expensive thing by a factor of
+// six measured in weapons — which is exactly right, and it means a president
+// running dry cannot simply escalate their way out of it. The Tomahawk is
+// zero because the Tomahawk IS the munition and `tlamPool` already counts it;
+// charging it twice would make the one weapon with a real campaign floor look
+// like it had two.
 const AIR_ASSETS = {
-  f35:     { ad: 0.02, loss: 0.015, attrition: 0.004, weight: 45, tanker: (d) => d >= 2 ? d - 1 : 0 },
-  fighter: { ad: 0.11, loss: 0.060, attrition: 0.013, weight: 62, tanker: (d) => d >= 2 ? d - 1 : 0, needs: 'degraded' },
-  heavy:   { ad: 0.20, loss: 0.090, attrition: 0.010, weight: 92, tanker: (d) => 1 + d, needs: 'superiority' },
+  f35:     { ad: 0.02, loss: 0.015, attrition: 0.004, weight: 45, pgm: 2,  tanker: (d) => d >= 2 ? d - 1 : 0 },
+  fighter: { ad: 0.11, loss: 0.060, attrition: 0.013, weight: 62, pgm: 4,  tanker: (d) => d >= 2 ? d - 1 : 0, needs: 'degraded' },
+  heavy:   { ad: 0.20, loss: 0.090, attrition: 0.010, weight: 92, pgm: 13, tanker: (d) => 1 + d, needs: 'superiority' },
   // the B-2 flies one aircraft at a time, at night, from Missouri or Diego
   // Garcia, with the whole Air Force arranged around getting it home
-  stealth: { ad: 0.02, loss: 0,     attrition: 0.002, weight: 55, tanker: () => 4 },
+  stealth: { ad: 0.02, loss: 0,     attrition: 0.002, weight: 55, pgm: 12, tanker: () => 4 },
   // nobody is aboard a Tomahawk, and nobody is aboard an Mk-48
-  cruise:  { ad: 0,    loss: 0,     attrition: 0,     weight: 55, tanker: () => 0 },
+  cruise:  { ad: 0,    loss: 0,     attrition: 0,     weight: 55, pgm: 0,  tanker: () => 0 },
 };
+
+// Weapons an average package spends, used only to turn the precision-munitions
+// stock into the sentence a logistician would actually say — "four nights of
+// fighting left" rather than "34% remaining". A display constant, not a balance
+// dial: nothing about the war reads it.
+const PGM_NIGHT = 11;
 
 // How much of the sky Iran still owns, and what that permits. Air superiority
 // is not a switch the player throws — it is computed off what is left of the
@@ -1290,23 +1309,31 @@ const AIR_WEIGHT = { sam: 0.75, airbase: 0.25 };
 // the basing tier a wave needs and the wave holds at its staging field until
 // the politics are repaired — the buildup stalls exactly when the player has
 // spent the standing that pays for it.
+//
+// `pgm` is the guided weapons that came with the wave — the only thing that
+// ever refills the theater stock on hard, and the reason the force flow is now
+// a logistics clock as well as a capability one. It is loaded onto the waves
+// rather than paid as a nightly trickle because that is how it actually
+// arrives: in ships, in bulk, on a schedule the president does not control.
+// The turn-11 tranche is the big one, which its own text has claimed since it
+// was written — the munitions ships catching up with the squadrons.
 const FORCE_FLOW = [
-  { at: 3, needs: 'nato', f35: 1, fighters: 2, tanker: 1, rep: 1,
+  { at: 3, needs: 'nato', f35: 1, fighters: 2, tanker: 1, rep: 1, pgm: 70,
     title: 'AIR EXPEDITIONARY WING CLOSES — AL DHAFRA',
     text: 'The first tranche out of the CONUS force flow is on the ramp: an F-35A squadron off Hill and two F-16CM squadrons out of Spangdahlem, with the KC-135 element that brought them. They are combat-ready in the morning.' },
-  { at: 5, needs: 'gulf', f35: 1, fighters: 3, tanker: 1, rep: 1,
+  { at: 5, needs: 'gulf', f35: 1, fighters: 3, tanker: 1, rep: 1, pgm: 70,
     title: 'SECOND TRANCHE ON THE RAMP — AL UDEID',
     text: 'F-15E Strike Eagles out of Seymour Johnson and a second F-35A squadron closed overnight. Air Mobility Command has been running a bridge across the Atlantic for four days to do it — the aircraft are the easy part.' },
-  { at: 8, needs: 'gulf', f35: 2, fighters: 3, tanker: 2, rep: 1,
+  { at: 8, needs: 'gulf', f35: 2, fighters: 3, tanker: 2, rep: 1, pgm: 85,
     title: 'KC-46 TANKER WING ESTABLISHED IN THEATER',
     text: 'Two tanker squadrons and their maintenance tail are established at Al Udeid and Prince Sultan. This is the wave that actually matters: fuel in the air is what has been capping the plan, and tonight there is meaningfully more of it.' },
-  { at: 11, needs: 'gulf', f35: 1, fighters: 3, tanker: 2, rep: 2,
+  { at: 11, needs: 'gulf', f35: 1, fighters: 3, tanker: 2, rep: 2, pgm: 150,
     title: 'THIRD TRANCHE — PRINCE SULTAN AND ALI AL SALEM',
     text: 'Another four squadrons are on the ramps and the munitions ships have caught up with them. Weapons handlers are building up JDAM in numbers nobody in this theater has seen since 2003.' },
-  { at: 15, needs: 'nato', f35: 2, fighters: 4, tanker: 2, rep: 2,
+  { at: 15, needs: 'nato', f35: 2, fighters: 4, tanker: 2, rep: 2, pgm: 100,
     title: 'USAFE SQUADRONS ARRIVE — MUWAFFAQ SALTI AND ERBIL',
     text: 'The European theater has been stripped to reinforce this one. F-16s from Aviano and F-15Es from Lakenheath are flying out of Jordan and northern Iraq, which puts the western axis in the plan for the first time.' },
-  { at: 19, needs: 'gulf', f35: 1, fighters: 4, tanker: 2, rep: 2,
+  { at: 19, needs: 'gulf', f35: 1, fighters: 4, tanker: 2, rep: 2, pgm: 100,
     title: 'SUSTAINED SURGE RATE ACHIEVED — CENTCOM AIR FORCES',
     text: 'The last of the deploying wings is in place and the theater has reached its sustained surge rate. From tonight the plan is limited by what the tankers can carry and by nothing else — this is the whole weight of American air power, and it is now simply present.' },
 ];
@@ -1986,6 +2013,127 @@ const BREAKOUT = {
 };
 
 // ============================================================
+// COURSES OF ACTION — WHAT THE STAFF HAS ALREADY DECIDED
+// ------------------------------------------------------------
+// The president does not pick aimpoints. A real one is handed two or three
+// staffed options in the morning, each with a name, an intent, a cost and an
+// argument, and picks one — the CAOC does the targeting, and it does it before
+// anybody walks into the room. For seventy-six versions this game had the
+// president doing the CAOC's job, which is the most demanding thing on the
+// board and the least presidential.
+//
+// So the staff now writes the night, and HOW MUCH OF IT THEY WRITE IS THE
+// DIFFICULTY. That is the whole idea, and it is why this table exists rather
+// than a third pile of multipliers: easy and hard are not the same game with
+// the numbers moved, they are two different jobs. On easy the president is a
+// president — three options, pick one, and the skill is reading which doctrine
+// the war needs tonight. On hard there is no staff work at all and the
+// president is the air component commander, which is the game this has always
+// been. Normal is a president with a staff who overrules them.
+//
+// AN INTENT IS A DOCTRINE, NOT A TARGET LIST. Each entry below is one of the
+// arguments an air campaign can actually have with itself, and the reason the
+// easy game is a game at all is that they are mutually exclusive on any given
+// night and the right answer moves. Fly ROLLBACK for thirty turns and the
+// centrifuges finish. Fly THE OBJECTIVE on night one and the belt kills the
+// package on the way in. There is no dominant option, which is the bar a menu
+// has to clear before picking from it counts as playing.
+//
+// `weight` is the standing appetite for the doctrine and `scale` is how hard
+// board state is allowed to move it — a doctrine with a low `scale` is always
+// roughly as urgent as it looks, one with a high `scale` is situational and
+// spikes. The scoring itself is in coaScore (game.js), because it reads
+// airSuperiority, the breakout estimate and IranAI, none of which exist yet at
+// the point this file is parsed.
+//
+// `types` is what the staff will put on the list under this intent, in the
+// order a targeteer would work them. `min` is the point below which the option
+// is not offered at all: an intent with one live aimpoint left is not a course
+// of action, it is a leftover, and offering it as one of three teaches the
+// player that the menu is padding.
+const COA = {
+  // Slot letters, in brief order. Three is the most a real decision brief
+  // carries and the most that fits a phone in landscape without a scroll.
+  slots: ['ALPHA', 'BRAVO', 'CHARLIE'],
+
+  intents: [
+    {
+      id: 'rollback', name: 'ROLLBACK',
+      line: 'Take the sky. Everything else is waiting on it.',
+      types: ['airdefense', 'airbase'], weight: 0.58, scale: 1.05, min: 1,
+      why: 'The belt is the reason every package tonight is small, expensive and flown by ' +
+        'the only two airframes that survive it. Break it and the fourth-generation force ' +
+        'is released, the tasking order opens up, and the interior stops being a place we ' +
+        'raid and starts being a place we operate.',
+    },
+    {
+      id: 'counterforce', name: 'COUNTERFORCE',
+      line: 'Service the missile force before it services us.',
+      types: ['tel', 'missile'], weight: 0.46, scale: 1.35, min: 1,
+      why: 'Every brigade left standing is a salvo at the ramps we are flying from and a ' +
+        'round out of the escort screen\'s cells. This is the one line of work that pays ' +
+        'twice — fewer inbound tonight, and interceptors still in the tubes in week three.',
+    },
+    {
+      id: 'objective', name: 'THE OBJECTIVE',
+      line: 'The halls themselves. This is what the war is for.',
+      types: ['nuclear'], weight: 0.72, scale: 1.55, min: 1,
+      why: 'Everything else on this list is a means. The enrichment program is the reason ' +
+        'there are American aircraft over Iran at all, and the clock on it does not stop ' +
+        'while we work the belt.',
+    },
+    {
+      id: 'maritime', name: 'MARITIME',
+      line: 'Clear the water. The strait and the hulls that close it.',
+      types: ['ship', 'naval'], weight: 0.44, scale: 1.30, min: 1,
+      why: 'The anti-ship batteries and what is left of their navy are what keeps the ' +
+        'carrier at arm\'s length and the barrel where it is. Kill the hulls and the strait ' +
+        'is a shipping lane again — and the deck can come forward, which is worth a package ' +
+        'a night on its own.',
+    },
+    {
+      id: 'pressure', name: 'PRESSURE',
+      line: 'The regime\'s own machinery — command, oil, the grid.',
+      types: ['command', 'oil', 'infra'], weight: 0.34, scale: 0.95, min: 2,
+      why: 'This is the campaign against Tehran\'s ability to keep fighting rather than ' +
+        'against what it is fighting with: the headquarters that writes the salvos, the ' +
+        'revenue that pays for them, the power that repairs them. It works, and it is read ' +
+        'abroad as an American president bombing a country\'s electricity.',
+    },
+    {
+      id: 'jerusalem', name: "JERUSALEM'S LIST",
+      line: 'Fly the aimpoints Israel is threatening to fly itself.',
+      types: null, weight: 0.30, scale: 1.70, min: 1,
+      // types: null — the list is israelPriority, wherever those sites happen to be,
+      // which is the entire point of the option and cannot be written as a class.
+      why: 'Jerusalem has told us what it will go and do if we do not. Servicing their ' +
+        'priorities out of our tasking order is the only thing that buys time on that clock ' +
+        'without spending a phone call, and it is aimpoints we would want anyway.',
+    },
+    {
+      id: 'southern', name: 'THE SOUTHERN FRONT',
+      line: 'Ansar Allah. The strait nobody planned for.',
+      types: ['houthi'], weight: 0.40, scale: 1.60, min: 1,
+      why: 'The Red Sea coast is a different war on a different ocean and it is currently ' +
+        'unopposed. It will not decide this campaign, but the shipping is real, the Saudis ' +
+        'are watching how seriously we take it, and nobody else is going to do it.',
+    },
+  ],
+
+  // How much of tonight's plan a single option spends, by difficulty tier. On
+  // easy an option IS the night — pick one and the staff flies it — which is
+  // what makes the choice feel like a decision rather than a suggestion. On
+  // normal it is deliberately short of the plan, because the packages left over
+  // are the whole reason normal has a map.
+  fill: { full: 1.0, half: 0.55 },
+
+  // The staff will not brief the same doctrine twice, and it will not brief an
+  // option it cannot fill to at least this fraction of its size. A COA that
+  // arrives half empty is the padding problem again in a smaller font.
+  fillFloor: 0.5,
+};
+
+// ============================================================
 // DIFFICULTY
 // ------------------------------------------------------------
 // Three numbers do almost all the work: what the country will absorb in dead,
@@ -2017,13 +2165,52 @@ const BREAKOUT = {
 // because expert play was already winning 45-60% there and that is the war as
 // designed; what easy buys is not a shorter war but a president the country
 // will let finish one.
+//
+// v1.77 — THE LEVELS ARE NOW THREE DIFFERENT JOBS, NOT ONE JOB AT THREE PRICES.
+// Everything above this line is a multiplier: the same screen, the same
+// decisions, scaled. That is a difficulty setting in the arcade sense and it
+// never addressed the actual complaint about easy, which was not that the war
+// was hard — it was that being handed twenty-four aimpoints and a magazine on
+// night one is a planning exercise, and a planning exercise is not easier when
+// the enemy repairs slower. The four knobs below change WHO DOES THE PLANNING
+// (see COA above):
+//
+//   coa            courses of action the staff briefs each night. 0 = none.
+//   coaFill        how much of tonight's plan one option spends (see COA.fill)
+//   freeTargeting  whether the map will open a strike dialog at all
+//   recommend      whether the staff marks its preferred diplomatic move
+//   pgm            campaign precision-munitions reservoir. 0 = no ledger kept
+//
+// EASY is the war as a president experiences it: three staffed options, one
+// pick, a marked recommendation on the diplomatic side, and no map targeting at
+// all — the common operating picture stays fully live and fully readable, it
+// simply is not where orders are written. The decision is which doctrine
+// tonight's board wants, which is a real decision with a wrong answer, and it
+// is the only one being asked.
+//
+// NORMAL is a president with a staff they are allowed to overrule. Two options,
+// each deliberately short of the plan, and the packages left over are flown by
+// hand off the map. That leftover is the point: it is strictly more to do than
+// easy, and it is where a player who has learned the doctrines starts departing
+// from them.
+//
+// HARD is the game this has always been, plus the ledger it never kept. No
+// staff work, every package by hand, and `pgm` — a finite theater stock of
+// precision weapons that only the munitions ships refill. Through v1.76 the
+// only consumables with a floor were Tomahawks, torpedoes and interceptors;
+// everything a fighter or a bomber dropped regenerated overnight forever, so
+// the wing had infinite bombs and the war had no logistics in it. It does now,
+// on the one level that asked for it.
 const DIFFICULTY = {
   easy:   { name: 'EASY', casualties: 320, repair: 0.75, coord: 0.85, breakout: 1.25, israel: 0.75, bmd: 1.35, covert: 1.3, retaliation: 0.55, softGate: false,
-    desc: 'A forgiving war. The country absorbs more and forgives a bad night faster, Iran reconstitutes slower, the enrichment clock runs long, the fleet sailed with a deep interceptor magazine and Jerusalem is willing to wait.' },
+    coa: 3, coaFill: 'full', freeTargeting: false, recommend: true, pgm: 0,
+    desc: 'You are the President, and CENTCOM staffs the night for you. Three courses of action every evening — pick the one the war needs. No target lists, no magazines: read the board, choose the doctrine, and live with it. The country is patient, Iran rebuilds slowly and Jerusalem is willing to wait.' },
   normal: { name: 'NORMAL', casualties: 250, repair: 1, coord: 1, breakout: 1, israel: 1, bmd: 1, covert: 1, retaliation: 0.75, softGate: false,
-    desc: 'The war as designed. Everything above and below is scaled from here.' },
+    coa: 2, coaFill: 'half', freeTargeting: true, recommend: false, pgm: 0,
+    desc: 'A staff you can overrule. Two options are briefed each night and neither one fills the tasking order — what is left over you frag yourself, off the map, against whatever you think they have missed. The war as designed.' },
   hard:   { name: 'HARD', casualties: 190, repair: 1.25, coord: 1.15, breakout: 0.85, israel: 1.3, bmd: 0.7, covert: 0.75, retaliation: 1, softGate: true,
-    desc: 'Less patience at home. Iran repairs faster, the centrifuges are further along, the fleet sailed light on interceptors and Jerusalem has no patience at all. The staff will fly any package you order and hand you the casualty list afterwards.' },
+    coa: 0, coaFill: 'full', freeTargeting: true, recommend: false, pgm: 440,
+    desc: 'You are the air component commander and nobody is drafting anything for you. Every package by hand, a finite stock of precision weapons that only the munitions ships replace, less patience at home, faster Iranian repair, a light interceptor magazine and no patience at all in Jerusalem. The staff will fly any plan you sign and hand you the casualty list afterwards.' },
 };
 
 // These levels were once named for the chair you were sitting in. A save

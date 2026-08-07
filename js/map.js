@@ -642,7 +642,16 @@ const MapView = (() => {
           (t.dispersal && t.located
             ? `<br><span style="color:var(--amber)">FIX IS PERISHABLE — this group moves again if it is ` +
               `not struck this turn.</span>` : '') +
+          // The last line is what tapping this site will DO, and on a level
+          // where the president does not write the tasking order the honest
+          // answer is "nothing". Saying "click to plan strike" there sends the
+          // player hunting for a dialog that is never going to open, which is
+          // the worst possible way to learn a rule — so the plot says what it
+          // is for instead. It stays a fully live common operating picture on
+          // every difficulty; it simply is not where orders are written.
           (st === 'destroyed' ? ''
+            : !Game.freeTargeting()
+              ? `<br><em style="color:var(--dim)">CENTCOM tasks this aimpoint — see tonight's courses of action.</em>`
             : barred ? `<br><em style="color:var(--red)">${barred}</em>`
             : `<br><em style="color:var(--blue)">Click to plan strike</em>`);
       });
