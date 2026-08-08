@@ -108,7 +108,17 @@ const AudioSys = (() => {
 
   // Mission tracks: looping background music that plays while a jet's radar
   // scope is on screen. One is picked at random each time the music starts.
+  //
+  // It is a BED, not an event, and until v1.78 it was the one bed that never
+  // got out of anything's way: it played at full gain and stayed there while
+  // the watch floor talked over the top of it. On a phone — where the strike
+  // footage and the voice calls are already fighting a single small speaker —
+  // that is the loudest thing in the mix sitting on the thing it is supposed
+  // to sit under. Same two levels as the score below, same duck, and it does
+  // not duck under ITSELF (see missionDucks).
   const MISSION_TRACKS = ['radio-chatter-1.m4a', 'radio-chatter-2.m4a'];
+  const MISSION_VOLUME = 0.55;
+  const MISSION_DUCK = 0.08;
 
   // The score: one faint bed under the entire session, distinct from
   // MISSION_TRACKS, which are radio chatter tied to a live radar scope. It has
@@ -129,7 +139,18 @@ const AudioSys = (() => {
   const RAMP_MS = { down: 120, up: 550 };
 
   const MUTE_KEY = 'cic-muted';
-  const MUSIC_KEY = 'cic-music-off';
+  // Versioned, and the version is the fix. Before the score defaulted to off,
+  // init called setMusicOff(musicOff) with musicOff already true-by-default and
+  // setMusicOff PERSISTED it — so every device that so much as loaded the page
+  // in that era wrote 'cic-music-off' = '0' without the player touching
+  // anything. The current read treats a stored '0' as "the player explicitly
+  // asked for the score", which is exactly what that stamp is not: on any phone
+  // that saw the old build, the music came on by itself on the first tap and
+  // came back on every reload after. A new key ignores the stale opt-in without
+  // touching anyone's real choice, and setMusicOff no longer writes a default it
+  // was never given — only a toggle the player actually pressed persists.
+  const MUSIC_KEY = 'cic-music-off-v2';
+  const MUSIC_KEY_OLD = 'cic-music-off';
   const clips = {};
   let muted = false;
   let unlocked = false;   // browsers require a user gesture before audio
@@ -218,6 +239,18 @@ const AudioSys = (() => {
     try { return el.volume; } catch (e) { return 1; }
   }
 
+  // Is a level on this element a control at all? honorsVolume is the platform
+  // answer; the gain node is the per-element one, and it can be missing on a
+  // platform that needs it — no AudioContext, a context the browser refused to
+  // build, createMediaElementSource throwing. route() is deliberately silent
+  // about all three because a sound that keeps playing beats a sound that
+  // doesn't, but a bed whose level nothing can move is the one case where that
+  // trade is wrong: it means the duck is being written to a number the device
+  // never reads, which is the bug this whole block exists to stop and which
+  // came back the moment routing failed. Where the level is not a control, the
+  // duck stops pretending and PAUSES the bed instead — see bedLevel.
+  function canLevel(el) { return honorsVolume || gains.has(el); }
+
   // iOS suspends the context when the tab backgrounds or the phone locks, and a
   // suspended context is SILENCE rather than a wrong level — the one failure
   // here that is worse than the bug being fixed. So this runs on every gesture
@@ -242,6 +275,8 @@ const AudioSys = (() => {
         const a = new Audio(`audio/${file}`);
         a.preload = 'auto';
         a.loop = false;   // plays through once — never repeats within a mission
+        route(a);         // it is a bed, and a bed has to be able to get down
+        setLevel(a, MISSION_VOLUME);
         a.addEventListener('error', () => { const i = missionAudio.indexOf(a); if (i >= 0) missionAudio.splice(i, 1); });
         missionAudio.push(a);
       } catch (e) { /* no Audio support — game plays silent */ }
@@ -266,7 +301,16 @@ const AudioSys = (() => {
   // leave the bed stuck quiet for the rest of the war.
   const ducks = new Set();
   const duckTimers = {};   // per-clip watchdog: no clip holds the bed forever
-  let ramp = null;         // the interval walking the gain to its target
+  const ramps = new WeakMap();   // bed element -> the interval walking its gain
+
+  // Every hold except the chatter's own. The chatter bed must not duck under
+  // itself, and it is the only source in the file that both makes a noise and
+  // has a level of its own to lose.
+  function ducked(exceptMission) {
+    if (!exceptMission) return ducks.size > 0;
+    for (const k of ducks) if (k !== 'mission') return true;
+    return false;
+  }
 
   function duckAdd(key) { if (!ducks.has(key)) { ducks.add(key); musicLevel(); } }
   function duckDrop(key) { if (ducks.delete(key)) musicLevel(); }
@@ -339,20 +383,55 @@ const AudioSys = (() => {
   // the duck cannot come out a different shape depending on the device. All
   // that changes between them is where the number lands, which is setLevel's
   // problem and not this function's.
-  function musicLevel() {
-    if (!music) return;
-    const target = ducks.size ? MUSIC_DUCK : MUSIC_VOLUME;
+  // Walk one bed to its target. `hold` is the element the caller is still
+  // holding a reference to — the ramp checks it every step, so a bed torn down
+  // mid-ramp (a scope closed, the score stopped) leaves nothing running.
+  function rampTo(el, target, live) {
     const step = 40;
-    const ms = target < getLevel(music) ? RAMP_MS.down : RAMP_MS.up;
-    clearInterval(ramp);
-    const delta = (target - getLevel(music)) / Math.max(1, ms / step);
-    ramp = setInterval(() => {
-      if (!music) { clearInterval(ramp); return; }
-      const next = getLevel(music) + delta;
+    const ms = target < getLevel(el) ? RAMP_MS.down : RAMP_MS.up;
+    clearInterval(ramps.get(el));
+    const delta = (target - getLevel(el)) / Math.max(1, ms / step);
+    const id = setInterval(() => {
+      if (live && !live()) { clearInterval(id); ramps.delete(el); return; }
+      const next = getLevel(el) + delta;
       const done = delta >= 0 ? next >= target : next <= target;
-      setLevel(music, done ? target : Math.max(0, Math.min(1, next)));
-      if (done) { clearInterval(ramp); ramp = null; }
+      setLevel(el, done ? target : Math.max(0, Math.min(1, next)));
+      if (done) { clearInterval(id); ramps.delete(el); }
     }, step);
+    ramps.set(el, id);
+  }
+
+  // Put a bed where the holds say it should be. Two ways down, and which one is
+  // used is a property of the DEVICE rather than of the sound: where a level is
+  // a control the bed ramps, and where it is not (see canLevel) it is paused
+  // outright for as long as anything else is making a noise. A pause is a
+  // cruder duck than a ramp and on the platform that needs it it is the only
+  // one that is audible at all — the alternative is not a gentler duck, it is
+  // no duck, which is a full-gain bed sitting on top of the watch floor. The
+  // score resumes where it left off; the chatter is chatter and does the same.
+  function bedLevel(el, base, duck, isDucked, live) {
+    if (!el) return;
+    if (!canLevel(el)) {
+      clearInterval(ramps.get(el));
+      ramps.delete(el);
+      try {
+        if (isDucked) el.pause();
+        else if (el.paused && !muted && unlocked) { const p = el.play(); if (p && p.catch) p.catch(() => {}); }
+      } catch (e) { /* silent */ }
+      return;
+    }
+    rampTo(el, isDucked ? duck : base, live);
+  }
+
+  // Both beds answer the same set of holds, so they move together and one call
+  // site can't leave one of them up. Named musicLevel still because that is
+  // what every duckAdd/duckDrop in the file calls.
+  function musicLevel() {
+    if (music && !musicOff && !muted) bedLevel(music, MUSIC_VOLUME, MUSIC_DUCK, ducked(false), () => !!music);
+    if (missionCur) {
+      const cur = missionCur;
+      bedLevel(cur, MISSION_VOLUME, MISSION_DUCK, ducked(true), () => missionCur === cur);
+    }
   }
 
   // Start (or resume) the bed. No-op until the first gesture unlocks audio, and
@@ -360,11 +439,15 @@ const AudioSys = (() => {
   // restarting — a mute and unmute mid-campaign shouldn't rewind the track.
   function musicStart() {
     if (!music || musicOff || muted || !unlocked) return;
-    musicLevel();
+    // Level AFTER the play, not before: on the pause-path (canLevel false) the
+    // duck IS a pause, and a play() underneath it would start the bed back up
+    // over whatever the hold is protecting. This way the last word belongs to
+    // the holds, whichever way the device ducks.
     try {
       const p = music.play();
       if (p && p.catch) p.catch(() => {});
     } catch (e) { /* silent */ }
+    musicLevel();
   }
 
   function musicStop() {
@@ -382,12 +465,20 @@ const AudioSys = (() => {
       try { a.pause(); a.currentTime = 0; } catch (e) { /* silent */ }
     }
     missionCur = missionAudio[Math.floor(Math.random() * missionAudio.length)];
+    // Opens at whichever level the room is already at: a scope card that comes
+    // up while the watch floor is mid-sentence must not start at full and ramp
+    // down over the end of the sentence.
+    setLevel(missionCur, ducked(true) ? MISSION_DUCK : MISSION_VOLUME);
+    // On the pause-path the bed cannot open quietly, so it does not open at
+    // all until the room is clear; bedLevel's resume branch picks it up when
+    // the last hold drops, which is where every other bed comes back too.
+    const hold = !canLevel(missionCur) && ducked(true);
     try {
       missionCur.currentTime = 0;
-      const p = missionCur.play();
-      if (p && p.catch) p.catch(() => {});
+      if (!hold) { const p = missionCur.play(); if (p && p.catch) p.catch(() => {}); }
     } catch (e) { /* silent */ }
     duckAdd('mission');   // the score steps down while the chatter is up
+    musicLevel();         // ...and the chatter steps down under anything else
   }
 
   // A jet's radar scope just opened. Start the music if nothing is playing yet.
@@ -560,10 +651,13 @@ const AudioSys = (() => {
   // The score's own switch. The speaker button is the master — it silences
   // everything including this — so a player who wants the game but not the
   // music turns this one off and leaves the other alone.
-  function setMusicOff(off) {
+  // `persist` is false exactly once, at boot, where the argument is not the
+  // player's choice but the value just read back (or defaulted). Writing there
+  // is what turned a default into a stored preference last time — see MUSIC_KEY.
+  function setMusicOff(off, persist = true) {
     musicOff = !!off;
     musicOff ? musicStop() : musicStart();
-    try { localStorage.setItem(MUSIC_KEY, musicOff ? '1' : '0'); } catch (e) {}
+    if (persist) try { localStorage.setItem(MUSIC_KEY, musicOff ? '1' : '0'); } catch (e) {}
     const btn = document.getElementById('btn-music');
     if (btn) {
       btn.classList.toggle('off', musicOff);
@@ -585,6 +679,10 @@ const AudioSys = (() => {
     // and hands it back on unmute unless the player turned the music off
     // separately, which musicStart checks for us.
     muted ? musicStop() : musicStart();
+    // Whatever came back above comes back at the level the holds say, not at
+    // the level it was paused from — unmuting mid-sentence must not hand the
+    // beds back on top of the sentence.
+    if (!muted) musicLevel();
     // muting mid-ring hangs up the bell, not the call: the popup is still there
     // and still waiting on an answer, it has just stopped making noise
     if (muted) ringStop();
@@ -614,6 +712,10 @@ const AudioSys = (() => {
     // Absent means off, so the test is against '0' rather than '1' — only a
     // player who has explicitly turned the score on gets it back on reload.
     try { musicOff = localStorage.getItem(MUSIC_KEY) !== '0'; } catch (e) {}
+    // The stale stamp is not a preference and there is nothing in it worth
+    // migrating — every device that ever loaded the old build carries the same
+    // '0' whether or not anyone asked for music.
+    try { localStorage.removeItem(MUSIC_KEY_OLD); } catch (e) {}
     preload();
 
     // Respect autoplay policy: unlock only after the first real interaction.
@@ -635,7 +737,7 @@ const AudioSys = (() => {
     const mbtn = document.getElementById('btn-music');
     if (mbtn) mbtn.addEventListener('click', () => setMusicOff(!musicOff));
     setMuted(muted);
-    setMusicOff(musicOff);
+    setMusicOff(musicOff, false);
   }
 
   // duckHold/duckRelease are the seam for sound this file does not own — the
