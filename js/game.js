@@ -3396,6 +3396,11 @@ const Game = (() => {
       };
     }
 
+    // Second (or third) package onto the same site tonight. The diplomatic bill
+    // for hitting a place is charged for the DECISION to hit it, not per sortie
+    // — stacking two packages on one aimpoint is a targeting choice, and paying
+    // `world` twice for it quietly taxed the one thing a hard target requires.
+    const repeatTonight = G.struckThisTurn.includes(target.id);
     G.struckThisTurn.push(target.id);
     // The night this site last had ordnance on it. struckThisTurn is cleared at
     // the turn boundary and only answers "tonight?"; reconstitution needs to
@@ -3403,7 +3408,9 @@ const Game = (() => {
     target.lastStruck = G.turn;
     // a joint strike carries its own diplomatic surcharge on top of the target's
     // (the big economic aimpoints charge nothing here — see worldOnKill below)
-    const worldCost = target.world + (pkg.extraWorld || 0);
+    // ...the joint surcharge still rides every package, because that one is
+    // charged for flying an allied element, not for the aimpoint.
+    const worldCost = (repeatTonight ? 0 : target.world) + (pkg.extraWorld || 0);
     G.world = clamp(G.world + worldCost, 0, 100);
     const est = computeStrike(target, pkg);
     const roll = Math.random();
