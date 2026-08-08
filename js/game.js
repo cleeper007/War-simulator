@@ -3154,20 +3154,24 @@ const Game = (() => {
   // How badly tonight wants each doctrine, 0..1, before the table's own
   // standing appetite for it. Every branch reads the same functions the HUD and
   // the advisors read — there is no private assessment in here, and the staff is
-  // never allowed to score off something the president cannot also see.
-  function coaScore(intent) {
+  // never allowed to score off something the president cannot also see. Since
+  // v1.82 that shared read is `Assess.board()` (assess.js), passed in rather
+  // than taken here, so the number that ranks an option and the sentence that
+  // argues for it are computed off one snapshot and cannot describe two
+  // different nights.
+  function coaScore(intent, b) {
     switch (intent.id) {
       case 'rollback': {
         // the one doctrine that prices itself out: at superiority there is
         // nothing left up there worth a package
-        const recon = TARGETS.some(t => t.type === 'airdefense' && t.killedOnce && t.hp > 0);
-        return clamp((1 - airSuperiority()) + (recon ? 0.18 : 0), 0, 1);
+        return clamp((1 - b.sup) + (b.adBack ? 0.18 : 0), 0, 1);
       }
       case 'counterforce': {
         // a fix on a launcher group does not keep — same fact SecDef leads with
-        const fixed = IranAI.liveTels().filter(t => t.located).length;
-        return clamp(IranAI.missileStrength() * 0.55 + (1 - bmdFrac()) * 0.30 +
-          (fixed ? 0.40 : 0), 0, 1);
+        // `mFrac`, not `mStr`: the strength readings are 0..2 and this
+        // coefficient was written for a fraction, so the raw scale clamped this
+        // whole expression at 1 from turn 1 to about turn 20 (see assess.js).
+        return clamp(b.mFrac * 0.55 + (1 - b.bmd) * 0.30 + (b.telsFound ? 0.40 : 0), 0, 1);
       }
       case 'objective': {
         // urgency is the clock, permission is the sky. The halls are deep,
@@ -3186,31 +3190,41 @@ const Game = (() => {
         // the program is substantially intact, and it goes on leading until it
         // is finished, which is what "this is what the war is for" has to mean
         // if it means anything.
-        const brk = breakoutEstimate();
-        const near = brk.halted ? 0 : clamp(1 - (brk.mid || 30) / 18, 0, 1);
-        const left = 1 - G.nukeDegraded() / 100;
+        const near = b.brk.halted ? 0 : clamp(1 - (b.brk.mid || 30) / 18, 0, 1);
+        const left = 1 - b.deg / 100;
         const sky = phaseAtLeast('superiority') ? 1 : phaseAtLeast('degraded') ? 0.85 : 0.55;
         return clamp((0.55 + near * 0.45) * left * sky, 0, 1);
       }
       case 'maritime': {
-        return clamp(IranAI.navalStrength() * 0.55 + carrierRisk().risk * 0.25 +
-          (G.hormuz === 'CLOSED' ? 0.35 : 0), 0, 1);
+        // `b.risk` is the telegraphed anti-ship shot READ off G.threat, not
+        // rolled. From v1.77 to v1.81 this line called carrierRisk() — the
+        // resolver — which returns an events array (so `.risk` was undefined and
+        // the whole score was NaN) and, far worse, clears G.threat on its way
+        // out. Ranking the maritime option therefore consumed tonight's warning
+        // before the turn resolved, and telegraphed anti-ship fires simply did
+        // not happen on any difficulty that briefs a course of action. Anything
+        // that wants to know how exposed a deck is asks the board (assess.js);
+        // carrierRisk is called once a turn, by the resolution, and by nothing
+        // else.
+        return clamp(b.nFrac * 0.55 + b.risk * 0.25 + (b.hormuz === 'CLOSED' ? 0.35 : 0), 0, 1);
       }
       case 'pressure': {
         // never urgent and never worthless. It scores off the fact that the
         // war has run long without the gate moving, which is exactly when a
         // president starts reaching for the other kind of target.
-        const stall = clamp(G.turn / 20, 0, 1);
-        return clamp(0.30 + stall * 0.45 - (G.world < 40 ? 0.30 : 0), 0, 1);
+        const stall = clamp(b.turn / 20, 0, 1);
+        return clamp(0.30 + stall * 0.45 - (b.world < 40 ? 0.30 : 0), 0, 1);
       }
       case 'jerusalem': {
         // the gauge, not the ETA: a null ETA means two different things and
         // neither of them is a number this can multiply (see israelEta)
-        if (G.israelPosture === 'coordinated') return 0.15;
-        return clamp(G.israelPressure / ISRAEL.fly, 0, 1);
+        if (b.israel.posture === 'coordinated') return 0.15;
+        return clamp(b.israel.pressure / ISRAEL.fly, 0, 1);
       }
       case 'southern': {
-        return G.houthi && G.houthi.active ? clamp(houthiStrength() * 0.8 + 0.2, 0, 1) : 0;
+        // `entered`, not the once-per-war roll: a front that has not announced
+        // itself has no aimpoints on the plot and cannot be a course of action
+        return b.houthi.active ? clamp(b.houthi.strength * 0.8 + 0.2, 0, 1) : 0;
       }
       default: return 0;
     }
@@ -3284,11 +3298,157 @@ const Game = (() => {
     return best && best.pkg;
   }
 
+  // ============================================================
+  // WHAT AN OPTION IS ACTUALLY WORTH, AND WHAT IT LEAVES
+  // ------------------------------------------------------------
+  // The half of the brief that is not a target list. Through v1.81 an option
+  // carried a name, a fixed one-line slogan, a fixed paragraph and a package
+  // count — so ROLLBACK made the identical argument on turn 2 and turn 27, and
+  // the only thing that moved between two nights was which sites were listed
+  // behind the caret. That is a menu of doctrines, not a brief on tonight.
+  //
+  // Three things are computed here and each answers a different question a
+  // president would actually ask.
+  //
+  //   `effect`  what the packages are expected to do, ON THE STAFF'S OWN
+  //             NUMBERS. Every leg goes through `computeStrike` — the same
+  //             function the strike dialog prints odds from — so the brief can
+  //             never be more optimistic than the dialog would have been. The
+  //             kill estimate is the three-band roll `resolveImpact` actually
+  //             performs, read against the site's current condition, which is
+  //             why "five packages" and "expect to finish two" are different
+  //             numbers and both true.
+  //
+  //   `bill`    what signing it spends: plan, aircrew, standing abroad, and
+  //             whichever finite magazine it reaches into. Costs the player
+  //             would otherwise only discover by opening five dialogs, or on
+  //             hard by running out.
+  //
+  //   `defers`  what tonight will NOT do. This is the load-bearing one and the
+  //             reason the menu is a decision rather than a queue: it is the
+  //             top-ranked concern (assess.js) that this option does not
+  //             service, phrased in the same words the option that WOULD
+  //             service it uses to argue for itself. Without it the staff was
+  //             only ever selling, three times, and the correct play was to
+  //             take whichever pitch was longest.
+  // ============================================================
+
+  // The surge is tracked leg by leg rather than priced once, because it is not
+  // a property of the option — it is a property of the ORDER the packages are
+  // signed in, and `computeStrike` reads it live off G.strikesThisTurn. So the
+  // counter is walked forward exactly as `takeCoa` will walk it and restored in
+  // a finally. Nothing else in computeStrike writes state; this is the one
+  // input it takes from the board rather than from its arguments, and the
+  // alternative — re-deriving atoOver here — is a second copy of the surge math
+  // that would drift from the modal's within a version.
+  function coaEffect(legs) {
+    const before = G.strikesThisTurn;
+    const out = {
+      n: legs.length, kill: 0, loss: 0, tanker: 0, world: 0, onKill: 0,
+      cruise: 0, torpedoes: 0, pgm: 0, over: 0, classes: new Map(),
+    };
+    let safe = 1;
+    try {
+      for (const leg of legs) {
+        const t = TARGETS.find(x => x.id === leg.targetId);
+        if (!t) continue;
+        const c = computeStrike(t, leg.pkg);
+        out.classes.set(t.type, (out.classes.get(t.type) || 0) + 1);
+        // The same three bands resolveImpact rolls: full effect below fullOdds,
+        // half effect below success, nothing above it. What makes this worth
+        // computing rather than quoting `fullOdds` is the comparison against
+        // the site's own condition — a half-effect roll finishes a battery
+        // already down to 30 and does nothing to one at full.
+        const full = c.gradual ? c.damage : 100;
+        const half = full * 0.5;
+        out.kill += c.oneShot ? c.success
+          : (full >= t.hp ? c.fullOdds : 0) + (half >= t.hp ? c.success - c.fullOdds : 0);
+        safe *= 1 - c.lossRisk;
+        out.tanker += c.tanker;
+        out.over += c.over > 0 ? 1 : 0;
+        out.world += (t.world || 0) + (leg.pkg.extraWorld || 0);
+        if (t.worldOnKill) out.onKill += t.worldOnKill;
+        if (leg.pkg.sub) out.torpedoes += leg.pkg.qty;
+        else if (leg.pkg.asset === 'cruise') out.cruise += leg.pkg.qty;
+        out.pgm += pgmCost(leg.pkg);
+        if (leg.pkg.asset !== 'cruise') G.strikesThisTurn++;
+      }
+    } finally {
+      G.strikesThisTurn = before;
+    }
+    out.loss = 1 - safe;
+    return out;
+  }
+
+  // "three on the SAM belt, one on the enrichment halls" — the shape of the
+  // night, biggest first. Aimpoints by name are behind the caret; this is what
+  // a player comparing three options at a glance is comparing.
+  function coaShape(classes) {
+    return [...classes.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([type, n]) => `${n} on ${COA.className[type] || type}`)
+      .join(', ');
+  }
+
+  // The estimate, in the voice of the people who produced it. Two clauses and
+  // both of them are hedged on purpose: this is a staff opinion about a die
+  // roll, and a brief that reads like a guarantee is worse than no brief at
+  // all the first night it is wrong. Under half an expected kill it says so in
+  // words rather than printing a zero — "damage on the board and a return trip"
+  // is the honest description of most nights in this war and it is the sentence
+  // that teaches a new player why concentrating packages matters.
+  function coaEstimate(e) {
+    const kill = Math.round(e.kill);
+    const eff = e.kill < 0.5
+      ? `On our own numbers nothing on this list falls tonight — it is damage on the board and a return trip`
+      : `On our own numbers expect ${kill} of the ${e.n} to come off the board tonight`;
+    const risk = e.loss < 0.005
+      ? 'nothing manned goes over the target'
+      : `roughly a ${Math.max(1, Math.round(e.loss * 100))}% chance the night costs an aircraft`;
+    return `${eff}, and ${risk}.`;
+  }
+
+  // The cost chips. Only what this option actually charges — an empty bill is
+  // a real answer (a night of Tomahawks off a full reservoir with the belt
+  // already down genuinely costs nothing anyone in the room can name) and
+  // padding it with zeroes would train the player to stop reading the row.
+  function coaBill(e) {
+    const bill = [];
+    const slots = atoSlots(), spent = G.strikesThisTurn;
+    if (e.over > 0) bill.push({ k: 'PLAN', v: `${e.over} past it`, warn: true });
+    else bill.push({ k: 'PLAN', v: `${Math.min(e.n, Math.max(0, slots - spent))} of ${Math.max(0, slots - spent)} left` });
+    if (e.loss >= 0.02) {
+      bill.push({ k: 'AIRCREW', v: `${Math.round(e.loss * 100)}% chance of a loss`, warn: e.loss >= 0.2 });
+    }
+    const abroad = e.world + e.onKill;
+    if (abroad <= -1) {
+      bill.push({
+        k: 'ABROAD',
+        v: e.onKill ? `${Txt.signed(Math.round(e.world))} now, ${Txt.signed(Math.round(e.onKill))} more if they fall`
+          : `${Txt.signed(Math.round(e.world))} standing`,
+        warn: abroad <= -8,
+      });
+    }
+    if (e.cruise) bill.push({ k: 'TOMAHAWK', v: `${e.cruise} of ${G.tlamPool} left`, warn: e.cruise * 3 > G.tlamPool });
+    if (e.torpedoes) bill.push({ k: 'TORPEDOES', v: `${e.torpedoes} of ${G.torpedoes} aboard`, warn: true });
+    if (pgmLedger() && e.pgm) {
+      bill.push({ k: 'MUNITIONS', v: `${Txt.plural(e.pgm, 'weapon')} of ${G.pgm ?? 0}`, warn: e.pgm * 3 > (G.pgm ?? 0) });
+    }
+    if (e.tanker) bill.push({ k: 'TANKERS', v: `${e.tanker} of ${G.tankers} tracks`, warn: e.tanker >= G.tankers });
+    return bill;
+  }
+
   // Tonight's brief. Deterministic, so a reload rebuilds the same menu.
   function coaOptions() {
     const d = diff();
     if (!d.coa || G.over) return [];
     if (coaCache.turn === G.turn && coaCache.list) return coaCache.list;
+
+    // One read of the board for the whole brief, so the three options are
+    // ranked against each other on the same snapshot and every sentence in
+    // them is argued from it (see assess.js).
+    const b = Assess.board();
+    const worries = Assess.concerns(b);
 
     // how many packages one option is allowed to be worth. On easy an option
     // IS the night; on normal it is deliberately short of it, and the shortfall
@@ -3296,24 +3456,60 @@ const Game = (() => {
     const size = Math.max(1, Math.round(atoSlots() * (COA.fill[d.coaFill] ?? 1)));
 
     const ranked = COA.intents
-      .map(intent => ({ intent, urgency: coaScore(intent) }))
+      .map(intent => ({ intent, urgency: coaScore(intent, b) }))
       .map(o => ({ ...o, rank: o.intent.weight * (0.3 + o.intent.scale * o.urgency) }))
-      .sort((a, b) => b.rank - a.rank);
+      .sort((x, y) => y.rank - x.rank);
+
+    // ---- who is on the brief, decided BEFORE anything is filled ----
+    // Two passes, and the split is what makes the menu a decision. Under one
+    // pass each option was built in isolation and topped up from the same
+    // globally-ranked leftovers, so ALPHA, BRAVO and CHARLIE converged on the
+    // same night: the main effort is one to three aimpoints and everything
+    // after it came out of one shared pile. Measured against a bot that picks
+    // uniformly at random, taking the staff's leading recommendation was worth
+    // nothing at all — 76% against 76% — which is the arithmetic proof that
+    // three options that fly the same packages are one option printed three
+    // times.
+    //
+    // So the slate is settled first, and then each option's supporting effort
+    // AVOIDS the other briefed options' own aimpoints. Picking ALPHA now means
+    // genuinely not getting BRAVO's targets, which is the only condition under
+    // which the pick can be right or wrong. The exclusion is a preference and
+    // not a law — an option that cannot reach `fillFloor` without poaching gets
+    // a second, unrestricted pass, because an option that arrives half empty
+    // was the worse failure and is the one the supporting effort exists to fix.
+    const slate = [];
+    for (const r of ranked) {
+      if (slate.length >= d.coa) break;
+      if (coaTargets(r.intent).length < r.intent.min) continue;
+      slate.push(r);
+    }
+    // Each slate member's claim: the aimpoints its own doctrine would lead
+    // with. By target id rather than by class, because JERUSALEM'S LIST has no
+    // class — its pool is wherever the israelPriority flags happen to be — and
+    // a type-based exclusion would silently fail to protect the one option
+    // whose whole identity is a list.
+    const claim = new Map();
+    for (const r of slate) {
+      claim.set(r.intent.id, new Set(coaTargets(r.intent).slice(0, size).map(t => t.id)));
+    }
 
     const out = [];
-    for (const { intent, urgency, rank } of ranked) {
-      if (out.length >= d.coa) break;
+    for (const { intent, urgency, rank } of slate) {
       const pool = coaTargets(intent);
-      if (pool.length < intent.min) continue;
+      // aimpoints another briefed option is leading with
+      const spokenFor = new Set();
+      for (const [id, ids] of claim) if (id !== intent.id) for (const x of ids) spokenFor.add(x);
       // fill the option, one aimpoint at a time. `taken` stops the same site
       // being briefed twice inside one option; nothing stops two OPTIONS naming
       // the same site, because two doctrines wanting the same aimpoint is a
       // real thing and hiding it would misrepresent the choice.
       const legs = [], taken = new Set(), mix = {};
-      const fill = (list, main) => {
+      const fill = (list, main, avoid) => {
         for (const t of list) {
           if (legs.length >= size) break;
           if (taken.has(t.id)) continue;
+          if (avoid && spokenFor.has(t.id)) continue;
           const pkg = coaPackage(t, mix);
           if (!pkg) continue;
           taken.add(t.id);
@@ -3321,7 +3517,7 @@ const Game = (() => {
           legs.push({ targetId: t.id, pkg: { ...pkg }, main });
         }
       };
-      fill(pool, true);
+      fill(pool, true, false);
       // ...and then the SUPPORTING effort. An intent almost never has enough
       // live aimpoints to fill a plan by itself — three SAM sites is a whole
       // doctrine and a five-package night — so an option built only out of its
@@ -3334,20 +3530,64 @@ const Game = (() => {
       // next-ranked doctrines that can. `main` is carried per leg so the brief
       // can show the two apart — what the president is choosing is still the
       // main effort, and it would be a lie to bury that in a list.
-      if (legs.length < size) {
+      const floor = Math.max(1, Math.ceil(size * COA.fillFloor));
+      for (const avoid of [true, false]) {
+        if (legs.length >= size) break;
+        // the relaxed pass runs only to save an option that would otherwise be
+        // dropped, never to top a healthy one up out of a rival's list
+        if (!avoid && legs.length >= floor) break;
         for (const other of ranked) {
           if (legs.length >= size) break;
           if (other.intent.id === intent.id) continue;
-          fill(coaTargets(other.intent), false);
+          fill(coaTargets(other.intent), false, avoid);
         }
       }
-      if (legs.length < Math.max(1, Math.ceil(size * COA.fillFloor))) continue;
+      if (legs.length < floor) continue;
       // an option whose own class contributed nothing is not that option
       if (!legs.some(l => l.main)) continue;
+
+      const e = coaEffect(legs);
+      // WHY TONIGHT. The concern this doctrine is the answer to, in the same
+      // words the concern uses everywhere else. Two concerns point at
+      // counterforce and which one is speaking changes every few nights, which
+      // is most of why the same option reads differently across a campaign.
+      // The fallback is not decoration: a doctrine can be worth flying with
+      // nothing going wrong — finishing a belt that is already broken, working
+      // a program on a board where nothing is on fire — and saying "nothing
+      // urgent, and it is still the best use of the night" is a real brief.
+      const mine = Assess.forDoctrine(worries, intent.id);
+      const read = mine ? mine.now
+        : `Nothing on the board is forcing this tonight. It is what the plan calls for next, and a night ` +
+          `spent on it is a night the list gets shorter without anything else getting worse.`;
+      // WHAT IT LEAVES. The worst thing tonight will not touch — skipping
+      // anything the legs already service, which is the whole reason the
+      // supporting effort exists and would be a lie to ignore. Political
+      // concerns carry no doctrine and are not eligible: "this option does not
+      // fix your approval rating" is true of every option ever briefed.
+      const serviced = new Set(legs.map(l => {
+        const t = TARGETS.find(x => x.id === l.targetId);
+        return t ? t.type : null;
+      }));
+      const israelServiced = legs.some(l => {
+        const t = TARGETS.find(x => x.id === l.targetId);
+        return t && t.israelPriority;
+      });
+      const answers = (c) => {
+        if (!c.doctrine) return false;
+        if (c.doctrine === intent.id) return true;
+        if (c.doctrine === 'jerusalem') return israelServiced;
+        const other = COA.intents.find(i => i.id === c.doctrine);
+        return !!(other && other.types && other.types.some(ty => serviced.has(ty)));
+      };
+      const gap = worries.find(c => !answers(c));
+
       out.push({
         id: intent.id, name: intent.name, line: intent.line, why: intent.why,
         slot: COA.slots[out.length] || `OPTION ${out.length + 1}`,
         urgency, rank, legs,
+        read, shape: coaShape(e.classes), bill: coaBill(e), est: coaEstimate(e),
+        kill: e.kill, loss: e.loss,
+        defers: gap ? gap.left : null,
       });
     }
 

@@ -2133,6 +2133,21 @@ const COA = {
   // option it cannot fill to at least this fraction of its size. A COA that
   // arrives half empty is the padding problem again in a smaller font.
   fillFloor: 0.5,
+
+  // What a targeteer calls a class out loud, for the line that says where
+  // tonight's packages are actually going ("three on the SAM belt, one on the
+  // enrichment halls"). The panel already lists the aimpoints by name behind
+  // the caret; what the collapsed line needs is the SHAPE of the night, and a
+  // player deciding between three options at a glance is comparing shapes. Not
+  // the same strings as `types` and not derivable from them — "airdefense" is a
+  // key and "the SAM belt" is what the Chairman would say.
+  className: {
+    airdefense: 'the SAM belt', airbase: 'the airfields',
+    tel: 'the launcher groups', missile: 'the missile brigades',
+    nuclear: 'the enrichment halls', ship: 'hulls at sea', naval: 'the naval bases',
+    command: 'command and control', oil: 'the export complex',
+    infra: 'the crossings and switchyards', houthi: 'the Red Sea coast',
+  },
 };
 
 // ============================================================

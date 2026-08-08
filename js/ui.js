@@ -1475,6 +1475,17 @@ const UI = (() => {
   // stop being. Third, an option already flown is not removed: it stays,
   // marked, because the packages are still scrubbable off tonight's order and a
   // player who signed the wrong one needs to see what they signed.
+  //
+  // v1.82 — WHAT IS ABOVE THE FOLD IS NOW TONIGHT, NOT THE DOCTRINE. The
+  // collapsed row used to carry the intent's standing one-liner, which is the
+  // same sentence on turn 2 and turn 27; a player scanning three options was
+  // reading three slogans and choosing between the names. It now carries
+  // `read` — the board fact that put this doctrine where it is in the ranking —
+  // and, under the cost strip, `defers`: the worst thing this option does not
+  // do, in the words the option that WOULD do it uses. Those two lines are the
+  // decision. The doctrine's own slogan is not gone, it has moved behind the
+  // caret to sit at the head of its argument where it reads as a thesis
+  // statement rather than as a description of tonight.
   function renderCoa(G) {
     const panel = $('coa-panel');
     const list = Game.coaOptions();
@@ -1510,17 +1521,28 @@ const UI = (() => {
         ? `<div class="coa-leg-head">${label}</div>` +
           arr.map(l => `<div class="coa-leg">${nameOf(l)}</div>`).join('')
         : '';
+      const bill = (c.bill || []).map(x =>
+        `<span class="coa-chip${x.warn ? ' warn' : ''}"><b>${x.k}</b> ${x.v}</span>`).join('');
       return `<div class="action coa${done ? ' off' : ''}${open ? ' open' : ''}" data-action="coa-${c.id}">` +
         `<button class="action-do" data-coa="${c.id}" ${done ? 'disabled' : ''}>` +
         `<span class="action-name"><span class="coa-slot">${c.slot}</span> ${c.name}</span>` +
-        `<span class="il-current">${c.line}</span>` +
+        `<span class="il-current">${c.read || c.line}</span>` +
         `<span class="coa-cost">${done ? 'SIGNED — ON TONIGHT\'S ORDER' :
-          `${plural(c.legs.length, 'package')}${spent > 0 && c.legs.length > spent
+          `${plural(c.legs.length, 'package')}${c.shape ? ` · ${c.shape}` : ''}${spent > 0 && c.legs.length > spent
             ? ` · ${c.legs.length - spent} past the plan` : ''}`}</span>` +
+        // The tradeoff, and it is deliberately on the face of the button rather
+        // than behind the caret: an option that only shows what it buys is a
+        // pitch, and three pitches is not a decision. Absent — not blank — when
+        // there is genuinely nothing else on the board, which is a real and
+        // rare state and reads as one.
+        (c.defers && !done ? `<span class="coa-defers">LEAVES — ${c.defers}</span>` : '') +
         `</button>` +
         `<button type="button" class="action-why" aria-expanded="${open}" ` +
         `aria-label="What this option flies, and why"><span class="why-caret">▾</span></button>` +
-        `<div class="action-desc">${c.why}` +
+        `<div class="action-desc">` +
+        `<div class="coa-thesis">${c.line}</div>${c.why}` +
+        (c.est ? `<div class="coa-est">${c.est}</div>` : '') +
+        (bill ? `<div class="coa-bill">${bill}</div>` : '') +
         `<div class="coa-legs">${legList(main, 'MAIN EFFORT')}${legList(supp, 'AND WITH THE REMAINING CAPACITY')}</div>` +
         `</div></div>`;
     }).join('');
