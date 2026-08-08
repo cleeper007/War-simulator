@@ -808,6 +808,26 @@ button { font-family: var(--mono); }
 .stat-value.crit { color: var(--red); }
 .stat-value.good { color: var(--green); }
 
+/* ---- the read, last cell ----
+   A sentence in a row of numbers, so it is the one cell here with a width and a
+   wrap. Both numbers are measured rather than chosen (.claude/betatest/brief.js,
+   810 campaigns): the rendered clause runs 87 characters at the median, 115 at
+   the 99th and never exceeded 122, which at this size is two lines inside 360px
+   and two lines for almost every clause there is.
+   The fixed two-line box is the point. A cell that wrapped naturally would be
+   one line on a short clause and two on a long one, and since every cell in a
+   flex row is as tall as the tallest, the whole bottom bar — and therefore the
+   top edge of the map — would step up and down as the war went on. Better to
+   spend six pixels once, permanently, than to move the chart. */
+#stat-read { max-width: 360px; }
+#stat-read .stat-value {
+  font-size: 10.5px; line-height: 1.35; white-space: normal;
+  min-height: calc(10.5px * 1.35 * 2); color: var(--dim);
+}
+/* the phase name is the label, so it takes the colour the reading earns */
+#stat-read .stat-value.warn, #stat-read:has(.warn) .stat-label { color: var(--amber); }
+#stat-read .stat-value.crit, #stat-read:has(.crit) .stat-label { color: var(--red); }
+
 /* Iran war capacity meter */
 .defcon-meter { display: flex; gap: 2px; }
 .defcon-meter .seg {
@@ -2279,6 +2299,30 @@ body.mobile-ui .stat-sub { display: none; }
 body.mobile-ui .stat:has(.warn) .stat-sub,
 body.mobile-ui .stat:has(.crit) .stat-sub { display: inline; color: var(--amber); }
 body.mobile-ui .stat:has(.crit) .stat-sub { color: var(--red); }
+
+/* ---- the read, on a screen with seven columns and no eighth ----
+   Same bargain as the thresholds above, one size up: the whole cell is held
+   back rather than just its suffix. A phase name and a sentence do not go in a
+   95px column at any font size, and an eighth grid item would break the column
+   arithmetic this strip is built on — seven readouts over two rows of four,
+   with the vacant eighth cell filled by ::after so it does not read as a
+   readout that failed to render.
+   It comes back only when it goes RED, which is the two named emergencies and
+   a concern that is perishable tonight, and it comes back spanning the full
+   width because that is the only shape a sentence fits in here. `order: 1`
+   puts it after the ::after filler: both are grid items, both would otherwise
+   sort at 0, and a pseudo-element sorts last — which would leave the filler
+   stranded on a row of its own below the sentence. */
+body.mobile-ui #stat-read { display: none; }
+body.mobile-ui #stat-read:has(.crit) {
+  display: block; order: 1; grid-column: 1 / -1;
+  padding: 4px 8px; text-align: center;
+}
+body.mobile-ui #stat-read {
+  max-width: none; padding: 3px 8px; text-align: center;
+}
+body.mobile-ui #stat-read .stat-value { font-size: 9.5px; min-height: 0; }
+body.mobile-ui #stat-read .stat-sub { display: inline; }
 
 /* ---- the session row, on a screen that cannot afford it ----
    HOW TO PLAY, SAVE & QUIT and NEW GAME are pressed about once a session

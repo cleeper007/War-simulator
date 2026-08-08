@@ -431,6 +431,76 @@ const UI = (() => {
     syncRail();
   }
 
+  // ---- the read: the one line that names what is likeliest to end this war ----
+  // `Assess.concerns()` has always been the game's own answer to "what is going
+  // wrong tonight", ranked, and until v1.83 the only two things that read it
+  // were `coaOptions` and `advise` — both of them behind a click. A president
+  // who never opened the brief was never told which of seven falling numbers
+  // was the one about to finish them, while the staff argued from that exact
+  // judgement in the next panel over. This is that judgement, on the bar,
+  // always: `Assess.phase` for the frame and the worst live concern's `now`
+  // clause for the specific.
+  //
+  // WHY IT IS DAMPED, which is the whole design question here. Severity alone
+  // picks the loudest STANDING condition, and a standing condition never stops
+  // being true — the same failure DAMP_STEP fixes for the advisor tables, and a
+  // worse one here, because those are read when a panel is opened and this is
+  // on screen every second of every turn. Measured in `.claude/betatest/brief.js`
+  // over 810 campaigns: RAW, the top concern holds the same id for a mean of
+  // 6.0–9.5 consecutive turns, in the worst campaign for all 30 of them, and
+  // `strait` alone leads on 31–52% of every turn played by every persona. A line
+  // that reads identically for ten turns is not a warning, it is part of the
+  // frame, and the player stops seeing it somewhere around turn four. Damped on
+  // advise()'s own constants — deliberately the same numbers, so this is one
+  // experiment and not two — the longest run falls to a mean of 3.0–3.9 with a
+  // worst case of 7, and distinct ids a campaign go from 5.6 to 6.3. The
+  // ranking is still the ranking. It just stops narrating the same sentence at
+  // a president who has already read it and gone somewhere else on purpose.
+  const READ_STEP = 0.12, READ_FLOOR = 0.55, READ_RECOVER = 0.5;
+  const readHeard = new Map();      // concern id -> consecutive turns displayed
+  let readSaid = null;              // this turn's pick, awaiting commit
+  let readTurn = -1;
+
+  // Same rule as `hold` in ai.js: exempt the concerns that are THEMSELVES
+  // expiring rather than being restated. A fix on a launcher group does not
+  // survive the night, the vote is a different number of hours away every turn,
+  // and a breakout band inside single digits is the war closing. None of those
+  // is a condition the president has heard before — each is new every evening
+  // until it resolves — so none of them is damped for being said twice.
+  const readHold = (c, b) => c.id === 'telfix' || c.id === 'vote' ||
+    (c.id === 'breakout' && b.brk.hi <= 8);
+
+  // The counter is committed at the TURN BOUNDARY and never on a render, for
+  // exactly the reason commitHeard in ai.js is: renderHUD runs on every draw —
+  // a package lands, a report opens, the sidebar re-renders — and a line that
+  // reordered itself between two draws of the same night would be worse than
+  // one that repeated. The CONCERNS are re-read every draw regardless (rule 2
+  // in assess.js), so the line still moves the moment the board does; what is
+  // frozen for the night is only how tired the room is of hearing each one.
+  function readLead(b) {
+    const list = Assess.concerns(b);
+    if (!list.length) return null;
+    if (readTurn !== Game.G.turn) {
+      // a new war rewinds the clock; nothing carries across campaigns
+      if (Game.G.turn < readTurn) { readHeard.clear(); readSaid = null; }
+      else if (readTurn >= 0) {
+        for (const k of [...readHeard.keys()]) {
+          if (k !== readSaid) readHeard.set(k, Math.max(0, readHeard.get(k) - READ_RECOVER));
+        }
+        if (readSaid) readHeard.set(readSaid, (readHeard.get(readSaid) || 0) + 1);
+      }
+      readTurn = Game.G.turn;
+    }
+    let best = null;
+    for (const c of list) {
+      const rep = readHold(c, b) ? 0 : (readHeard.get(c.id) || 0);
+      const sev = c.sev * Math.max(READ_FLOOR, 1 - rep * READ_STEP);
+      if (!best || sev > best.sev) best = { sev, c };
+    }
+    readSaid = best.c.id;
+    return best.c;
+  }
+
   // ---- HUD / bottom bar ----
   function renderHUD(G) {
     // clock
@@ -533,6 +603,42 @@ const UI = (() => {
         : 'END TURN — AWAIT DEVELOPMENTS';
       end.classList.toggle('has-unspent', unspent > 0 && !G.over);
     }
+
+    // A fresh read, on every draw, uncached — see rule 2 at the top of
+    // assess.js. Fifteen passes over forty targets against a bar that is
+    // already rebuilding a ten-segment meter, and the alternative is a line
+    // still quoting the board as it stood before tonight's package landed.
+    const b = Assess.board();
+    const ph = Assess.phase(b);
+    const lead = readLead(b);
+    $('read-phase').textContent = ph.name;
+    // The clause rides in a `.stat-sub` because it is the same bargain the
+    // approval and crude thresholds already strike: real information, far too
+    // long for a 95px column, so a phone holds it back until the readout has
+    // earned the width. Measured, the rendered line runs 87 characters at the
+    // median and never once exceeded 122 in 810 campaigns, which is what the
+    // cell is sized against in the stylesheet.
+    // Written into the span rather than the cell so the `.stat-sub` wrapper the
+    // phone's hold-back rule keys on survives every render; the class on the
+    // cell below is set separately for the same reason.
+    $('read-value').querySelector('.stat-sub').textContent = lead ? lead.now : '';
+    // RED MEANS TONIGHT, AMBER MEANS THIS CAMPAIGN. Not a single severity cut,
+    // because severity is a ruler for RANKING and reads badly as a colour: the
+    // shared scale documented above CONCERNS puts the SAM belt at 0.85 for the
+    // whole contested opening, so a red-at-0.8 bar opens every war red and has
+    // said nothing by turn four. Measured over 810 campaigns, `sev >= 0.7` —
+    // the ruler's own "decides the campaign" anchor — is true on 52–69% of all
+    // turns and `sev >= 0.8` on 17–27%.
+    //
+    // So red is the two facts that are about to stop being available: the
+    // collapse phase (the presidency ends inside four turns) and a lead the
+    // damper itself exempts as perishable, which is the same `readHold` rule
+    // and fires on 12–16% of turns. Amber is severe-but-standing at 0.8, and
+    // the race phase. The remaining ~65% of nights the line is white, which is
+    // what makes the other 35% mean anything.
+    const crit = ph.id === 'collapse' || (lead && readHold(lead, b));
+    $('read-value').className = 'stat-value ' +
+      (crit ? 'crit' : ph.id === 'race' || (lead && lead.sev >= 0.8) ? 'warn' : '');
 
     AudioSys.alertCheck(G);
   }
