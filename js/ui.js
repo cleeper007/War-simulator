@@ -1845,9 +1845,9 @@ const UI = (() => {
       mood[s.country] = G.gulf.resolve >= 60 ? 'committed' : 'hawk';
     }
     for (const s of Game.gulfStates('dove')) {
-      // Saudi Arabia and Oman stay plain on the plot — only Qatar carries the
-      // dove mood colouring here.
-      if (s.country === 'Saudi Arabia' || s.country === 'Oman') continue;
+      // Saudi Arabia, Oman and Qatar stay plain on the plot — none of the
+      // doves carry the mood colouring here.
+      if (s.country === 'Saudi Arabia' || s.country === 'Oman' || s.country === 'Qatar') continue;
       mood[s.country] = !G.basing.gulf ? 'closed'
         : G.gulf.caveats >= GULF.caveatMax ? 'caveat'
         : G.gulf.strain >= 60 ? 'strained' : 'dove';
