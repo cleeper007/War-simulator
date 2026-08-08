@@ -3216,7 +3216,7 @@ const UI = (() => {
   // ---- beta feedback ----
   // Pre-fills a GitHub issue and never files one — see the note on
   // #feedback-modal in index.html for why the tester presses Submit themselves.
-  const FEEDBACK_REPO = 'cleeper007/War-simulator';
+  const FEEDBACK_REPO = 'cleeper007/commander-in-chief';
   let lastEndgame = null;
 
   // EVERYTHING IN THIS BLOCK IS SOMETHING THE PLAYER CAN ALREADY SEE, and that

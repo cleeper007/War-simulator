@@ -1,4 +1,4 @@
-# Commander in Chief: Persian Gulf War
+# Commander in Chief: Crisis in the Gulf
 
 A browser-based, turn-based war simulator. You are the President of the United States
 in a shooting war with Iran — part **DEFCON**, part grand-strategy situation room.
