@@ -19,9 +19,9 @@
      stays invisible in the tab for as long as that row survives. Renaming the
      URL is the only thing it listens to. Stamp these with the badge on every
      bump, even when only the art changed. -->
-<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png?v=1.80">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1.80">
-<link rel="manifest" href="site.webmanifest?v=1.80">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png?v=1.81">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1.81">
+<link rel="manifest" href="site.webmanifest?v=1.81">
 <meta name="theme-color" content="#0a1626">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -35,7 +35,7 @@
      version-badge) renames every asset URL, which is the only thing that
      reliably forces the fetch.
      Bump the stamps and the badge together. -->
-<link rel="stylesheet" href="css/style.css?v=1.80">
+<link rel="stylesheet" href="css/style.css?v=1.81">
 </head>
 <body>
 
@@ -57,7 +57,7 @@
 
 <!-- ============ TITLE SCREEN ============ -->
 <div id="title-screen" class="overlay">
-  <div class="version-badge">v1.80<span class="beta-tag">BETA</span></div>
+  <div class="version-badge">v1.81<span class="beta-tag">BETA</span></div>
   <div class="title-box">
     <div class="title-eyebrow">EYES ONLY // NATIONAL COMMAND AUTHORITY</div>
     <h1>COMMANDER IN CHIEF</h1>
@@ -298,64 +298,70 @@
         </div></div>
       </div>
 
-      <!-- DIPLOMATIC ACTIONS and ALLIES spend the SAME single action slot; so
-           does the recovery push. Intelligence tasking has had its own slot
-           since knowing stopped competing with doing (see doDiplo in game.js).
-           Two sections over one budget is deliberate — see renderAllied. The
-           badge on each collapsed header is what is still available inside it,
-           so the choice is visible without opening all of them. -->
+      <!-- ============================================================
+           DIPLOMACY IS A BOARD AND ONE ORDER, NOT THREE COUNTERPARTS
+           ------------------------------------------------------------
+           Through v1.80 this was three sections — DIPLOMATIC ACTIONS, ALLIES
+           and GULF PARTNERS — filed by WHO the counterpart was. Every order in
+           all three spent the same single slot (`G.diploUsed`, see doDiplo in
+           game.js) and nothing on screen said so: each section rendered its own
+           "USED THIS TURN", each carried its own READY badge, and railBadge
+           summed them, so the DIPLO tab on a phone advertised TEN READY over a
+           budget of one. Filing by counterpart also had no rule a player could
+           learn — addressing the nation and drawing down the SPR are domestic
+           politics and the pump price, and they were under DIPLOMATIC ACTIONS
+           because that section was really "everything not military".
+
+           The seam that actually exists in this material is not who you are
+           talking to. It is:
+
+             1. a board that moves whether or not the president touches it —
+                Jerusalem's clock, the two Gulf camps, standing abroad, the
+                southern front; and
+             2. ONE order a night against it.
+
+           So the split is now readout / orders, which is also why the three
+           gauges left the order rows they used to hang off as `extra`. A gauge
+           was parented to a lever (Jerusalem's to "Coordinate with Israel", the
+           dove bar to the GCC summit, the hawk bar to Patriots forward) — and
+           levers run out while state does not, so a spent summit left the dove
+           gauge living on a greyed-out row.
+           ============================================================ -->
+
+      <!-- The only panel in this sidebar with no button in it, deliberately.
+           Its head carries whatever is closest to discharging, because a
+           number that moves on its own has to be readable while shut or it is
+           not a warning, it is a surprise — the same argument the three old
+           heads were each making separately for their own gauge. -->
+      <div class="panel collapsed" id="world-panel" data-panel="world">
+        <button type="button" class="panel-head" aria-expanded="false">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <span class="panel-title">THE WORLD</span>
+          <span class="panel-badge"></span>
+          <span class="panel-meta" id="world-status"></span>
+        </button>
+        <div class="panel-body"><div class="panel-body-inner">
+          <div id="world-standing"></div>
+          <div id="world-gauges"></div>
+          <!-- The seven-name roster and the southern front sit behind one
+               caret at the bottom. They are reference — read once, true for
+               most of the war — and a landscape phone has ~200px of scroll
+               pane, which the three live gauges have the better claim on. -->
+          <div id="world-council"></div>
+        </div></div>
+      </div>
+
       <div class="panel collapsed" id="diplo-panel" data-panel="diplo">
         <button type="button" class="panel-head" aria-expanded="false">
           <span class="panel-caret" aria-hidden="true">▾</span>
           <span class="panel-title">DIPLOMATIC ACTIONS</span>
+          <!-- Not a count of what is on the shelf. This badge is the SLOT —
+               see renderDiplo, and the note on `slot` in RAIL_GROUPS. -->
           <span class="panel-badge"></span>
           <span class="panel-meta" id="diplo-status"></span>
         </button>
         <div class="panel-body"><div class="panel-body-inner">
           <div id="diplo-buttons"></div>
-        </div></div>
-      </div>
-
-      <!-- The meta on this head is the Jerusalem gauge, readable while shut —
-           it is the one number in the sidebar that moves whether or not the
-           president touches it, and it used to be four orders deep. -->
-      <div class="panel collapsed" id="allied-panel" data-panel="allied">
-        <button type="button" class="panel-head" aria-expanded="false">
-          <span class="panel-caret" aria-hidden="true">▾</span>
-          <!-- "COALITION & ALLIES" wrapped to two lines in a 230px sidebar and
-               pushed the head to four rows once the Jerusalem meta was under it.
-               The coalition IS the allies, and the first order inside says so. -->
-          <span class="panel-title">ALLIES</span>
-          <span class="panel-badge"></span>
-          <span class="panel-meta" id="allied-status"></span>
-        </button>
-        <div class="panel-body"><div class="panel-body-inner">
-          <div id="allied-buttons"></div>
-        </div></div>
-      </div>
-
-      <!-- The Gulf council. Same argument as ALLIES above — its orders spend the
-           DIPLOMATIC slot, not a budget of their own — and the same reason for
-           existing separately: the two camp gauges move whether or not the
-           president touches them, and a number that moves on its own has to be
-           readable on a shut header or it is not a warning, it is a surprise. -->
-      <div class="panel collapsed" id="gulf-panel" data-panel="gulf">
-        <button type="button" class="panel-head" aria-expanded="false">
-          <span class="panel-caret" aria-hidden="true">▾</span>
-          <span class="panel-title">GULF PARTNERS</span>
-          <span class="panel-badge"></span>
-          <span class="panel-meta" id="gulf-status"></span>
-        </button>
-        <div class="panel-body"><div class="panel-body-inner">
-          <div id="gulf-roster"></div>
-          <!-- The southern front lives INSIDE the Gulf council rather than in a
-               panel of its own, and that is the argument it is making: the thing
-               that matters about Ansar Allah is what it does to Riyadh, who is a
-               dove holding Prince Sultan. A separate panel would have read as a
-               separate war. Empty and hidden in the three campaigns out of four
-               that never open one — renderGulf owns both. -->
-          <div id="gulf-south" class="hidden"></div>
-          <div id="gulf-buttons"></div>
         </div></div>
       </div>
 
@@ -641,18 +647,18 @@
   </div>
 </div>
 
-<script src="js/text.js?v=1.80"></script>
-<script src="js/geodata.js?v=1.80"></script>
-<script src="js/data.js?v=1.80"></script>
-<script src="js/map.js?v=1.80"></script>
-<script src="js/ai.js?v=1.80"></script>
-<script src="js/audio.js?v=1.80"></script>
-<script src="js/ui.js?v=1.80"></script>
+<script src="js/text.js?v=1.81"></script>
+<script src="js/geodata.js?v=1.81"></script>
+<script src="js/data.js?v=1.81"></script>
+<script src="js/map.js?v=1.81"></script>
+<script src="js/ai.js?v=1.81"></script>
+<script src="js/audio.js?v=1.81"></script>
+<script src="js/ui.js?v=1.81"></script>
 <!-- after ui.js: the walkthrough drives the room through UI's exported openPanel
      / openStrikeModal, and ui.js reaches back for Tour.start() at click time -->
-<script src="js/tour.js?v=1.80"></script>
-<script src="js/specops.js?v=1.80"></script>
-<script src="js/csar.js?v=1.80"></script>
-<script src="js/game.js?v=1.80"></script>
+<script src="js/tour.js?v=1.81"></script>
+<script src="js/specops.js?v=1.81"></script>
+<script src="js/csar.js?v=1.81"></script>
+<script src="js/game.js?v=1.81"></script>
 </body>
 </html>

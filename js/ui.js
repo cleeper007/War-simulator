@@ -86,7 +86,18 @@ const UI = (() => {
     { key: 'mission',  label: 'MISSION', panels: ['objectives', 'intel'] },
     { key: 'forces',   label: 'FORCES',  panels: ['resources', 'fleet'] },
     { key: 'advisors', label: 'STAFF',   panels: ['advisors'] },
-    { key: 'diplo',    label: 'DIPLO',   panels: ['diplo', 'allied', 'gulf'] },
+    // `slot` says this group's orders share ONE budget, so its chip must not be
+    // a count of rows. See railBadge — this is the flag that stops the tab
+    // reading "10 READY" over a single diplomatic action.
+    // Orders FIRST here, and this is the one place the rail's order deliberately
+    // differs from the sidebar's. On a desktop THE WORLD is above DIPLOMATIC
+    // ACTIONS because there is room to read the board and then decide. On a
+    // phone selectRail opens the first section in the group, and an open THE
+    // WORLD is taller than a landscape phone's whole scroll pane — it pushed
+    // the orders so far below the fold that the tab appeared to contain nothing
+    // but gauges. The board is still the first thing on screen, as a shut head
+    // carrying its own alarm, which is the whole reason that head exists.
+    { key: 'diplo',    label: 'DIPLO',   slot: true, panels: ['diplo', 'world'] },
   ];
 
   let railKey = null;
@@ -128,17 +139,33 @@ const UI = (() => {
     // action and a raid is simply wrong. Same rule as renderBadges otherwise,
     // disclosure carets included: they are never disabled, so counting them
     // would report every tab as ready.
-    let counted = false, live = 0, fallback = '';
+    // A `slot` group is not counted at all: eleven diplomatic orders over one
+    // budget is one decision, and a chip reading "10 READY" describes a game
+    // nobody is playing. It reads its panels' badges instead — and ranks an
+    // ALARM above them, because a gauge about to discharge outranks the
+    // reminder that the slot is unspent. `alarm` is picked by class rather than
+    // by panel order: the readout is listed second in that group so the phone
+    // lands on the orders, and pinning "which badge wins" to that ordering
+    // would silently invert this the next time it is reconsidered.
+    let counted = false, live = 0, fallback = '', alarm = '';
     for (const p of livePanels(g)) {
-      const box = p.querySelector('[id$="-buttons"]');
+      const box = g.slot ? null : p.querySelector('[id$="-buttons"]');
       if (box && box.querySelector('button:not(.action-why)')) {
         counted = true;
         live += box.querySelectorAll('button:not(.action-why):not(:disabled)').length;
       }
-      const text = (p.querySelector('.panel-badge').textContent || '').trim();
-      if (text && text !== 'NONE' && !fallback) fallback = text;
+      const badge = p.querySelector('.panel-badge');
+      const text = (badge.textContent || '').trim();
+      if (!text || text === 'NONE') continue;
+      if (badge.classList.contains('badge-warn') && !alarm) alarm = text;
+      if (!fallback) fallback = text;
     }
+    if (alarm) return { text: alarm, urgent: true };
     if (counted && live) return { text: `${live} READY` };
+    // An unspent slot is the one fallback that is not a quiet fact — it is the
+    // same nag the END TURN button carries, and the primer names not spending
+    // the free actions as the most common way a new player loses.
+    if (g.slot && fallback) return { text: fallback, quiet: /GIVEN|SPENT/.test(fallback) };
     return { text: fallback || (counted ? 'NONE' : ''), quiet: true };
   }
 
@@ -381,9 +408,11 @@ const UI = (() => {
 
   // Action panels get counted rather than described: whatever the section
   // rendered, how much of it is still live.
+  // DIPLOMATIC ACTIONS is deliberately NOT in here. Counting its rows reports
+  // how many orders are on the shelf, and what the player actually has is one
+  // slot to spend on any of them — renderDiplo sets that badge itself.
   const ACTION_PANELS = {
-    fleet: 'fleet-buttons', csar: 'csar-buttons', diplo: 'diplo-buttons',
-    allied: 'allied-buttons', gulf: 'gulf-buttons', intel: 'intel-buttons',
+    fleet: 'fleet-buttons', csar: 'csar-buttons', intel: 'intel-buttons',
     specops: 'specops-buttons',
   };
   function renderBadges() {
@@ -1367,46 +1396,20 @@ const UI = (() => {
     status.style.color = 'var(--red)';
   }
 
-  // ---- Jerusalem ----
-  // Two orders and a gauge, rendered together because they are one decision. The
-  // gauge is the thing the player has to be able to read: it is the only clock in
-  // the game that another government owns, and it moves off the American target
-  // list, so the panel names the aimpoints driving it rather than showing a bare
-  // percentage and leaving the mechanism to be guessed at.
-  //
-  // The bar is drawn as a bar and not written as a number because that is how
-  // every other pressure in this game is shown, and because the whole point is
-  // that a president should be able to see it filling out of the corner of an eye.
+  // ---- Jerusalem's two orders ----
+  // The gauge these used to carry is in THE WORLD now (see renderWorld). It was
+  // `extra` on the coordinate order through v1.79, which put the only clock in
+  // this game another government owns on a row that goes dead the moment the
+  // order is taken — a coordinated Israel disables the button, and the gauge
+  // greys out with it while the clock underneath goes on running.
   function israelActions(G) {
-    const p = Math.round(G.israelPressure);
-    const drivers = Game.israelDrivers();
-    const rate = drivers.reduce((n, [amt]) => n + amt, 0);
     const posture = G.israelPosture;
-    const tone = posture === 'coordinated' ? 'var(--blue)' : p >= 75 ? 'var(--red)' : 'var(--amber)';
-    // one phrasing of the clock, owned by game.js, so the panel and the base
-    // tooltip cannot describe the same ally differently
-    const clock = Game.israelClock();
-
-    const gauge =
-      `<div class="israel-gauge"><div class="israel-gauge-fill" style="width:${p}%;background:${tone}"></div></div>` +
-      `<div class="israel-gauge-meta">JERUSALEM ${p}% · ${signed(Math.round(rate))}/turn · ${clock}</div>`;
-
-    // What is actually moving it, biggest mover first — the same list the
-    // simulation just used, so the panel cannot describe a different war.
-    // Biggest mover first. A zero-amount driver is a note rather than a figure —
-    // the standing-down row — and gets no signed number, because signed(0) is
-    // "−0" and a minus sign on nothing reads as a mistake.
-    const why = drivers.slice().sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]))
-      .map(([amt, label]) => {
-        const n = Math.round(amt * 10) / 10;
-        return `<li>${n === 0 ? '' : `${signed(n)} — `}${label}</li>`;
-      }).join('');
-
     const cost = Game.israelHoldCost();
     const out = [];
 
     out.push({
       id: 'israel', name: 'Coordinate with Israel',
+      moves: 'JERUSALEM',
       current: posture === 'coordinated'
         ? (G.israelJointAvailable
             ? 'Israel is in. Joint deep-strike package ON THE BOARD.'
@@ -1414,26 +1417,23 @@ const UI = (() => {
         : posture === 'unilateral'
           ? 'Too late — Israel is running its own war now.'
           : 'World opinion −8, a standing price abroad, and a bill at home every night they fly.',
-      extra: gauge,
       desc: posture === 'sidelined'
         ? 'Brings the IAF in openly. Fighter capacity, +half a package a night on the tasking order from their ' +
           'escort and SEAD, three of their aimpoints serviced every night they fly, and a joint deep-strike ' +
           'package against Natanz or Fordow — the only path to the buried halls that does not need a B-2. It ' +
-          'also inverts the gauge above: instead of flying alone when their patience runs out, they fly inside ' +
-          'your plan, and the joint package comes back every time they do. ' +
+          'also inverts the JERUSALEM gauge: instead of flying alone when their patience runs out, they fly ' +
+          'inside your plan, and the joint package comes back every time they do. ' +
           'The bill is standing rather than one-off — this war stops recovering abroad past a lower ceiling, ' +
           'Iran starts shooting at Israel on our account, and every Israeli night costs you at home. They are ' +
           'an ally, not a squadron: they do not always wait for the gauge, and about half their nights end with ' +
           'a second element over the power stations and the river crossings. You will answer for those.'
         : posture === 'coordinated'
-          ? 'They are inside the tasking order. When the gauge fills they fly your corridor against their own ' +
-            'aimpoints — sometimes before it fills, and often past the agreed list onto the grid and the ' +
-            'crossings, which is charged to you abroad and at home. The joint deep-strike slot re-arms every ' +
-            'time they fly. What follows is why the gauge is filling:' +
-            `<ul class="israel-why">${why}</ul>`
+          ? 'They are inside the tasking order. When the JERUSALEM gauge fills they fly your corridor against ' +
+            'their own aimpoints — sometimes before it fills, and often past the agreed list onto the grid and ' +
+            'the crossings, which is charged to you abroad and at home. The joint deep-strike slot re-arms ' +
+            'every time they fly. What is filling the gauge is in THE WORLD, above.'
           : 'They went alone and they will go again, on their own timetable. Nothing recovers abroad while ' +
-            'that is true. What is driving the next one:' +
-            `<ul class="israel-why">${why}</ul>`,
+            'that is true. What is driving the next one is in THE WORLD, above.',
       disabled: posture !== 'sidelined',
     });
 
@@ -1443,13 +1443,14 @@ const UI = (() => {
     if (posture === 'sidelined') {
       out.push({
         id: 'restrain', name: 'Ask Jerusalem to hold',
+        moves: 'JERUSALEM',
         current: cost.left <= 0
           ? 'Jerusalem will not take the call again.'
           : `Pressure −${cost.relief}, approval −${cost.approval}. ${plural(cost.left, 'ask')} left.`,
         desc: cost.left <= 0
           ? ''
-          : `Buys ${turns(3)} of Israeli restraint. The only lever on that gauge that is not a bomb, and the ` +
-            'only order in this panel billed at home instead of abroad: leaning on Jerusalem in public costs a ' +
+          : `Buys ${turns(3)} of Israeli restraint. The only lever on that gauge that is not a bomb, and one ` +
+            'of the two orders here billed at home instead of abroad: leaning on Jerusalem in public costs a ' +
             'wartime president, and the Hill counts it when the authorization comes up. Each ask is worth less ' +
             'than the last and costs more.',
         disabled: cost.left <= 0,
@@ -1531,138 +1532,63 @@ const UI = (() => {
     wireWhy('#coa-buttons');
   }
 
-  function renderDiplo(G) {
-    const used = G.diploUsed;
-    $('diplo-status').textContent = used ? '— USED THIS TURN' : '';
-    const negReady = G.negotiationReady();
-    // `current` is what the player needs to choose — the odds, the price, the
-    // countdown. `desc` is what the instrument is. Anything with a number in it
-    // that the player is spending belongs above the fold.
-    const actions = [
-      {
-        id: 'backchannel', name: 'Omani backchannel',
-        current: negReady
-          ? 'Tehran is breaking — a deal is possible.'
-          : 'Tehran will not talk while it can still fight.',
-        desc: negReady
-          ? 'Far from certain, but this is the moment an overture can land. Attempt to bring them to the table.'
-          : 'An overture now will be rebuffed and read as weakness at home.',
-      },
-      {
-        id: 'un', name: 'UN Security Council push',
-        current: 'World opinion +.',
-        desc: 'Rally international support and diplomatic cover.',
-      },
-      {
-        id: 'sanctions', name: 'Snap-back sanctions package',
-        current: 'Negotiation leverage +, small oil cost.',
-        desc: 'Tighten the economic screws. Leverage is what a backchannel spends when the time comes.',
-      },
-      {
-        id: 'spr', name: 'Release the Strategic Reserve',
-        current: G.sprReleases >= 2
-          ? 'Tanks too low for another release of scale.'
-          : `Oil ${G.sprReleases === 0 ? '−$20' : '−$12'}, approval +2. ${plural(2 - G.sprReleases, 'release')} left.`,
-        desc: G.sprReleases >= 2 ? '' : 'A coordinated draw on the Strategic Petroleum Reserve to push the pump price down.',
-        disabled: G.sprReleases >= 2,
-      },
-      {
-        id: 'address', name: 'Address the nation',
-        current: G.addressCooldown > 0
-          ? `Available in ${turns(G.addressCooldown)}.`
-          : `Approval +6. ${plural(G.addresses, 'address')} so far.`,
-        desc: G.addressCooldown > 0 ? '' :
-          'Rally the public — and the count is read out when the War Powers vote comes up.',
-        disabled: G.addressCooldown > 0,
-      },
-    ];
-
-    // ...and on easy, the staff says which one. It is a MARK on an order the
-    // president was always able to give, not a fourth kind of button and not a
-    // shortcut that takes it: "diplomacy recommended" is the same bargain the
-    // courses of action make on the military side, and the president still has
-    // to agree. Only on easy — the advisors already argue for all of these at
-    // length, and a star beside one of them on normal would be the room having
-    // the argument twice and then settling it for you.
-    if (Game.difficulty().recommend && !used) {
-      const rec = recommendedDiplo(G, actions);
-      const hit = actions.find(a => a.id === rec);
-      if (hit) hit.mark = 'STAFF RECOMMENDS';
-    }
-
-    $('diplo-buttons').innerHTML = actionButtons(actions, used);
-    wireActions('#diplo-buttons');
-  }
-
-  // Which diplomatic order the room would press for tonight, in priority order.
-  // Deliberately short and deliberately obvious: a recommendation engine that
-  // is cleverer than the player cannot be argued with, and the point of marking
-  // one is to teach what the orders are FOR, not to play the game for them.
-  function recommendedDiplo(G, actions) {
-    const can = (id) => { const a = actions.find(x => x.id === id); return a && !a.disabled; };
-    if (G.negotiationReady() && can('backchannel')) return 'backchannel';   // the war can end tonight
-    if (G.approval <= 35 && can('address')) return 'address';               // the floor is what wars are lost on
-    if (G.oil >= 150 && can('spr')) return 'spr';
-    if (G.world <= 45 && can('un')) return 'un';                            // the ramps are downstream of this
-    if (can('sanctions')) return 'sanctions';
-    return can('un') ? 'un' : null;
-  }
-
-  // Coalition-building and the two Israel orders sit in their own section, and
-  // they still spend the SAME slot as everything in DIPLOMATIC ACTIONS — this is
-  // a shelf, not a second budget. Giving them a budget was the obvious version
-  // and the wrong one: coalition is once a war, coordinating with Israel is once
-  // a war, and Jerusalem takes ISRAEL.holdMax calls, so a dedicated slot would
-  // sit unspent about twenty-five turns out of thirty wearing a READY badge over
-  // nothing — while handing the diplomatic slot a free action every turn, which
-  // is most of what makes the address/backchannel choice a choice.
+  // ============================================================
+  // THE WORLD — the diplomatic board, drawn as a readout
+  // ------------------------------------------------------------
+  // Everything in this panel moves whether or not the president touches it, and
+  // nothing in it is a button. That is the whole distinction it exists to make:
+  // one section is the situation and the next one is the single order a night
+  // that can be given against it. See the note in index.html for what the three
+  // sections this replaces were getting wrong.
   //
-  // What they actually needed was to be SEEN. israelActions draws a gauge whose
-  // whole claim is that a president should catch it filling out of the corner of
-  // an eye, and it was drawn fourth in a collapsed panel behind four unrelated
-  // orders. A section of their own has a header of its own, and the header can
-  // carry the number while shut — which is the entire reason for the split.
-  function renderAllied(G) {
-    const used = G.diploUsed;
-    const p = Math.round(G.israelPressure);
-    const eta = Game.israelEta();
-    const rate = Game.israelDrivers().reduce((n, [amt]) => n + amt, 0);
-    // Short enough for a landscape phone's panel head, and the alarm outranks
-    // the arithmetic: once they are close to launching, the turns left is the
-    // only figure worth the width. The full clock is inside, on the gauge.
-    $('allied-status').textContent =
-      G.israelPosture === 'coordinated' ? `JERUSALEM ${p}% · JOINT`
-      : G.israelPosture === 'unilateral' ? `JERUSALEM ${p}% · UNILATERAL`
-      : eta !== null && eta <= 6 ? `JERUSALEM ${p}% · FLIES IN ${turns(eta)}`
-      : `JERUSALEM ${p}% · ${signed(Math.round(rate))}/turn`;
+  // Order inside is by how fast a thing changes. Standing abroad first because
+  // it is the master variable and every basing tier hangs off it; then the three
+  // gauges, which are the live clocks; then the council roster and the southern
+  // front behind one caret, because those are reference — true for most of a
+  // war, read once, and the gauges have the better claim on a landscape phone's
+  // ~200px of scroll pane.
+  // ============================================================
 
-    const actions = [
-      {
-        id: 'coalition', name: 'Build strike coalition',
-        current: G.coalition ? 'Coalition assembled — allied sorties added.' : 'Adds allied sorties.',
-        desc: G.coalition ? '' : 'Brings allied air into the operation and spreads the political weight of it.',
-        disabled: G.coalition,
-      },
-      ...israelActions(G),
-    ];
-
-    $('allied-buttons').innerHTML = actionButtons(actions, used);
-    wireActions('#allied-buttons');
-  }
-
-  // ---- the Gulf council ----
-  // Two gauges and a seven-name roster. The roster is the part that earns its
-  // space: the gauges say how each camp feels, and only the roster says WHO is in
-  // which camp and what they are holding, which is the fact the whole mechanic
-  // turns on — the states that want the war shortest are the states with the big
-  // ramps under them. A player who never opens this panel should still be able to
-  // read "GULF 2 CAVEATS" off the shut header and know something is being spent.
-  function gulfBar(pct, tone, label) {
-    return `<div class="israel-gauge"><div class="israel-gauge-fill" ` +
+  // A gauge and what is filling it. The bar is a bar rather than a number
+  // because that is how every other pressure in this game is shown, and because
+  // the point is that a president catches it filling out of the corner of an
+  // eye. The driver list behind the caret is the same array the simulation just
+  // used, so the panel cannot describe a different war than the one being
+  // fought — and it lives HERE, on the gauge, rather than in the explainer of
+  // some order that may already be spent.
+  function gaugeRow(id, name, pct, tone, meta, drivers) {
+    const open = actOpen.has(`gauge-${id}`);
+    return `<div class="gauge-row${open ? ' open' : ''}" data-action="gauge-${id}">` +
+      `<button type="button" class="gauge-head" aria-expanded="${open}" ` +
+      `aria-label="What is moving ${name}">` +
+        `<span class="gauge-name">${name}</span>` +
+        `<span class="gauge-val" style="color:${tone}">${pct}%</span>` +
+        `<span class="why-caret">▾</span>` +
+      `</button>` +
+      `<div class="israel-gauge"><div class="israel-gauge-fill" ` +
       `style="width:${pct}%;background:${tone}"></div></div>` +
-      `<div class="israel-gauge-meta">${label}</div>`;
+      `<div class="israel-gauge-meta">${meta}</div>` +
+      `<div class="gauge-why">${gulfWhy(drivers)}</div>` +
+    `</div>`;
   }
 
+  // Same shape as wireWhy, and separate for the same reason renderCoa wires its
+  // own: the head IS the toggle here, not a caret sitting beside an order.
+  function wireGauges(sel) {
+    for (const head of document.querySelectorAll(`${sel} .gauge-head`)) {
+      head.addEventListener('click', () => {
+        const row = head.parentElement;
+        const open = !row.classList.contains('open');
+        row.classList.toggle('open', open);
+        head.setAttribute('aria-expanded', String(open));
+        if (open) actOpen.add(row.dataset.action); else actOpen.delete(row.dataset.action);
+      });
+    }
+  }
+
+  // The driver list. Biggest mover first — a zero-amount driver is a note rather
+  // than a figure (the standing-down row) and gets no signed number, because
+  // signed(0) is "−0" and a minus sign on nothing reads as a mistake.
   function gulfWhy(drivers) {
     return `<ul class="israel-why">` + drivers.slice()
       .sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]))
@@ -1672,22 +1598,72 @@ const UI = (() => {
       }).join('') + `</ul>`;
   }
 
-  // ---- the southern front, inside the council panel ----
-  // It sits here rather than in a panel of its own because the interesting fact
-  // about Ansar Allah is not Ansar Allah — it is that the government it drags
-  // into the war is the dove holding Prince Sultan. A separate panel would have
-  // read as a separate war and left the player to notice the connection.
+  // ---- standing abroad, and what it is currently holding up ----
+  // World opinion was a bare number in the bottom bar and nothing anywhere said
+  // what it BUYS. Both basing tiers are gated on it, the Gulf one against a
+  // threshold the doves walk upward, so the cliff and the distance to it are the
+  // fact a president needs — not the score.
+  function standingHtml(G) {
+    const w = Math.round(G.world);
+    const row = (name, up, at, note) =>
+      `<div class="gulf-state"><span class="gulf-state-name">${name}</span>` +
+      `<span class="gulf-state-holds" style="color:${up ? 'var(--dim)' : 'var(--red)'}">` +
+      `${up ? `holds above ${at}` : `LOST — returns above ${at}`}${note}</span></div>`;
+    const gulfAt = Game.gulfFoldThreshold('gulf');
+    const caveats = G.gulf.caveats;
+    return `<div class="gulf-camp world-standing">` +
+      `<div class="gulf-camp-head">STANDING ABROAD` +
+      `<span class="world-score${w < 30 ? ' crit' : w < 45 ? ' warn' : ''}">${w}</span></div>` +
+      row('NATO ramps', G.basing.nato, Game.gulfFoldThreshold('nato'), '') +
+      // The Gulf threshold is the only one in the game that MOVES, so it says so
+      // in the same line rather than leaving the player to notice the number is
+      // not the one in the constant.
+      row('Gulf ramps', G.basing.gulf, gulfAt,
+        caveats ? ` · ${plural(caveats, 'caveat')}` : '') +
+      `</div>`;
+  }
+
+  // ---- the council roster and the southern front, behind one caret ----
+  // The roster earns its space by being the only thing that says WHO is in which
+  // camp and what they are holding, which is the fact the whole mechanic turns
+  // on: the states that want the war shortest are the states with the big ramps
+  // under them. It is reference rather than news, so it folds.
   //
+  // The southern front is inside it rather than in a panel of its own, and that
+  // is the argument it is making: the thing that matters about Ansar Allah is
+  // what it does to Riyadh, who is a dove holding Prince Sultan. A separate
+  // panel would have read as a separate war.
+  function councilHtml(G) {
+    const open = actOpen.has('gauge-council');
+    const roster = ['hawk', 'dove'].map(camp => {
+      const label = camp === 'hawk' ? 'PRESS THE WAR' : 'END IT';
+      return `<div class="gulf-camp gulf-camp-${camp}">` +
+        `<div class="gulf-camp-head">${label}</div>` +
+        Game.gulfStates(camp).map(s =>
+          `<div class="gulf-state"><span class="gulf-state-name">${s.capital}</span>` +
+          `<span class="gulf-state-holds">${s.holds}</span></div>`).join('') +
+        `</div>`;
+    }).join('');
+    return `<div class="gauge-row council-row${open ? ' open' : ''}" data-action="gauge-council">` +
+      `<button type="button" class="gauge-head" aria-expanded="${open}" ` +
+      `aria-label="Who is in which camp, and what they are holding">` +
+        `<span class="gauge-name">THE COUNCIL</span>` +
+        `<span class="gauge-val dim">who holds what</span>` +
+        `<span class="why-caret">▾</span>` +
+      `</button>` +
+      `<div class="gauge-why">${roster}${southHtml(G)}</div>` +
+    `</div>`;
+  }
+
   // What this must NOT show is a gauge. Riyadh has a threshold, not a temper:
   // three salvos or a shut strait, both of which are things Ansar Allah does and
   // the president does not choose. Drawing it as a filling bar would invite
   // exactly the reading the mechanic is built to refuse — that bringing the RSAF
-  // in is a lever you pull.
-  function renderSouth(G) {
-    const box = $('gulf-south');
+  // in is a lever you pull. Empty in the three campaigns out of four that never
+  // open a southern front.
+  function southHtml(G) {
     const H = G.houthi;
-    if (!H || !H.entered) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-    box.classList.remove('hidden');
+    if (!H || !H.entered) return '';
 
     const y = Game.yemenTargets();
     const cond = Math.round(y.reduce((n, t) => n + t.hp, 0) / y.length);
@@ -1702,8 +1678,7 @@ const UI = (() => {
       `<div class="gulf-state"><span class="gulf-state-name">${k}</span>` +
       `<span class="gulf-state-holds"${tone ? ` style="color:${tone}"` : ''}>${v}</span></div>`;
 
-    box.innerHTML =
-      `<div class="gulf-camp gulf-camp-south">` +
+    return `<div class="gulf-camp gulf-camp-south">` +
       `<div class="gulf-camp-head">THE SOUTHERN FRONT</div>` +
       row('Ansar Allah', cond > 0 ? `${cond}% capable` : 'launch cells down',
         cond > 60 ? 'var(--red)' : cond > 0 ? 'var(--amber)' : 'var(--green)') +
@@ -1728,93 +1703,159 @@ const UI = (() => {
       }</p>`;
   }
 
-  function renderGulf(G) {
-    const used = G.diploUsed;
+  // What goes on the shut header, ranked strictly by how close a thing is to
+  // costing something: a tier that has already folded is a fact, a shut waterway
+  // is costing money tonight, a gauge about to discharge is a deadline, and the
+  // percentages are only a forecast. The three old heads each shouted their own
+  // gauge and left the player to rank them.
+  //
+  // `badge` is the same alarm at chip length, because it is what the DIPLO tab
+  // shows on a phone while this panel is shut and off-screen — and it is EMPTY
+  // when there is nothing to be alarmed about, so the tab falls through to
+  // reporting that the diplomatic slot is unspent. Nothing is worth
+  // out-shouting that on a quiet night.
+  //
+  // Every countdown here says IN, and the one badge that is a count of things
+  // does not: "CAVEAT 3" and "3 CAVEAT" are the same eight characters saying
+  // opposite things, and the second is the unpluralised counted noun Txt exists
+  // to prevent. The count says FILED, which is what a caveat is.
+  function worldMeta(G) {
+    const p = Math.round(G.israelPressure);
+    const strain = Math.round(G.gulf.strain);
+    const say = (meta, badge) => ({ meta, badge: badge || '' });
+    if (!G.basing.gulf) return say('GULF RAMPS LOST', 'GULF LOST');
+    if (!G.basing.nato) return say('NATO RAMPS LOST', 'NATO LOST');
+    if (G.mandab === 'CLOSED') return say('MANDAB SHUT', 'MANDAB SHUT');
+    if (G.israelPosture === 'unilateral') return say(`JERUSALEM ${p}% · UNILATERAL`, 'IAF ALONE');
+    const iEta = Game.israelEta();
+    if (iEta !== null && iEta <= 6) {
+      return say(`JERUSALEM ${p}% · FLIES IN ${turns(iEta)}`, `IAF IN ${iEta}`);
+    }
+    const dEta = Game.gulfEta('dove');
+    if (dEta !== null && dEta <= 4) {
+      return G.gulf.caveats >= GULF.caveatMax
+        ? say(`GULF · WITHDRAWAL IN ${turns(dEta)}`, `PULLOUT IN ${dEta}`)
+        : say(`GULF · CAVEAT IN ${turns(dEta)}`, `CAVEAT IN ${dEta}`);
+    }
+    if (G.gulf.caveats) {
+      return say(`GULF ${plural(G.gulf.caveats, 'caveat').toUpperCase()} · ` +
+        `FOLDS AT ${Game.gulfFoldThreshold('gulf')}`, `${G.gulf.caveats} FILED`);
+    }
+    // The quiet line. Two figures and not three: a landscape phone wraps this
+    // head at about thirty characters, and a wrapped head costs a row of the
+    // ~200px scroll pane to say the thing that is least worth saying.
+    return say(`WORLD ${Math.round(G.world)} · JERUSALEM ${p}%${strain >= 50 ? ` · GULF ${strain}%` : ''}`);
+  }
+
+  function renderWorld(G) {
+    const head = worldMeta(G);
+    $('world-status').textContent = head.meta;
+    setBadge('world', head.badge, head.badge ? 'badge-warn' : '');
+
+    const p = Math.round(G.israelPressure);
+    const rate = Game.israelDrivers().reduce((n, [amt]) => n + amt, 0);
+    const posture = G.israelPosture;
+    // The fill's COLOUR carries the posture — amber sidelined, red about to
+    // launch, blue flying with us — which is why it is not keyed off the
+    // percentage alone.
+    const iTone = posture === 'coordinated' ? 'var(--blue)' : p >= 75 ? 'var(--red)' : 'var(--amber)';
+
     const resolve = Math.round(G.gulf.resolve);
     const strain = Math.round(G.gulf.strain);
     const caveats = G.gulf.caveats;
+    const hEta = Game.gulfEta('hawk');
+    const dEta = Game.gulfEta('dove');
 
-    // The shut header carries the thing that is being spent. Caveats outrank the
-    // gauges once there are any: a threshold that has moved is a fact, and a
-    // gauge is only a forecast.
-    // Inflect, THEN shout. Txt appends the suffix to the last word as typed, so
-    // plural(2, 'CAVEAT') is "2 CAVEATs" — the same class of bug Txt exists to
-    // prevent, arrived at from the other side. Every counted noun in this panel
-    // is built lowercase and uppercased afterwards for that reason.
-    // A shut southern strait outranks both, and it is the only thing from the
-    // southern front that reaches this header. It is here rather than in the
-    // panel alone because a waterway closing is the one fact on this front that
-    // is costing money tonight, and the header is what a player who never opens
-    // the panel actually reads.
-    $('gulf-status').textContent = G.mandab === 'CLOSED'
-      ? `GULF · MANDAB SHUT · ${caveats ? plural(caveats, 'caveat').toUpperCase() : `${strain}% STRAIN`}`
-      : caveats
-        ? `GULF ${plural(caveats, 'caveat').toUpperCase()} · FOLDS AT ${Game.gulfFoldThreshold('gulf')}`
-        : `GULF ${strain}% STRAIN · ${resolve}% RESOLVE`;
+    $('world-standing').innerHTML = standingHtml(G);
+    $('world-gauges').innerHTML =
+      gaugeRow('israel', 'JERUSALEM', p, iTone,
+        `${posture.toUpperCase()} · ${signed(Math.round(rate))}/turn · ${Game.israelClock()}`,
+        Game.israelDrivers()) +
+      // The hawk bar is the one gauge in the game where FULL is good news, so it
+      // runs blue-to-green rather than amber-to-red. A president who has learned
+      // that a filling bar is a warning has to be able to see at a glance that
+      // this one is not.
+      gaugeRow('hawks', 'GULF HAWKS', resolve, resolve >= 75 ? 'var(--green)' : 'var(--blue)',
+        `PRESS THE WAR · ${hEta === null ? 'FLAT' : `COMMITS IN ${turns(hEta)}`}`,
+        Game.gulfHawkDrivers()) +
+      gaugeRow('doves', 'GULF DOVES', strain, strain >= 75 ? 'var(--red)' : 'var(--amber)',
+        `END IT` +
+        (caveats ? ` · ${plural(caveats, 'caveat').toUpperCase()} FILED` : '') +
+        (dEta === null ? ' · HOLDING'
+          : caveats >= GULF.caveatMax ? ` · WITHDRAWAL IN ${turns(dEta)}`
+          : ` · NEXT CAVEAT ${turns(dEta)}`),
+        Game.gulfDoveDrivers());
+    $('world-council').innerHTML = councilHtml(G);
+    wireGauges('#world-panel');
 
-    // The roster. Camp, capital, and what each government is actually holding —
-    // which is the sentence that makes the split legible in one read.
-    $('gulf-roster').innerHTML = ['hawk', 'dove'].map(camp => {
-      const label = camp === 'hawk' ? 'PRESS THE WAR' : 'END IT';
-      return `<div class="gulf-camp gulf-camp-${camp}">` +
-        `<div class="gulf-camp-head">${label}</div>` +
-        Game.gulfStates(camp).map(s =>
-          `<div class="gulf-state"><span class="gulf-state-name">${s.capital}</span>` +
-          `<span class="gulf-state-holds">${s.holds}</span></div>`).join('') +
-        `</div>`;
-    }).join('');
+    // the plot carries the same split, so the panel and the map cannot disagree
+    MapView.setGulfMood(gulfMood(G));
+  }
 
-    renderSouth(G);
+  // ============================================================
+  // DIPLOMATIC ACTIONS — eleven orders, one slot
+  // ------------------------------------------------------------
+  // Grouped by what an order DOES rather than who it is given to, because
+  // "which counterpart is this" was not a rule a player could learn: addressing
+  // the nation and drawing the SPR are domestic politics and the pump price, and
+  // they were filed under diplomacy because that section was really "everything
+  // not military".
+  //
+  // They all still spend the same single slot — this is a shelf, not four
+  // budgets. Giving any of them a budget of its own is the obvious version and
+  // the wrong one: coalition is once a war, coordinating with Israel is once a
+  // war, and Jerusalem takes ISRAEL.holdMax calls, so a dedicated slot would sit
+  // unspent about twenty-five turns out of thirty wearing a READY badge over
+  // nothing — while handing the diplomatic slot a free action every turn, which
+  // is most of what makes the address/backchannel choice a choice.
+  // ============================================================
+  const DIPLO_GROUPS = [
+    { label: 'HOLD THE COALITION TOGETHER', ids: ['restrain', 'gcc', 'un'] },
+    { label: 'TRADE STANDING FOR CAPABILITY', ids: ['israel', 'coalition', 'patriots', 'corridor'] },
+    { label: 'AT HOME AND AT THE PUMP', ids: ['address', 'spr'] },
+    { label: 'END THE WAR', ids: ['sanctions', 'backchannel'] },
+  ];
 
+  // The Gulf council's three orders. The gauges they used to carry as `extra`
+  // are in THE WORLD — same reason as Jerusalem's, and worse here, because both
+  // of these levers run out (two summits, two batteries) while the camps go on
+  // filling for the rest of the campaign.
+  function gulfActions(G) {
     const summit = Game.gulfSummitCost();
-    const strainEta = Game.gulfEta('dove');
-    const resolveEta = Game.gulfEta('hawk');
+    const resolve = Math.round(G.gulf.resolve);
     const spend = Math.round(Game.bmdCapacity() * GULF.patriotBmd);
-
-    const actions = [
+    return [
       {
         id: 'gcc', name: 'GCC summit — hold the council together',
+        moves: 'GULF DOVES',
         current: summit.left <= 0
           ? 'The council will meet without you now.'
           : `Strain ${signed(-summit.relief)}, approval ${signed(-summit.approval)}. ${plural(summit.left, 'summit')} left.`,
-        extra: gulfBar(strain, strain >= 75 ? 'var(--red)' : 'var(--amber)',
-          `RIYADH · DOHA · MUSCAT ${strain}%` +
-          (caveats ? ` · ${plural(caveats, 'caveat').toUpperCase()} FILED` : '') +
-          (strainEta === null ? ' · HOLDING'
-            : caveats >= GULF.caveatMax ? ' · NEXT IS THE WITHDRAWAL'
-            : ` · NEXT CAVEAT ${turns(strainEta)}`)),
-        desc: (summit.left <= 0 ? '' :
+        desc: summit.left <= 0 ? '' :
           'Buys down the pressure for an American end state. Billed at home rather than abroad, and ' +
           'depreciating — the second reassurance is worth less than the first and both sides know it. ' +
           'What the doves file when this fills is a caveat, not a walkout: one tanker track tonight, and ' +
           'the threshold the whole Gulf tier folds at walks up toward wherever standing abroad is ' +
-          `standing. It is at ${Game.gulfFoldThreshold('gulf')} now. What is filling it:`) +
-          gulfWhy(Game.gulfDoveDrivers()),
+          `standing. It is at ${Game.gulfFoldThreshold('gulf')} now.`,
         disabled: summit.left <= 0,
       },
       {
         id: 'patriots', name: 'Patriots forward — Manama and Abu Dhabi',
+        moves: 'GULF HAWKS',
         current: G.gulf.patriots >= GULF.patriotMax
           ? 'Both batteries are already released.'
           : G.bmdPool < spend
             ? 'Not enough left in the cells to release any.'
             : `Resolve +${GULF.patriotResolve}, ${plural(spend, 'interceptor')} off the screen.`,
-        // The hawk bar is the one gauge in the game where FULL is good news, so
-        // it runs blue-to-green rather than amber-to-red. A president who has
-        // learned that a filling bar is a warning has to be able to see at a
-        // glance that this one is not.
-        extra: gulfBar(resolve, resolve >= 75 ? 'var(--green)' : 'var(--blue)',
-          `KUWAIT · MANAMA · ABU DHABI · AMMAN ${resolve}%` +
-          (resolveEta === null ? ' · FLAT' : ` · COMMITS IN ${turns(resolveEta)}`)),
         desc: 'Priced in the fleet\'s own magazine, because that is the honest bill — there is one ' +
           'interceptor stock in the theater and putting it over the hosts is taking it off Al Udeid and ' +
-          'Al Dhafra. Every time this gauge fills the hawks pay: a tanker track, then interceptors, then ' +
-          'squadrons, then rounds every time after. What is filling it:' +
-          gulfWhy(Game.gulfHawkDrivers()),
+          'Al Dhafra. Every time the hawks\' gauge fills they pay: a tanker track, then interceptors, then ' +
+          'squadrons, then rounds every time after.',
         disabled: G.gulf.patriots >= GULF.patriotMax || G.bmdPool < spend,
       },
       {
         id: 'corridor', name: 'Northern corridor — Amman and Kuwait City',
+        moves: 'GULF HAWKS',
         current: G.gulf.corridor
           ? 'Corridor guaranteed. Deep reach survives the council.'
           : resolve < GULF.corridorAt
@@ -1829,11 +1870,119 @@ const UI = (() => {
         disabled: G.gulf.corridor || resolve < GULF.corridorAt,
       },
     ];
+  }
 
-    $('gulf-buttons').innerHTML = actionButtons(actions, used);
-    wireActions('#gulf-buttons');
-    // the plot carries the same split, so the panel and the map cannot disagree
-    MapView.setGulfMood(gulfMood(G));
+  function renderDiplo(G) {
+    const used = G.diploUsed;
+    // The slot, not a count of the shelf. Both of these are what the player is
+    // actually choosing between — one order, out of everything below.
+    $('diplo-status').textContent = used ? '— ORDER GIVEN' : '';
+    setBadge('diplo', used ? 'ORDER GIVEN' : '1 ORDER', used ? 'badge-none' : '');
+
+    const negReady = G.negotiationReady();
+    // `current` is what the player needs to choose — the odds, the price, the
+    // countdown. `desc` is what the instrument is. Anything with a number in it
+    // that the player is spending belongs above the fold.
+    const actions = [
+      {
+        id: 'backchannel', name: 'Omani backchannel',
+        current: negReady
+          ? 'Tehran is breaking — a deal is possible.'
+          : 'Tehran will not talk while it can still fight.',
+        desc: negReady
+          ? 'Far from certain, but this is the moment an overture can land. Attempt to bring them to the table.'
+          : 'An overture now will be rebuffed and read as weakness at home.',
+      },
+      {
+        id: 'un', name: 'UN Security Council push',
+        moves: 'STANDING ABROAD',
+        current: 'World opinion +.',
+        desc: 'Rally international support and diplomatic cover. Standing abroad is what both basing tiers ' +
+          'are gated on, so this is the order that buys back a ramp.',
+      },
+      {
+        id: 'sanctions', name: 'Snap-back sanctions package',
+        current: 'Negotiation leverage +, small oil cost.',
+        desc: 'Tighten the economic screws. Leverage is what a backchannel spends when the time comes.',
+      },
+      {
+        id: 'spr', name: 'Release the Strategic Reserve',
+        current: G.sprReleases >= 2
+          ? 'Tanks too low for another release of scale.'
+          : `Oil ${G.sprReleases === 0 ? '−$20' : '−$12'}, approval +2. ${plural(2 - G.sprReleases, 'release')} left.`,
+        desc: G.sprReleases >= 2 ? '' : 'A coordinated draw on the Strategic Petroleum Reserve to push the pump price down.',
+        disabled: G.sprReleases >= 2,
+      },
+      {
+        id: 'address', name: 'Address the nation',
+        current: G.addressCooldown > 0
+          ? `Available in ${turns(G.addressCooldown)}.`
+          : `Approval +6. ${plural(G.addresses, 'address')} so far.`,
+        desc: G.addressCooldown > 0 ? '' :
+          'Rally the public — and the count is read out when the War Powers vote comes up.',
+        disabled: G.addressCooldown > 0,
+      },
+      {
+        id: 'coalition', name: 'Build strike coalition',
+        current: G.coalition ? 'Coalition assembled — allied sorties added.' : 'Adds allied sorties.',
+        desc: G.coalition ? '' : 'Brings allied air into the operation and spreads the political weight of it.',
+        disabled: G.coalition,
+      },
+      ...israelActions(G),
+      ...gulfActions(G),
+    ];
+
+    // ...and on easy, the staff says which one. It is a MARK on an order the
+    // president was always able to give, not a fourth kind of button and not a
+    // shortcut that takes it: "diplomacy recommended" is the same bargain the
+    // courses of action make on the military side, and the president still has
+    // to agree. Only on easy — the advisors already argue for all of these at
+    // length, and a star beside one of them on normal would be the room having
+    // the argument twice and then settling it for you.
+    if (Game.difficulty().recommend && !used) {
+      const rec = recommendedDiplo(G, actions);
+      const hit = actions.find(a => a.id === rec);
+      if (hit) hit.mark = 'STAFF RECOMMENDS';
+    }
+
+    // Grouped, and a group with nothing live in it is absent rather than empty —
+    // "Ask Jerusalem to hold" only exists while they are sidelined, so HOLD THE
+    // COALITION TOGETHER is two rows for most of a war and one if the summits
+    // are also gone.
+    const byId = new Map(actions.map(a => [a.id, a]));
+    $('diplo-buttons').innerHTML = DIPLO_GROUPS.map(g => {
+      const rows = g.ids.map(id => byId.get(id)).filter(Boolean);
+      return rows.length
+        ? `<div class="diplo-group">${g.label}</div>${actionButtons(rows, used)}`
+        : '';
+    }).join('');
+    wireActions('#diplo-buttons');
+  }
+
+  // Which diplomatic order the room would press for tonight, in priority order.
+  // Deliberately short and deliberately obvious: a recommendation engine that
+  // is cleverer than the player cannot be argued with, and the point of marking
+  // one is to teach what the orders are FOR, not to play the game for them.
+  //
+  // Which is why nothing here recommends coordinating with Israel, releasing the
+  // Patriots or buying the corridor. Those three spend a relationship for a
+  // capability and cannot be un-spent; a star beside one is the staff making the
+  // strategic call rather than teaching what the button is. What it will name is
+  // a gauge about to discharge, a floor about to be hit, and the two orders that
+  // are simply free money the first time they are given.
+  function recommendedDiplo(G, actions) {
+    const can = (id) => { const a = actions.find(x => x.id === id); return a && !a.disabled; };
+    if (G.negotiationReady() && can('backchannel')) return 'backchannel';   // the war can end tonight
+    const iEta = Game.israelEta();
+    if (iEta !== null && iEta <= 3 && can('restrain')) return 'restrain';   // a deadline outranks a trend
+    if (G.approval <= 35 && can('address')) return 'address';               // the floor is what wars are lost on
+    const dEta = Game.gulfEta('dove');
+    if (dEta !== null && dEta <= 3 && can('gcc')) return 'gcc';
+    if (G.oil >= 150 && can('spr')) return 'spr';
+    if (G.world <= 45 && can('un')) return 'un';                            // the ramps are downstream of this
+    if (can('coalition')) return 'coalition';
+    if (can('sanctions')) return 'sanctions';
+    return can('un') ? 'un' : null;
   }
 
   // What each of the seven countries is coloured on the strategic plot. One
@@ -1889,6 +2038,11 @@ const UI = (() => {
         `<span class="action-name">${a.name}` +
         (a.mark ? `<span class="rec-chip">${a.mark}</span>` : '') + `</span>` +
         (a.current ? `<span class="il-current">${a.current}</span>` : '') +
+        // `moves` names the gauge in THE WORLD this order pushes on. It is the
+        // connective tissue that went missing when the gauges stopped living on
+        // the order rows: without it a president reads eleven unrelated buttons
+        // above a board of three bars and has to infer which touches which.
+        (a.moves ? `<span class="il-moves">MOVES ${a.moves}</span>` : '') +
         `</button>` +
         (a.desc
           ? `<button type="button" class="action-why" aria-expanded="${open}" ` +
@@ -2102,9 +2256,8 @@ const UI = (() => {
     renderResources(G);
     renderFleet(G);
     renderAdvisors(G);
+    renderWorld(G);        // the board, then the one order against it
     renderDiplo(G);
-    renderAllied(G);
-    renderGulf(G);
     renderIntel(G);
     SpecOps.renderPanel(G);
     renderBadges();

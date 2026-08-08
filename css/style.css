@@ -351,6 +351,11 @@ button { font-family: var(--mono); }
 }
 .panel-badge:empty { display: none; }
 .panel-badge.badge-none { color: var(--dim); border-color: var(--line); }
+/* THE WORLD's badge is not a count of anything ready — it is a gauge about to
+   discharge, so it reads as the warning it is rather than as an order waiting
+   to be given. Empty on a quiet night, which is what lets the DIPLO tab fall
+   back to reporting the unspent slot. */
+.panel-badge.badge-warn { color: var(--red); border-color: var(--red); }
 .panel-meta {
   grid-column: 2 / 4; font-size: 10px; letter-spacing: 1px; color: var(--dim);
   text-transform: uppercase; margin-top: 3px;
@@ -456,12 +461,13 @@ button { font-family: var(--mono); }
 
    Matched by SHAPE, not by a list of ids. Every order container in the sidebar
    is `<div id="…-buttons">` inside #sidebar-scroll, and the list-of-ids version
-   of these rules is what shipped ALLIES unstyled: splitting Jerusalem out of
-   DIPLOMATIC ACTIONS added a seventh container and five separate selector lists
-   would each have had to learn about it, so #allied-buttons fell through to the
-   browser's native button — white, centred, in the middle of a black-and-amber
-   war room. #session-buttons is deliberately outside #sidebar-scroll and keeps
-   its own styling. A new panel now inherits all of this for free. */
+   of these rules is what once shipped a whole panel unstyled: splitting
+   Jerusalem out of DIPLOMATIC ACTIONS added a seventh container, five separate
+   selector lists would each have had to learn about it, and the new container
+   fell through to the browser's native button — white, centred, in the middle
+   of a black-and-amber war room. (That panel has since been merged back in, but
+   the rule is why a new one cannot repeat it.) #session-buttons is deliberately
+   outside #sidebar-scroll and keeps its own styling. */
 #sidebar-scroll [id$="-buttons"] {
   display: flex; flex-direction: column; gap: 6px;
 }
@@ -577,6 +583,75 @@ button { font-family: var(--mono); }
 .israel-why { margin: 5px 0 0; padding-left: 15px; }
 .israel-why li { margin: 1px 0; }
 .action.off .action-extra { opacity: 0.6; }
+
+/* ---- THE WORLD: the board, drawn as a readout ----
+   A gauge row is a disclosure, not an order: the head IS the toggle, and there
+   is no .action-do beside it to fire anything. It reuses the track and fill
+   above rather than inventing a second visual language for the same idea —
+   what is new here is only that the gauge now carries its own name, its own
+   value and its own "why", because it no longer hangs off an order row that
+   was providing all three. */
+.gauge-row { border: 1px solid var(--line); background: var(--bg-panel2); padding: 6px 8px 7px; }
+/* The three gauges and the council fold are one stack across three containers,
+   so the joins are collapsed by container as well as by sibling — otherwise the
+   seam between #world-gauges and #world-council draws a double rule. */
+.gauge-row + .gauge-row, #world-council .gauge-row { border-top: 0; }
+#world-gauges { margin-top: 8px; }
+.gauge-head {
+  display: flex; align-items: baseline; gap: 6px; width: 100%;
+  background: none; border: 0; padding: 0 0 5px; cursor: pointer;
+  font-family: var(--mono); color: var(--text);
+}
+.gauge-name { font-size: 9.5px; letter-spacing: 1.5px; }
+.gauge-val { margin-left: auto; font-size: 11px; font-weight: 700; }
+.gauge-val.dim { color: var(--dim); font-weight: 400; font-size: 9px; letter-spacing: 1px; }
+/* Same caret as an order's explainer, and the same rotation — .why-caret sets
+   the closed state, so all this adds is the open one. A player who has learned
+   one disclosure in this sidebar has learned all of them. */
+.gauge-head .why-caret { font-size: 9px; color: var(--dim); line-height: 1; }
+.gauge-row.open .why-caret { transform: none; }
+.gauge-head:hover .gauge-name, .gauge-head:hover .why-caret { color: var(--blue); }
+.gauge-why { display: none; }
+.gauge-row.open .gauge-why { display: block; }
+.gauge-row.open .gauge-why .israel-why { font-size: 10px; color: var(--dim); }
+/* The council fold has no bar between its head and its contents, so the roster
+   would otherwise start hard against the caret. */
+.council-row.open .gauge-why { padding-top: 7px; }
+.council-row .gulf-camp:last-child { margin-bottom: 0; }
+.council-row .gulf-south-note { margin-bottom: 0; }
+
+/* Standing abroad. The score is the master variable — both basing tiers are
+   gated on it — and it was a bare number in the bottom bar with nothing
+   anywhere saying what it buys. It borrows the HUD's own crit/warn colours so
+   the two readings of the same figure cannot look like different figures. */
+.world-standing { padding-bottom: 2px; }
+.world-standing .gulf-camp-head {
+  display: flex; align-items: baseline; color: var(--dim);
+}
+.world-score {
+  margin-left: auto; font-size: 12px; font-weight: 700;
+  letter-spacing: 0; color: var(--text);
+}
+.world-score.warn { color: var(--amber); }
+.world-score.crit { color: var(--red); }
+
+/* The four headings inside DIPLOMATIC ACTIONS. Grouped by what an order DOES,
+   because "which counterpart is this" was not a rule a player could learn —
+   see the note above renderDiplo. They wrap rather than ellipsise: a heading
+   is not a value, and a landscape phone's sidebar is 230px. */
+.diplo-group {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: 1.5px;
+  color: var(--dim); border-bottom: 1px solid var(--line);
+  padding-bottom: 3px; margin-top: 3px;
+}
+.diplo-group:first-child { margin-top: 0; }
+/* Which gauge in THE WORLD this order pushes on. Deliberately quieter than the
+   consequence line above it: it is a pointer, not a price. */
+.il-moves {
+  display: block; margin-top: 3px;
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: 1px; color: var(--blue);
+}
+.action.off .il-moves { color: var(--dim); }
 
 /* The Gulf roster. Two blocks, seven names, and what each government is holding
    — the fact the whole mechanic turns on, which is that the camp wanting the

@@ -4076,8 +4076,8 @@ const Game = (() => {
       // ---- the Gulf council ----
       // Three orders, all on the diplomatic slot, and each one buys from a
       // different camp at a price that camp can actually charge. Deliberately
-      // NOT a second budget: the argument at the top of renderAllied applies
-      // here word for word, and there is less to spend it on than Jerusalem has.
+      // NOT a second budget — see the DIPLOMATIC ACTIONS note above renderDiplo
+      // in ui.js, which applies here word for word.
 
       // The dove-facing lever, billed at home for the same reason asking
       // Jerusalem to hold is — a week of the president reassuring Gulf monarchies
