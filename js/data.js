@@ -299,11 +299,13 @@ const TARGETS = [
       { asset: 'f35', qty: 2, base: 0.85, label: 'F-35 maritime strike — 2 sorties' },
       { asset: 'fighter', qty: 2, base: 0.80, label: 'Air strike — 2 F/A-18E sorties' },
       { asset: 'cruise', qty: 2, base: 0.84, label: 'TLAM salvo — 2 cruise missiles' },
-      // The cheapest shot in the game and the slowest: one weapon out of the
-      // boat's own tubes, no aircrew, nothing on anyone's radar — but she has to
-      // close inside torpedo range submerged first.
-      { asset: 'cruise', qty: 1, base: 0.88, eta: 2, sub: true,
-        label: 'SUBMARINE ATTACK — 1 Mk-48 ADCAP heavyweight torpedo (2 turns to close the range)' },
+      // The cheapest shot in the game: one weapon out of the boat's own tubes,
+      // no aircrew, nothing on anyone's radar, nothing off the theater magazine.
+      // She is already trailing the hull, so she shoots tonight like everyone
+      // else — the transit turn was a price the player paid for a shot they had
+      // no other reason not to take, which made it a tax rather than a tradeoff.
+      { asset: 'cruise', qty: 1, base: 0.88, sub: true,
+        label: 'SUBMARINE ATTACK — 1 Mk-48 ADCAP heavyweight torpedo' },
     ],
   },
   {
@@ -691,8 +693,8 @@ const TARGETS = [
       { asset: 'f35', qty: 2, base: 0.86, label: 'F-35 maritime strike — 2 sorties' },
       { asset: 'fighter', qty: 2, base: 0.81, label: 'Air strike — 2 F/A-18E sorties' },
       { asset: 'cruise', qty: 2, base: 0.83, label: 'TLAM salvo — 2 cruise missiles' },
-      { asset: 'cruise', qty: 1, base: 0.88, eta: 2, sub: true,
-        label: 'SUBMARINE ATTACK — 1 Mk-48 ADCAP heavyweight torpedo (2 turns to close the range)' },
+      { asset: 'cruise', qty: 1, base: 0.88, sub: true,
+        label: 'SUBMARINE ATTACK — 1 Mk-48 ADCAP heavyweight torpedo' },
     ],
   },
   {
@@ -708,8 +710,8 @@ const TARGETS = [
       // Deliberately the inverse of every other ship on the list: the aircraft
       // are the bad option and the boat is the good one. A player who has kept
       // Toledo unspent has an answer here that nobody else does.
-      { asset: 'cruise', qty: 1, base: 0.86, eta: 2, sub: true,
-        label: 'SUBMARINE ATTACK — 1 Mk-48 ADCAP heavyweight torpedo (2 turns to close the range)' },
+      { asset: 'cruise', qty: 1, base: 0.86, sub: true,
+        label: 'SUBMARINE ATTACK — 1 Mk-48 ADCAP heavyweight torpedo' },
       { asset: 'f35', qty: 2, base: 0.44, label: 'ASW sweep — 2 F-35 sorties (she will be deep)' },
       { asset: 'fighter', qty: 2, base: 0.40, label: 'ASW sweep — 2 F/A-18E sorties (she will be deep)' },
     ],

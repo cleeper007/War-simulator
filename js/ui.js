@@ -2372,7 +2372,6 @@ const UI = (() => {
     // they are tasked (see MISSION_ETA in game.js)
     const eta = pkg.eta || (pkg.asset === 'stealth' ? 2 : 1);
     const totWhy = pkg.joint ? 'joint mission planning and transit'
-      : pkg.sub ? 'the boat has to close the range submerged before she shoots'
       : 'transit from Diego Garcia';
     const tot = eta > 1
       ? `TIME ON TARGET: <span class="est-warn">${eta} turns — ${totWhy}</span>`

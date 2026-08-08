@@ -3000,6 +3000,12 @@ const Game = (() => {
   // re-serviced by fighters, and the reward for winning air superiority read as
   // a delay. Same-turn TOT makes the heavies what phase three is supposed to
   // feel like — you say flatten it, and tonight it is flat.
+  //
+  // v1.79: the submarine shot came off its own two-turn clock for the same
+  // reason. Toledo is already trailing the hull; the transit was the only price
+  // attached to a weapon that spends no magazine, no fuel and no aircrew, and a
+  // price with nothing on the other side of it is a tax. The B-2 is now the
+  // only package in the game that costs a turn.
   const MISSION_ETA = { f35: 1, fighter: 1, cruise: 1, stealth: 2, heavy: 1 };
 
   // `coaId` is set only when the package is a leg of a staffed course of action

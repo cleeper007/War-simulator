@@ -2178,8 +2178,8 @@ const MapView = (() => {
     CM_END: 0.93,     // and this is where the weapon is back on the hull
   };
 
-  // yards, at the moment of firing. Nowhere near the map plot: the boat spent
-  // two turns closing, and this is what she closed to.
+  // yards, at the moment of firing. Nowhere near the map plot: the boat has
+  // been trailing the hull, and this is the range she shoots from.
   const TORP_RANGE = () => 9200 + Math.round(Math.random() * 4200);
 
   const PHASES_SUB = [
